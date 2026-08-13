@@ -6,6 +6,7 @@ import com.pronavicola.camion.data.modbus.ModbusClient
 import com.pronavicola.camion.data.modbus.SimulatedModbusClient
 import com.pronavicola.camion.data.repository.AuthRepository
 import com.pronavicola.camion.data.repository.ParametrosRepository
+import com.pronavicola.camion.data.repository.RegistrosRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 
@@ -22,4 +23,9 @@ class CamionApplication : Application() {
     val parametrosRepository: ParametrosRepository by lazy {
         ParametrosRepository(database.parametroDao(), modbusClient)
     }
+
+    val registrosRepository: RegistrosRepository by lazy {
+        RegistrosRepository(database.variableRegistroDao())
+    }
 }
+

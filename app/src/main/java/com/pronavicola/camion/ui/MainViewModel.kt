@@ -5,15 +5,18 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.pronavicola.camion.CamionApplication
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
+import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.data.modbus.ModbusClient
 import com.pronavicola.camion.data.modbus.toProcesoEstado
 import com.pronavicola.camion.data.repository.AuthRepository
 import com.pronavicola.camion.data.repository.AuthResult
 import com.pronavicola.camion.data.repository.ParametrosRepository
+import com.pronavicola.camion.data.repository.RegistrosRepository
 import com.pronavicola.camion.domain.model.AppDestination
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ParametroUiModel
 import com.pronavicola.camion.domain.model.SessionUser
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,16 +24,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.time.Duration.Companion.milliseconds
 
 data class MainUiState(
     val currentUser: SessionUser? = null,
     val availableUsers: List<UsuarioEntity> = emptyList(),
     val hmiState: HmiState = HmiState(),
     val parametros: List<ParametroUiModel> = emptyList(),
+    val registros: List<VariableRegistroEntity> = emptyList(),
     val statusMessage: String? = null,
     val loginPassword: String = "",
     val newPassword: String = "",
@@ -41,6 +50,7 @@ data class MainUiState(
 class MainViewModel(
     private val authRepository: AuthRepository,
     private val parametrosRepository: ParametrosRepository,
+    private val registrosRepository: RegistrosRepository,
     private val modbusClient: ModbusClient,
 ) : ViewModel() {
 
@@ -62,6 +72,7 @@ class MainViewModel(
             val user = authRepository.loadDefaultUser()
             _uiState.update { it.copy(currentUser = user, selectedUserId = user.idUsuario) }
             modbusClient.connect()
+            modbusClient.iniciarProceso() // Auto-start simulation/process
         }
 
         viewModelScope.launch {
@@ -80,7 +91,7 @@ class MainViewModel(
                 modbusClient.procesoActivo,
                 modbusClient.zonas,
                 modbusClient.bombaAgua,
-                _uiState.map { it.currentUser?.idVehiculo ?: "CAM01" }.distinctUntilChanged(),
+                _uiState.map { it.currentUser?.idVehiculo ?: "AAA000" }.distinctUntilChanged(),
             ) { values ->
                 val connected = values[0] as Boolean
                 val t1 = values[1] as Double?
@@ -133,6 +144,43 @@ class MainViewModel(
                         _uiState.update { it.copy(parametros = enriched) }
                     }
                 }
+        }
+
+        viewModelScope.launch {
+            _uiState
+                .map { it.currentUser }
+                .distinctUntilChanged()
+                .collectLatest { user ->
+                    if (user == null) {
+                        _uiState.update { it.copy(registros = emptyList()) }
+                        return@collectLatest
+                    }
+                    registrosRepository.observeRegistros(user).collect { records ->
+                        _uiState.update { it.copy(registros = records) }
+                    }
+                }
+        }
+
+        // Periodic data recording
+        viewModelScope.launch {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+            while (true) {
+                val state = _uiState.value
+                val user = state.currentUser
+                val hmi = state.hmiState
+                
+                if (user != null && hmi.procesoEstado == com.pronavicola.camion.domain.model.ProcesoEstado.ACTIVO) {
+                    val registro = VariableRegistroEntity(
+                        idVehiculo = user.idVehiculo ?: "AAA000",
+                        fecha = dateFormat.format(Date()),
+                        temperatura1 = hmi.temperatura1 ?: 0.0,
+                        temperatura2 = hmi.temperatura2 ?: 0.0,
+                        humedad = hmi.humedad ?: 0.0,
+                    )
+                    registrosRepository.saveRegistro(registro)
+                }
+                delay(30000.milliseconds) // Record every 30 seconds
+            }
         }
     }
 
@@ -240,7 +288,13 @@ class MainViewModel(
     class Factory(private val app: CamionApplication) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return MainViewModel(app.authRepository, app.parametrosRepository, app.modbusClient) as T
+            return MainViewModel(
+                app.authRepository,
+                app.parametrosRepository,
+                app.registrosRepository,
+                app.modbusClient,
+            ) as T
         }
     }
 }
+

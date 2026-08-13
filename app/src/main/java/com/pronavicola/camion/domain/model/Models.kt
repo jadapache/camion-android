@@ -47,6 +47,8 @@ data class HmiHistoryPoint(
 
 enum class AppDestination(val route: String, val label: String, val accessLevel: Int) {
     HMI("hmi", "CAMION", 4),
+    REGISTROS("registros", "REGISTROS", 4),
     PARAMETROS("parametros", "PARAM", 4),
     CONFIG("config", "CONFIG", 4),
 }
+

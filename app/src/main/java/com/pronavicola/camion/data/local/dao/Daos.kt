@@ -6,6 +6,7 @@ import androidx.room.Update
 import com.pronavicola.camion.data.local.entity.ParametroEntity
 import com.pronavicola.camion.data.local.entity.PerfilEntity
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
+import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import kotlinx.coroutines.flow.Flow
 
 data class ParametroConUnidad(
@@ -79,3 +80,13 @@ interface ParametroDao {
     )
     suspend fun getById(idVehiculo: String, idParametro: Int): ParametroEntity?
 }
+
+@Dao
+interface VariableRegistroDao {
+    @Query("SELECT * FROM VariableRegistros WHERE IdVehiculo = :idVehiculo ORDER BY Fecha DESC")
+    fun observeRegistros(idVehiculo: String): Flow<List<VariableRegistroEntity>>
+
+    @androidx.room.Insert
+    suspend fun insert(registro: VariableRegistroEntity)
+}
+

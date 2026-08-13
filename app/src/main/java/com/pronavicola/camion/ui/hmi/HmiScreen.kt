@@ -36,49 +36,27 @@ fun HmiScreen(
     state: HmiState,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(CamionColors.panelBackground)
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Top Info Bar
-        InfoBar(
-            state = state,
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Main HMI Area - Filling the whole container
+        TruckHmiLayout(state = state)
 
-        // Main HMI Area
-        Box(
+        // Hovering Info Card (Top Left)
+        Card(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(Color(0xFF4A6572).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                .padding(16.dp)
+                .align(Alignment.TopStart),
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
+            shape = RoundedCornerShape(4.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            TruckHmiLayout(state = state)
-        }
-    }
-}
-
-@Composable
-private fun InfoBar(
-    state: HmiState,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(horizontalAlignment = Alignment.Start) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     text = state.idVehiculo,
                     fontWeight = FontWeight.ExtraBold,
@@ -87,24 +65,24 @@ private fun InfoBar(
                 )
                 ConnectionBadge(conectado = state.conectado)
             }
+        }
 
-            Box(
-                modifier = Modifier
-                    .width(200.dp)
-                    .background(Color(0xFFE0E0E0), RoundedCornerShape(2.dp))
-                    .border(1.dp, Color.Gray, RoundedCornerShape(2.dp))
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "REGISTRO AUTOMÁTICO",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = Color.DarkGray
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(40.dp))
+        // Hovering Status Card (Top Center)
+        Card(
+            modifier = Modifier
+                .padding(16.dp)
+                .align(Alignment.TopCenter),
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
+            shape = RoundedCornerShape(4.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Text(
+                text = "REGISTRO AUTOMÁTICO",
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = Color.DarkGray
+            )
         }
     }
 }
@@ -115,15 +93,15 @@ private fun TruckHmiLayout(state: HmiState) {
         val w = this.maxWidth
         val h = this.maxHeight
 
-        // SVG Truck Image - Using FillBounds to make it larger and fill the space
+        // SVG Truck Image - Using FillBounds to fill the entire space
         Image(
             painter = painterResource(id = R.drawable.ic_truck_silhouette),
             contentDescription = "Truck",
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillWidth
+            contentScale = ContentScale.FillBounds
         )
 
-        // Adjusting positions slightly for FillBounds
+        // Overlay Components
         
         // ZONA 6 (Top Right)
         ZoneIndicator(
@@ -166,7 +144,7 @@ private fun TruckHmiLayout(state: HmiState) {
             modifier = Modifier.offset(x = w * 0.30f, y = h * 0.60f)
         )
 
-        // Main Chart and Sensor Data Area
+        // Main Chart Area
         Column(
             modifier = Modifier
                 .offset(x = w * 0.44f, y = h * 0.24f)

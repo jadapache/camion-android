@@ -104,3 +104,14 @@ data class VariableEntity(
     @ColumnInfo(name = "Maximo") val maximo: Double?,
     @ColumnInfo(name = "Estado") val estado: String?,
 )
+
+@Entity(tableName = "VariableRegistros")
+data class VariableRegistroEntity(
+    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "IdRegistro") val idRegistro: Int = 0,
+    @ColumnInfo(name = "IdVehiculo") val idVehiculo: String,
+    @ColumnInfo(name = "Fecha") val fecha: String,
+    @ColumnInfo(name = "Temperatura1") val temperatura1: Double,
+    @ColumnInfo(name = "Temperatura2") val temperatura2: Double,
+    @ColumnInfo(name = "Humedad") val humedad: Double,
+)
+

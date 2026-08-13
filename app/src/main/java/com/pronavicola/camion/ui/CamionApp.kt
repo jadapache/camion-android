@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -26,9 +24,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.pronavicola.camion.CamionApplication
 import com.pronavicola.camion.domain.model.AppDestination
+import com.pronavicola.camion.ui.components.CustomNavBar
 import com.pronavicola.camion.ui.config.ConfigScreen
 import com.pronavicola.camion.ui.hmi.HmiScreen
 import com.pronavicola.camion.ui.parametros.ParametrosScreen
+import com.pronavicola.camion.ui.registros.RegistrosScreen
 
 @Composable
 fun CamionApp(app: CamionApplication) {
@@ -53,20 +53,17 @@ fun CamionApp(app: CamionApplication) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            NavigationBar {
-                destinations.forEach { dest ->
-                    NavigationBarItem(
-                        selected = currentRoute == dest.route,
-                        onClick = { navController.navigate(dest.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        } },
-                        icon = {},
-                        label = { Text(dest.label, fontWeight = FontWeight.Bold) },
-                    )
+            CustomNavBar(
+                destinations = destinations,
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
-            }
+            )
         },
     ) { padding ->
         Column(
@@ -92,6 +89,11 @@ fun CamionApp(app: CamionApplication) {
                 composable(AppDestination.HMI.route) {
                     HmiScreen(
                         state = uiState.hmiState,
+                    )
+                }
+                composable(AppDestination.REGISTROS.route) {
+                    RegistrosScreen(
+                        registros = uiState.registros,
                     )
                 }
                 composable(AppDestination.PARAMETROS.route) {
