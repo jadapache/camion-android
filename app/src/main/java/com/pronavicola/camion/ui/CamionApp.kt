@@ -1,5 +1,6 @@
 package com.pronavicola.camion.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,7 +54,67 @@ fun CamionApp(app: CamionApplication) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding())
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                uiState.currentUser?.let { user ->
+                    Text(
+                        text = "Usuario: ${user.usuario}",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+
+                NavHost(
+                    navController = navController,
+                    startDestination = AppDestination.HMI.route,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    composable(AppDestination.HMI.route) {
+                        HmiScreen(
+                            state = uiState.hmiState,
+                        )
+                    }
+                    composable(AppDestination.REGISTROS.route) {
+                        RegistrosScreen(
+                            registros = uiState.registros,
+                        )
+                    }
+                    composable(AppDestination.PARAMETROS.route) {
+                        ParametrosScreen(
+                            parametros = uiState.parametros,
+                            onValueChange = viewModel::updateParametro,
+                        )
+                    }
+                    composable(AppDestination.CONFIG.route) {
+                        val user = uiState.currentUser
+                        if (user != null) {
+                            ConfigScreen(
+                                currentUser = user,
+                                users = uiState.availableUsers,
+                                selectedUserId = uiState.selectedUserId,
+                                loginPassword = uiState.loginPassword,
+                                newPassword = uiState.newPassword,
+                                showChangePassword = uiState.showChangePassword,
+                                onUserSelected = viewModel::onUserSelected,
+                                onLoginPasswordChange = viewModel::onLoginPasswordChange,
+                                onNewPasswordChange = viewModel::onNewPasswordChange,
+                                onToggleChangePassword = viewModel::toggleChangePassword,
+                                onConfirm = viewModel::confirmLogin,
+                            )
+                        }
+                    }
+                }
+            }
+
             CustomNavBar(
                 destinations = destinations,
                 currentRoute = currentRoute,
@@ -62,65 +124,9 @@ fun CamionApp(app: CamionApplication) {
                         launchSingleTop = true
                         restoreState = true
                     }
-                }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            uiState.currentUser?.let { user ->
-                Text(
-                    text = "Usuario: ${user.usuario}",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-
-            NavHost(
-                navController = navController,
-                startDestination = AppDestination.HMI.route,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                composable(AppDestination.HMI.route) {
-                    HmiScreen(
-                        state = uiState.hmiState,
-                    )
-                }
-                composable(AppDestination.REGISTROS.route) {
-                    RegistrosScreen(
-                        registros = uiState.registros,
-                    )
-                }
-                composable(AppDestination.PARAMETROS.route) {
-                    ParametrosScreen(
-                        parametros = uiState.parametros,
-                        onValueChange = viewModel::updateParametro,
-                    )
-                }
-                composable(AppDestination.CONFIG.route) {
-                    val user = uiState.currentUser
-                    if (user != null) {
-                        ConfigScreen(
-                            currentUser = user,
-                            users = uiState.availableUsers,
-                            selectedUserId = uiState.selectedUserId,
-                            loginPassword = uiState.loginPassword,
-                            newPassword = uiState.newPassword,
-                            showChangePassword = uiState.showChangePassword,
-                            onUserSelected = viewModel::onUserSelected,
-                            onLoginPasswordChange = viewModel::onLoginPasswordChange,
-                            onNewPasswordChange = viewModel::onNewPasswordChange,
-                            onToggleChangePassword = viewModel::toggleChangePassword,
-                            onConfirm = viewModel::confirmLogin,
-                        )
-                    }
-                }
-            }
         }
     }
 }

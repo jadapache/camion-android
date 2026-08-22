@@ -34,12 +34,14 @@ import com.pronavicola.camion.domain.model.AppDestination
 fun CustomNavBar(
     destinations: List<AppDestination>,
     currentRoute: String,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 24.dp, start = 24.dp, end = 24.dp),
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp, start = 24.dp, end = 24.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Row(

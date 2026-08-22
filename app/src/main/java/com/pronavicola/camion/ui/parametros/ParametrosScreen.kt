@@ -56,7 +56,10 @@ fun ParametrosScreen(
 
         ParametrosHeader()
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 80.dp)
+        ) {
             items(parametros, key = { it.idParametro }) { param ->
                 ParametroRow(
                     parametro = param,

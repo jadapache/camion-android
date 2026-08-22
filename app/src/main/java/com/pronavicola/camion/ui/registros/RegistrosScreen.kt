@@ -38,7 +38,8 @@ fun RegistrosScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(registros) { registro ->
                 RegistroRow(registro)
