@@ -2,6 +2,9 @@ package com.pronavicola.camion.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -55,13 +58,25 @@ fun CamionApp(app: CamionApplication) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = padding.calculateTopPadding())
+                .padding(padding)
         ) {
+            CustomNavBar(
+                destinations = destinations,
+                currentRoute = currentRoute,
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             ) {
                 uiState.currentUser?.let { user ->
                     Text(
@@ -114,19 +129,6 @@ fun CamionApp(app: CamionApplication) {
                     }
                 }
             }
-
-            CustomNavBar(
-                destinations = destinations,
-                currentRoute = currentRoute,
-                onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
     }
 }

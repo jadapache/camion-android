@@ -28,7 +28,7 @@ import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
         VariableEntity::class,
         VariableRegistroEntity::class,
     ],
-    version = 6,
+    version = 8,
     exportSchema = false,
 )
 abstract class FurgonesDatabase : RoomDatabase() {
@@ -59,13 +59,36 @@ abstract class FurgonesDatabase : RoomDatabase() {
                 }
             }
 
+            val migration6to7 = object : Migration(6, 7) {
+                override fun migrate(database: SupportSQLiteDatabase) {
+                    createMissingTables(database)
+                }
+            }
+
+            val migration7to8 = object : Migration(7, 8) {
+                override fun migrate(database: SupportSQLiteDatabase) {
+                    createMissingTables(database)
+                }
+            }
+
+            // Comprehensive migrations to avoid destructive migration loops for all possible previous versions
+            val oldMigrations = (1..7).map { from ->
+                object : Migration(from, 8) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        createMissingTables(database)
+                    }
+                }
+            }
+
             return Room.databaseBuilder(
                 context.applicationContext,
                 FurgonesDatabase::class.java,
                 DB_NAME,
             )
                 .createFromAsset(DB_NAME)
-                .addMigrations(migration3to4to5, migration4to5, migration5to6)
+                .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+                .addMigrations(migration3to4to5, migration4to5, migration5to6, migration6to7, migration7to8)
+                .addMigrations(*oldMigrations.toTypedArray())
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
