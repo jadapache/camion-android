@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -55,35 +56,18 @@ fun HmiScreen(
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = state.idVehiculo,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 18.sp,
-                    color = CamionColors.headerBackground
+                    text = "REGISTRO AUTOMÁTICO",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color.DarkGray.copy(alpha = 0.8f)
                 )
                 ConnectionBadge(conectado = state.conectado)
             }
         }
 
-        // Hovering Status Card (Top Center)
-        Card(
-            modifier = Modifier
-                .padding(16.dp)
-                .align(Alignment.TopCenter),
-            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-            shape = RoundedCornerShape(4.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Text(
-                text = "REGISTRO AUTOMÁTICO",
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = Color.DarkGray
-            )
-        }
     }
 }
 
@@ -93,101 +77,111 @@ private fun TruckHmiLayout(state: HmiState) {
         val w = this.maxWidth
         val h = this.maxHeight
 
-        // SVG Truck Image - Using FillBounds to fill the entire space
-        Image(
-            painter = painterResource(id = R.drawable.ic_truck_silhouette),
-            contentDescription = "Truck",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
-
-        // Overlay Components
-        
-        // ZONA 6 (Top Right)
-        ZoneIndicator(
-            label = "ZONA 6",
-            isActive = state.zonas.getOrElse(5) { false },
-            modifier = Modifier.offset(x = w * 0.82f, y = h * 0.12f)
-        )
-        // ZONA 5 (Top Middle)
-        ZoneIndicator(
-            label = "ZONA 5",
-            isActive = state.zonas.getOrElse(4) { false },
-            modifier = Modifier.offset(x = w * 0.68f, y = h * 0.12f)
-        )
-        // ZONA 4 (Top Left of trailer)
-        ZoneIndicator(
-            label = "ZONA 4",
-            isActive = state.zonas.getOrElse(3) { false },
-            modifier = Modifier.offset(x = w * 0.54f, y = h * 0.12f)
-        )
-
-        // ZONA 3 (Front Top of trailer)
-        ZoneIndicator(
-            label = "ZONA 3",
-            isActive = state.zonas.getOrElse(2) { false },
-            modifier = Modifier.offset(x = w * 0.38f, y = h * 0.20f)
-        )
-
-        // ZONA 1 & 2
-        Column(
-            modifier = Modifier.offset(x = w * 0.30f, y = h * 0.32f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            ZoneIndicator(label = "ZONA 1", isActive = state.zonas.getOrElse(0) { false })
-            ZoneIndicator(label = "ZONA 2", isActive = state.zonas.getOrElse(1) { false })
-        }
-
-        // Irrigation Pump
-        PumpIndicator(
-            isActive = state.bombaAgua,
-            modifier = Modifier.offset(x = w * 0.30f, y = h * 0.60f)
-        )
-
-        // Main Chart Area
-        Column(
-            modifier = Modifier
-                .offset(x = w * 0.44f, y = h * 0.24f)
-                .width(w * 0.46f)
-                .height(h * 0.38f)
-                .background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
-                .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
-                .padding(4.dp)
-        ) {
-            SensorDisplayHeader(state)
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                HmiLinesChart(state.history)
-            }
-        }
-        
-        // Brand Logo Area
         Box(
             modifier = Modifier
-                .offset(x = w * 0.37f, y = h * 0.73f)
-                .size(width = w * 0.15f, height = h * 0.06f),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = 1.10f
+                    scaleY = 1.35f
+                    translationY = size.height * 0.12f
+                }
         ) {
-            Text("METALTECO", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        }
-
-        // Truck Plate Rectangle below window
-        Box(
-            modifier = Modifier
-                .offset(x = w * 0.13f, y = h * 0.49f)
-                .width(w * 0.08f)
-                .background(Color.Transparent, RoundedCornerShape(1.dp))
-                .border(0.dp, Color.Gray, RoundedCornerShape(1.dp))
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = state.idVehiculo,
-                color = Color.Black,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                letterSpacing = 1.sp
+            // SVG Truck Image - Using FillBounds to fill the entire space
+            Image(
+                painter = painterResource(id = R.drawable.ic_truck_silhouette),
+                contentDescription = "Truck",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds
             )
+
+            // Overlay Components
+            
+            // ZONA 6 (Top Right)
+            ZoneIndicator(
+                label = "ZONA 6",
+                isActive = state.zonas.getOrElse(5) { false },
+                modifier = Modifier.offset(x = w * 0.71f, y = h * 0.23f)
+            )
+            // ZONA 5 (Top Middle)
+            ZoneIndicator(
+                label = "ZONA 5",
+                isActive = state.zonas.getOrElse(4) { false },
+                modifier = Modifier.offset(x = w * 0.61f, y = h * 0.21f)
+            )
+            // ZONA 4 (Top Left of trailer)
+            ZoneIndicator(
+                label = "ZONA 4",
+                isActive = state.zonas.getOrElse(3) { false },
+                modifier = Modifier.offset(x = w * 0.51f, y = h * 0.21f)
+            )
+
+            // ZONA 3 (Front Top of trailer)
+            ZoneIndicator(
+                label = "ZONA 3",
+                isActive = state.zonas.getOrElse(2) { false },
+                modifier = Modifier.offset(x = w * 0.41f, y = h * 0.23f)
+            )
+
+            // ZONA 1 & 2
+            Column(
+                modifier = Modifier.offset(x = w * 0.35f, y = h * 0.32f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ZoneIndicator(label = "ZONA 1", isActive = state.zonas.getOrElse(0) { false })
+                ZoneIndicator(label = "ZONA 2", isActive = state.zonas.getOrElse(1) { false })
+            }
+
+            // Irrigation Pump
+            PumpIndicator(
+                isActive = state.bombaAgua,
+                modifier = Modifier.offset(x = w * 0.30f, y = h * 0.60f)
+            )
+
+            // Main Chart Area
+            Column(
+                modifier = Modifier
+                    .offset(x = w * 0.41f, y = h * 0.30f)
+                    .width(w * 0.51f)
+                    .height(h * 0.27f)
+                    .background(Color.White.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+                    .border(0.dp, Color.Gray, RoundedCornerShape(2.dp))
+                    .padding(2.dp)
+            ) {
+                SensorDisplayHeader(state)
+                Spacer(modifier = Modifier.height(2.dp))
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    HmiLinesChart(state.history)
+                }
+            }
+            
+            // Brand Logo Area
+            Box(
+                modifier = Modifier
+                    .offset(x = w * 0.50f, y = h * 0.65f)
+                    .size(width = w * 0.15f, height = h * 0.06f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("METALTECO", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+
+            // Truck Plate Rectangle below window
+            Box(
+                modifier = Modifier
+                    .offset(x = w * 0.13f, y = h * 0.49f)
+                    .width(w * 0.08f)
+                    .background(Color.Transparent, RoundedCornerShape(1.dp))
+                    .border(0.dp, Color.Gray, RoundedCornerShape(1.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = state.idVehiculo,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.sp
+                )
+            }
         }
     }
 }
@@ -265,13 +259,13 @@ private fun HmiLinesChart(history: List<com.pronavicola.camion.domain.model.HmiH
 @Composable
 private fun ZoneIndicator(label: String, isActive: Boolean, modifier: Modifier = Modifier) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Text(label, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
         Box(
             modifier = Modifier
-                .size(width = 36.dp, height = 18.dp)
+                .size(width = 36.dp, height = 20.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(if (isActive) CamionColors.zoneActive else CamionColors.zoneInactive)
-                .border(1.dp, Color.Black, RoundedCornerShape(2.dp)),
+                .border(0.dp, Color.Black, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Air, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
@@ -284,7 +278,7 @@ private fun PumpIndicator(isActive: Boolean, modifier: Modifier = Modifier) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Box(
             modifier = Modifier
-                .size(24.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .background(if (isActive) Color(0xFF2196F3) else Color.Gray)
                 .border(1.dp, Color.White, CircleShape),
@@ -307,7 +301,7 @@ private fun ConnectionBadge(conectado: Boolean) {
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = if (conectado) "Online" else "Offline",
+            text = if (conectado) "En Línea" else "Desconectado",
             fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp,
             color = if (conectado) CamionColors.connected else CamionColors.disconnected,
