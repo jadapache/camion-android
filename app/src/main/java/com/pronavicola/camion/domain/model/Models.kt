@@ -24,6 +24,12 @@ enum class ProcesoEstado(val label: String) {
     ACTIVO("EN PROCESO"),
 }
 
+enum class ZoneStatus {
+    OFF,
+    ON,
+    FAIL
+}
+
 data class HmiState(
     val idVehiculo: String = "AAA000",
     val conectado: Boolean = false,
@@ -32,8 +38,8 @@ data class HmiState(
     val humedad: Double? = null,
     val tension: Double? = null,
     val procesoEstado: ProcesoEstado = ProcesoEstado.INACTIVO,
-    val zonas: List<Boolean> = List(6) { false },
-    val bombaAgua: Boolean = false,
+    val zonas: List<ZoneStatus> = List(6) { ZoneStatus.OFF },
+    val estadoIrrigador: ZoneStatus = ZoneStatus.OFF,
     val history: List<HmiHistoryPoint> = emptyList(),
     val mensaje: String? = null,
 )

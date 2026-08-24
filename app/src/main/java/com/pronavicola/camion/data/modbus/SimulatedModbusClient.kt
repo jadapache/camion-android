@@ -1,5 +1,6 @@
 package com.pronavicola.camion.data.modbus
 
+import com.pronavicola.camion.domain.model.ZoneStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -36,11 +37,11 @@ class SimulatedModbusClient(
     private val _procesoActivo = MutableStateFlow(false)
     override val procesoActivo: StateFlow<Boolean> = _procesoActivo.asStateFlow()
 
-    private val _zonas = MutableStateFlow(List(6) { false })
-    override val zonas: StateFlow<List<Boolean>> = _zonas.asStateFlow()
+    private val _zonas = MutableStateFlow(List(6) { ZoneStatus.OFF })
+    override val zonas: StateFlow<List<ZoneStatus>> = _zonas.asStateFlow()
 
-    private val _bombaAgua = MutableStateFlow(false)
-    override val bombaAgua: StateFlow<Boolean> = _bombaAgua.asStateFlow()
+    private val _estadoIrrigador = MutableStateFlow(ZoneStatus.OFF)
+    override val estadoIrrigador: StateFlow<ZoneStatus> = _estadoIrrigador.asStateFlow()
 
     private var pollJob: Job? = null
     private val parameterValues = mutableMapOf<String, Double>()
@@ -60,12 +61,12 @@ class SimulatedModbusClient(
                     // Simulate some logic for fans and pump
                     _zonas.value = List(6) { index ->
                         val temp = if (index < 3) _temperatura1.value ?: 0.0 else _temperatura2.value ?: 0.0
-                        temp > 15.0 // Turn on if temp > 15
+                        if (temp > 15.0) ZoneStatus.ON else ZoneStatus.OFF
                     }
-                    _bombaAgua.value = (_humedad.value ?: 100.0) < 55.0 // Turn on pump if humidity < 55%
+                    _estadoIrrigador.value = if ((_humedad.value ?: 100.0) < 55.0) ZoneStatus.ON else ZoneStatus.OFF
                 } else {
-                    _zonas.value = List(6) { false }
-                    _bombaAgua.value = false
+                    _zonas.value = List(6) { ZoneStatus.OFF }
+                    _estadoIrrigador.value = ZoneStatus.OFF
                 }
                 delay(2000)
             }
@@ -85,8 +86,8 @@ class SimulatedModbusClient(
         _temperatura2.value = 14.0
         _humedad.value = 62.0
         _tension.value = 24.0
-        _zonas.value = List(6) { false }
-        _bombaAgua.value = false
+        _zonas.value = List(6) { ZoneStatus.OFF }
+        _estadoIrrigador.value = ZoneStatus.OFF
     }
 
     override suspend fun detenerProceso() {

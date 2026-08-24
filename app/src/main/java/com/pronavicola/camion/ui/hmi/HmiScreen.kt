@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -29,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.R
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ProcesoEstado
+import com.pronavicola.camion.domain.model.ZoneStatus
 import com.pronavicola.camion.ui.theme.CamionColors
 import java.util.Locale
 
@@ -99,27 +99,34 @@ private fun TruckHmiLayout(state: HmiState) {
             // ZONA 6 (Top Right)
             ZoneIndicator(
                 label = "ZONA 6",
-                isActive = state.zonas.getOrElse(5) { false },
+                status = state.zonas.getOrElse(5) { ZoneStatus.OFF },
                 modifier = Modifier.offset(x = w * 0.71f, y = h * 0.23f)
             )
             // ZONA 5 (Top Middle)
             ZoneIndicator(
                 label = "ZONA 5",
-                isActive = state.zonas.getOrElse(4) { false },
+                status = state.zonas.getOrElse(4) { ZoneStatus.OFF },
                 modifier = Modifier.offset(x = w * 0.61f, y = h * 0.21f)
             )
             // ZONA 4 (Top Left of trailer)
             ZoneIndicator(
                 label = "ZONA 4",
-                isActive = state.zonas.getOrElse(3) { false },
+                status = state.zonas.getOrElse(3) { ZoneStatus.OFF },
                 modifier = Modifier.offset(x = w * 0.51f, y = h * 0.21f)
             )
 
             // ZONA 3 (Front Top of trailer)
             ZoneIndicator(
                 label = "ZONA 3",
-                isActive = state.zonas.getOrElse(2) { false },
+                status = state.zonas.getOrElse(2) { ZoneStatus.OFF },
                 modifier = Modifier.offset(x = w * 0.41f, y = h * 0.23f)
+            )
+
+            // ZONA 3 (Rear Top of trailer) - Added second object for same zone
+            ZoneIndicator(
+                label = "ZONA 3",
+                status = state.zonas.getOrElse(2) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.81f, y = h * 0.23f)
             )
 
             // ZONA 1 & 2
@@ -127,14 +134,14 @@ private fun TruckHmiLayout(state: HmiState) {
                 modifier = Modifier.offset(x = w * 0.35f, y = h * 0.32f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                ZoneIndicator(label = "ZONA 1", isActive = state.zonas.getOrElse(0) { false })
-                ZoneIndicator(label = "ZONA 2", isActive = state.zonas.getOrElse(1) { false })
+                ZoneIndicator(label = "ZONA 1", status = state.zonas.getOrElse(0) { ZoneStatus.OFF })
+                ZoneIndicator(label = "ZONA 2", status = state.zonas.getOrElse(1) { ZoneStatus.OFF })
             }
 
-            // Irrigation Pump
-            PumpIndicator(
-                isActive = state.bombaAgua,
-                modifier = Modifier.offset(x = w * 0.30f, y = h * 0.60f)
+            // Irrigator (Aspersor)
+            IrrigatorIndicator(
+                status = state.estadoIrrigador,
+                modifier = Modifier.offset(x = w * 0.35f, y = h * 0.53f)
             )
 
             // Main Chart Area
@@ -257,35 +264,37 @@ private fun HmiLinesChart(history: List<com.pronavicola.camion.domain.model.HmiH
 }
 
 @Composable
-private fun ZoneIndicator(label: String, isActive: Boolean, modifier: Modifier = Modifier) {
+private fun ZoneIndicator(label: String, status: ZoneStatus, modifier: Modifier = Modifier) {
+    val iconRes = when (status) {
+        ZoneStatus.ON -> R.drawable.ic_ventilador_on
+        ZoneStatus.OFF -> R.drawable.ic_ventilador_off
+        ZoneStatus.FAIL -> R.drawable.ic_ventilador_out
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Text(label, color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-        Box(
-            modifier = Modifier
-                .size(width = 36.dp, height = 20.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(if (isActive) CamionColors.zoneActive else CamionColors.zoneInactive)
-                .border(0.dp, Color.Black, RoundedCornerShape(8.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Air, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-        }
+        Text(label, color = Color.Black, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+        Image(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(width = 44.dp, height = 14.dp),
+            contentScale = ContentScale.Fit
+        )
     }
 }
 
 @Composable
-private fun PumpIndicator(isActive: Boolean, modifier: Modifier = Modifier) {
+private fun IrrigatorIndicator(status: ZoneStatus, modifier: Modifier = Modifier) {
+    val iconRes = when (status) {
+        ZoneStatus.ON -> R.drawable.ic_aspersor_on
+        ZoneStatus.OFF -> R.drawable.ic_aspersor_off
+        ZoneStatus.FAIL -> R.drawable.ic_aspersor_out
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(if (isActive) Color(0xFF2196F3) else Color.Gray)
-                .border(1.dp, Color.White, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.WaterDrop, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-        }
+        Image(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(32.dp),
+            contentScale = ContentScale.Fit
+        )
         Text("BOMBA", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -320,8 +329,15 @@ fun HmiScreenPreview() {
             temperatura1 = 18.5,
             temperatura2 = 15.2,
             humedad = 55.0,
-            zonas = listOf(true, false, true, false, true, false),
-            bombaAgua = true,
+            zonas = listOf(
+                ZoneStatus.ON,
+                ZoneStatus.OFF,
+                ZoneStatus.ON,
+                ZoneStatus.OFF,
+                ZoneStatus.ON,
+                ZoneStatus.FAIL
+            ),
+            estadoIrrigador = ZoneStatus.ON,
             history = List(20) { i ->
                 com.pronavicola.camion.domain.model.HmiHistoryPoint(
                     t1 = 15.0 + i * 0.2,

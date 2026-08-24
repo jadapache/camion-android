@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.pronavicola.camion.CamionApplication
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
+import com.pronavicola.camion.domain.model.ZoneStatus
 import com.pronavicola.camion.data.modbus.ModbusClient
 import com.pronavicola.camion.data.modbus.toProcesoEstado
 import com.pronavicola.camion.data.repository.AuthRepository
@@ -90,7 +91,7 @@ class MainViewModel(
                 modbusClient.tension,
                 modbusClient.procesoActivo,
                 modbusClient.zonas,
-                modbusClient.bombaAgua,
+                modbusClient.estadoIrrigador,
                 _uiState.map { it.currentUser?.idVehiculo ?: "AAA000" }.distinctUntilChanged(),
             ) { values ->
                 val connected = values[0] as Boolean
@@ -99,8 +100,8 @@ class MainViewModel(
                 val hum = values[3] as Double?
                 val ten = values[4] as Double?
                 val proceso = values[5] as Boolean
-                val zonas = values[6] as List<Boolean>
-                val bomba = values[7] as Boolean
+                val zonas = values[6] as List<ZoneStatus>
+                val irrigator = values[7] as ZoneStatus
                 val vehiculo = values[8] as String
                 
                 val currentHistory = _uiState.value.hmiState.history
@@ -122,7 +123,7 @@ class MainViewModel(
                     tension = ten,
                     procesoEstado = proceso.toProcesoEstado(),
                     zonas = zonas,
-                    bombaAgua = bomba,
+                    estadoIrrigador = irrigator,
                     history = newHistory
                 )
             }.collect { hmi ->

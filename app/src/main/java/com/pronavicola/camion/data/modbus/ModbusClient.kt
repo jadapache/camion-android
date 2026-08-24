@@ -1,6 +1,7 @@
 package com.pronavicola.camion.data.modbus
 
 import com.pronavicola.camion.domain.model.ProcesoEstado
+import com.pronavicola.camion.domain.model.ZoneStatus
 import kotlinx.coroutines.flow.StateFlow
 
 interface ModbusClient {
@@ -10,8 +11,8 @@ interface ModbusClient {
     val humedad: StateFlow<Double?>
     val tension: StateFlow<Double?>
     val procesoActivo: StateFlow<Boolean>
-    val zonas: StateFlow<List<Boolean>>
-    val bombaAgua: StateFlow<Boolean>
+    val zonas: StateFlow<List<ZoneStatus>>
+    val estadoIrrigador: StateFlow<ZoneStatus>
 
     suspend fun connect(host: String = DEFAULT_HOST, port: Int = DEFAULT_PORT)
     suspend fun disconnect()
