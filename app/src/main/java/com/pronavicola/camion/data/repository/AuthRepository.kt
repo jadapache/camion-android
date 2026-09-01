@@ -68,6 +68,11 @@ class AuthRepository(
         return AuthResult.Success(user.copy(password = newPassword).toSession())
     }
 
+    suspend fun updateDeviceId(userId: String, deviceId: String) {
+        val user = usuarioDao.getById(userId) ?: return
+        usuarioDao.update(user.copy(idVehiculo = deviceId))
+    }
+
     fun canAccessScreen(idPerfil: Int, accessLevel: Int): Boolean = idPerfil <= accessLevel
 
     private fun UsuarioEntity.toSession(): SessionUser = SessionUser(

@@ -2,17 +2,11 @@ package com.pronavicola.camion.ui.parametros
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,25 +34,23 @@ fun ParametrosScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(CamionColors.panelBackground),
+            .background(CamionColors.panelBackground)
+            .padding(16.dp),
     ) {
         Text(
             text = "PARAMETROS EQUIPO",
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(CamionColors.headerBackground)
-                .padding(vertical = 12.dp),
-            textAlign = TextAlign.Center,
             color = Color.White,
-            fontSize = 24.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 16.dp)
         )
 
         ParametrosHeader()
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 80.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(parametros, key = { it.idParametro }) { param ->
                 ParametroRow(
@@ -86,12 +78,33 @@ private fun ParametrosHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF455A64))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .background(CamionColors.headerBackground)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("PARAMETRO", modifier = Modifier.weight(2f), color = Color.White, fontWeight = FontWeight.Bold)
-        Text("VALOR", modifier = Modifier.weight(1f), color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Text("UND", modifier = Modifier.weight(0.5f), color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+        Text(
+            text = "PARAMETRO", 
+            modifier = Modifier.weight(3f), 
+            color = Color.White, 
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+        Text(
+            text = "VALOR", 
+            modifier = Modifier.weight(1.2f), 
+            color = Color.White, 
+            fontWeight = FontWeight.Bold, 
+            textAlign = TextAlign.End,
+            fontSize = 14.sp
+        )
+        Text(
+            text = "UND", 
+            modifier = Modifier.weight(0.8f), 
+            color = Color.White, 
+            fontWeight = FontWeight.Bold, 
+            textAlign = TextAlign.End,
+            fontSize = 14.sp
+        )
     }
 }
 
@@ -101,22 +114,29 @@ private fun ParametroRow(
     onClick: () -> Unit,
 ) {
     val background = if (parametro.editable) CamionColors.editableRow else CamionColors.readOnlyRow
-    Row(
+    Card(
+        shape = RoundedCornerShape(2.dp),
+        colors = CardDefaults.cardColors(containerColor = background),
         modifier = Modifier
             .fillMaxWidth()
-            .background(background)
             .clickable(enabled = parametro.editable, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(parametro.nombre, modifier = Modifier.weight(2f))
-        Text(
-            text = formatValue(parametro),
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(parametro.unidad, modifier = Modifier.weight(0.5f), textAlign = TextAlign.End)
+        Row(
+            modifier = Modifier
+                .padding(8.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(parametro.nombre, modifier = Modifier.weight(3f), fontSize = 13.sp)
+            Text(
+                text = formatValue(parametro),
+                modifier = Modifier.weight(1.2f),
+                textAlign = TextAlign.End,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp
+            )
+            Text(parametro.unidad, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End, fontSize = 13.sp)
+        }
     }
 }
 

@@ -72,8 +72,7 @@ fun CamionApp(app: CamionApplication) {
                         launchSingleTop = true
                         restoreState = true
                     }
-                },
-                currentUser = uiState.currentUser
+                }
             )
 
             Column(
@@ -110,11 +109,16 @@ fun CamionApp(app: CamionApplication) {
                                 loginPassword = uiState.loginPassword,
                                 newPassword = uiState.newPassword,
                                 showChangePassword = uiState.showChangePassword,
+                                deviceId = uiState.deviceId,
+                                mqttBrokerUrl = uiState.mqttBrokerUrl,
                                 onUserSelected = viewModel::onUserSelected,
                                 onLoginPasswordChange = viewModel::onLoginPasswordChange,
                                 onNewPasswordChange = viewModel::onNewPasswordChange,
                                 onToggleChangePassword = viewModel::toggleChangePassword,
                                 onConfirm = viewModel::confirmLogin,
+                                onDeviceIdChange = viewModel::onDeviceIdChange,
+                                onMqttBrokerUrlChange = viewModel::onMqttBrokerUrlChange,
+                                onSaveSystemSettings = viewModel::saveSystemSettings,
                             )
                         }
                     }

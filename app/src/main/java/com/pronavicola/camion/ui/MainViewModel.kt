@@ -46,6 +46,8 @@ data class MainUiState(
     val newPassword: String = "",
     val selectedUserId: String? = null,
     val showChangePassword: Boolean = false,
+    val deviceId: String = "",
+    val mqttBrokerUrl: String = "",
 )
 
 class MainViewModel(
@@ -72,7 +74,12 @@ class MainViewModel(
     init {
         viewModelScope.launch {
             val user = authRepository.loadDefaultUser()
-            _uiState.update { it.copy(currentUser = user, selectedUserId = user.idUsuario) }
+            _uiState.update { it.copy(
+                currentUser = user,
+                selectedUserId = user.idUsuario,
+                deviceId = user.idVehiculo,
+                mqttBrokerUrl = com.pronavicola.camion.data.mqtt.MqttClientManager.DEFAULT_BROKER_URL
+            ) }
             user.idVehiculo.takeIf { it.isNotBlank() }?.let { telemetryMqttCoordinator?.updateDeviceId(it) }
             modbusClient.connect()
             modbusClient.iniciarProceso() // Auto-start simulation/process
@@ -248,6 +255,7 @@ class MainViewModel(
                                 selectedUserId = result.user.idUsuario,
                                 statusMessage = "Usuario cambio a: ${result.user.usuario}",
                                 loginPassword = "",
+                                deviceId = result.user.idVehiculo,
                             )
                         }
                         result.user.idVehiculo.takeIf { it.isNotBlank() }?.let { telemetryMqttCoordinator?.updateDeviceId(it) }
@@ -283,6 +291,29 @@ class MainViewModel(
 
     fun clearMessage() {
         _uiState.update { it.copy(statusMessage = null) }
+    }
+
+    fun onDeviceIdChange(value: String) {
+        _uiState.update { it.copy(deviceId = value) }
+    }
+
+    fun onMqttBrokerUrlChange(value: String) {
+        _uiState.update { it.copy(mqttBrokerUrl = value) }
+    }
+
+    fun saveSystemSettings() {
+        val state = _uiState.value
+        val user = state.currentUser ?: return
+        viewModelScope.launch {
+            authRepository.updateDeviceId(user.idUsuario, state.deviceId)
+            telemetryMqttCoordinator?.updateDeviceId(state.deviceId)
+            // Ideally MqttClientManager would be restarted with new URL
+            // For now just update UI state to reflect change
+            _uiState.update { it.copy(
+                currentUser = user.copy(idVehiculo = state.deviceId),
+                statusMessage = "Configuracion de sistema guardada"
+            ) }
+        }
     }
 
     private fun showMessage(message: String) {
