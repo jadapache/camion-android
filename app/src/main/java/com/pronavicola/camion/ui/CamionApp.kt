@@ -72,22 +72,13 @@ fun CamionApp(app: CamionApplication) {
                         launchSingleTop = true
                         restoreState = true
                     }
-                }
+                },
+                currentUser = uiState.currentUser
             )
 
             Column(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             ) {
-                uiState.currentUser?.let { user ->
-                    Text(
-                        text = "Usuario: ${user.usuario}",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-
                 NavHost(
                     navController = navController,
                     startDestination = AppDestination.HMI.route,

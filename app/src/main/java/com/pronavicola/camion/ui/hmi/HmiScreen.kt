@@ -45,27 +45,13 @@ fun HmiScreen(
         // Main HMI Area - Filling the whole container
         TruckHmiLayout(state = state)
 
-        // Hovering Info Card (Top Left)
-        Card(
+        // Connection Badge at the bottom
+        Box(
             modifier = Modifier
+                .align(Alignment.BottomStart)
                 .padding(16.dp)
-                .align(Alignment.TopStart),
-            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-            shape = RoundedCornerShape(4.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = "REGISTRO AUTOMÁTICO",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = Color.DarkGray.copy(alpha = 0.8f)
-                )
-                ConnectionBadge(conectado = state.conectado)
-            }
+            ConnectionBadge(conectado = state.conectado)
         }
 
     }
@@ -160,18 +146,8 @@ private fun TruckHmiLayout(state: HmiState) {
                     HmiLinesChart(state.history)
                 }
             }
-            
-            // Brand Logo Area
-            Box(
-                modifier = Modifier
-                    .offset(x = w * 0.50f, y = h * 0.65f)
-                    .size(width = w * 0.15f, height = h * 0.06f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("METALTECO", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            }
 
-            // Truck Plate Rectangle below window
+            // Truck Plate
             Box(
                 modifier = Modifier
                     .offset(x = w * 0.13f, y = h * 0.49f)
