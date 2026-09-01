@@ -53,6 +53,7 @@ class MainViewModel(
     private val parametrosRepository: ParametrosRepository,
     private val registrosRepository: RegistrosRepository,
     private val modbusClient: ModbusClient,
+    private val telemetryMqttCoordinator: com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -72,6 +73,7 @@ class MainViewModel(
         viewModelScope.launch {
             val user = authRepository.loadDefaultUser()
             _uiState.update { it.copy(currentUser = user, selectedUserId = user.idUsuario) }
+            user.idVehiculo.takeIf { it.isNotBlank() }?.let { telemetryMqttCoordinator?.updateDeviceId(it) }
             modbusClient.connect()
             modbusClient.iniciarProceso() // Auto-start simulation/process
         }
@@ -248,6 +250,7 @@ class MainViewModel(
                                 loginPassword = "",
                             )
                         }
+                        result.user.idVehiculo.takeIf { it.isNotBlank() }?.let { telemetryMqttCoordinator?.updateDeviceId(it) }
                     }
                     is AuthResult.Error -> showMessage(result.message)
                 }
@@ -294,6 +297,7 @@ class MainViewModel(
                 app.parametrosRepository,
                 app.registrosRepository,
                 app.modbusClient,
+                app.telemetryMqttCoordinator,
             ) as T
         }
     }

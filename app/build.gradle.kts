@@ -78,6 +78,13 @@ dependencies {
     implementation("com.patrykandpatrick.vico:compose-m3:3.3.0")
     implementation("com.patrykandpatrick.vico:core:2.5.2")
 
+    // MQTT Client
+    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
+
+    // Unit Testing
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
