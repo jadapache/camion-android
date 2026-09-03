@@ -7,8 +7,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -64,13 +62,7 @@ private fun TruckHmiLayout(state: HmiState) {
         val h = this.maxHeight
 
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = 1.10f
-                    scaleY = 1.35f
-                    translationY = size.height * 0.12f
-                }
+            modifier = Modifier.fillMaxSize()
         ) {
             // SVG Truck Image - Using FillBounds to fill the entire space
             Image(

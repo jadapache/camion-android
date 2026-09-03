@@ -115,3 +115,9 @@ data class VariableRegistroEntity(
     @ColumnInfo(name = "Humedad") val humedad: Double,
 )
 
+@Entity(tableName = "AppConfig")
+data class AppConfigEntity(
+    @PrimaryKey @ColumnInfo(name = "Clave") val clave: String,
+    @ColumnInfo(name = "Valor") val valor: String,
+)
+

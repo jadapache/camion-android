@@ -10,6 +10,7 @@ import com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator
 import com.pronavicola.camion.data.repository.AuthRepository
 import com.pronavicola.camion.data.repository.ParametrosRepository
 import com.pronavicola.camion.data.repository.RegistrosRepository
+import com.pronavicola.camion.data.repository.AppConfigRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 
@@ -35,6 +36,10 @@ class CamionApplication : Application() {
 
     val registrosRepository: RegistrosRepository by lazy {
         RegistrosRepository(database.variableRegistroDao())
+    }
+
+    val appConfigRepository: AppConfigRepository by lazy {
+        AppConfigRepository(database.appConfigDao())
     }
 
     override fun onCreate() {

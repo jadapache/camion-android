@@ -7,6 +7,7 @@ import com.pronavicola.camion.data.local.entity.ParametroEntity
 import com.pronavicola.camion.data.local.entity.PerfilEntity
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
+import com.pronavicola.camion.data.local.entity.AppConfigEntity
 import kotlinx.coroutines.flow.Flow
 
 data class ParametroConUnidad(
@@ -88,5 +89,14 @@ interface VariableRegistroDao {
 
     @androidx.room.Insert
     suspend fun insert(registro: VariableRegistroEntity)
+}
+
+@Dao
+interface AppConfigDao {
+    @Query("SELECT Valor FROM AppConfig WHERE Clave = :clave LIMIT 1")
+    suspend fun getValor(clave: String): String?
+
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun save(config: AppConfigEntity)
 }
 

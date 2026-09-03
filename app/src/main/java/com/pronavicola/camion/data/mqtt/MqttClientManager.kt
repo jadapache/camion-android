@@ -28,8 +28,8 @@ import kotlin.coroutines.resume
 
 /**
  * Enterprise-grade MQTT Client Manager using Eclipse Paho MQTT v3 with QoS 1,
- * automatic exponential backoff reconnection min(2^k * 1000ms, 60000ms),
- * and PUBACK delivery confirmation.
+ * authentication (username/password), automatic exponential backoff reconnection
+ * min(2^k * 1000ms, 60000ms), and PUBACK delivery confirmation.
  */
 class MqttClientManager(
     private val scope: CoroutineScope,
@@ -47,6 +47,8 @@ class MqttClientManager(
 
     private var currentBrokerUrl: String = defaultBrokerUrl
     private var currentClientId: String = "camion_${UUID.randomUUID().toString().take(8)}"
+    private var currentUsername: String? = null
+    private var currentPassword: String? = null
     private var onConnectedListener: (() -> Unit)? = null
 
     companion object {
@@ -68,11 +70,19 @@ class MqttClientManager(
         onConnectedListener = listener
     }
 
-    fun start(brokerUrl: String = currentBrokerUrl, clientId: String? = null) {
+    fun start(
+        brokerUrl: String = currentBrokerUrl,
+        clientId: String? = null,
+        username: String? = null,
+        password: String? = null,
+    ) {
         currentBrokerUrl = brokerUrl
         if (clientId != null) {
             currentClientId = clientId
         }
+        currentUsername = username?.takeIf { it.isNotBlank() }
+        currentPassword = password?.takeIf { it.isNotBlank() }
+
         stop()
 
         connectionJob = scope.launch(ioDispatcher) {
@@ -136,6 +146,12 @@ class MqttClientManager(
                 connectionTimeout = 15
                 keepAliveInterval = 60
                 isAutomaticReconnect = false // We control exponential backoff explicitly
+                if (!currentUsername.isNullOrBlank()) {
+                    userName = currentUsername
+                }
+                if (!currentPassword.isNullOrBlank()) {
+                    password = currentPassword!!.toCharArray()
+                }
             }
 
             suspendCancellableCoroutine<Boolean> { continuation ->

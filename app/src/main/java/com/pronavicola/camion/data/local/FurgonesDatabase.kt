@@ -10,6 +10,7 @@ import com.pronavicola.camion.data.local.dao.ParametroDao
 import com.pronavicola.camion.data.local.dao.PerfilDao
 import com.pronavicola.camion.data.local.dao.UsuarioDao
 import com.pronavicola.camion.data.local.dao.VariableRegistroDao
+import com.pronavicola.camion.data.local.dao.AppConfigDao
 import com.pronavicola.camion.data.local.entity.DefinicionEntity
 import com.pronavicola.camion.data.local.entity.ParametroEntity
 import com.pronavicola.camion.data.local.entity.PerfilEntity
@@ -17,6 +18,7 @@ import com.pronavicola.camion.data.local.entity.PerfilParametroEntity
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.data.local.entity.VariableEntity
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
+import com.pronavicola.camion.data.local.entity.AppConfigEntity
 
 @Database(
     entities = [
@@ -27,8 +29,9 @@ import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
         PerfilParametroEntity::class,
         VariableEntity::class,
         VariableRegistroEntity::class,
+        AppConfigEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class FurgonesDatabase : RoomDatabase() {
@@ -36,6 +39,7 @@ abstract class FurgonesDatabase : RoomDatabase() {
     abstract fun perfilDao(): PerfilDao
     abstract fun parametroDao(): ParametroDao
     abstract fun variableRegistroDao(): VariableRegistroDao
+    abstract fun appConfigDao(): AppConfigDao
 
     companion object {
         private const val DB_NAME = "Furgones.db"
@@ -71,9 +75,15 @@ abstract class FurgonesDatabase : RoomDatabase() {
                 }
             }
 
+            val migration8to9 = object : Migration(8, 9) {
+                override fun migrate(database: SupportSQLiteDatabase) {
+                    createMissingTables(database)
+                }
+            }
+
             // Comprehensive migrations to avoid destructive migration loops for all possible previous versions
-            val oldMigrations = (1..7).map { from ->
-                object : Migration(from, 8) {
+            val oldMigrations = (1..8).map { from ->
+                object : Migration(from, 9) {
                     override fun migrate(database: SupportSQLiteDatabase) {
                         createMissingTables(database)
                     }
@@ -87,7 +97,7 @@ abstract class FurgonesDatabase : RoomDatabase() {
             )
                 .createFromAsset(DB_NAME)
                 .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                .addMigrations(migration3to4to5, migration4to5, migration5to6, migration6to7, migration7to8)
+                .addMigrations(migration3to4to5, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9)
                 .addMigrations(*oldMigrations.toTypedArray())
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
@@ -117,6 +127,12 @@ abstract class FurgonesDatabase : RoomDatabase() {
                     "`Temperatura1` REAL NOT NULL, " +
                     "`Temperatura2` REAL NOT NULL, " +
                     "`Humedad` REAL NOT NULL)"
+            )
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `AppConfig` (" +
+                    "`Clave` TEXT NOT NULL, " +
+                    "`Valor` TEXT NOT NULL, " +
+                    "PRIMARY KEY(`Clave`))"
             )
         }
     }

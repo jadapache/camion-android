@@ -6,6 +6,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -29,6 +32,9 @@ class OutboxQueueManager(
     private val drainMutex = Mutex()
     private var drainJob: Job? = null
 
+    private val _pendingCount = MutableStateFlow(0)
+    val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
+
     init {
         mqttManager.setOnConnectedListener {
             triggerDrain()
@@ -47,6 +53,7 @@ class OutboxQueueManager(
             qos = qos,
         )
         queue.offer(message)
+        _pendingCount.value = queue.size
 
         if (mqttManager.isConnected.value) {
             triggerDrain()
@@ -88,6 +95,7 @@ class OutboxQueueManager(
 
                 if (result.isSuccess) {
                     queue.poll() // Successfully sent
+                    _pendingCount.value = queue.size
                     sentCount++
                 } else {
                     message.retryCount++
@@ -95,12 +103,14 @@ class OutboxQueueManager(
                     if (message.retryCount >= maxRetries) {
                         Log.e(tag, "Discarding message to ${message.topic} after exceeding $maxRetries retries")
                         queue.poll()
+                        _pendingCount.value = queue.size
                     }
                     break // Stop batch if network failed
                 }
                 processed++
             }
         } finally {
+            _pendingCount.value = queue.size
             drainMutex.unlock()
         }
         sentCount

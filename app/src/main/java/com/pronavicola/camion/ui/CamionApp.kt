@@ -1,9 +1,9 @@
 package com.pronavicola.camion.ui
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,7 +17,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import com.pronavicola.camion.CamionApplication
 import com.pronavicola.camion.domain.model.AppDestination
 import com.pronavicola.camion.ui.components.CustomNavBar
+import com.pronavicola.camion.ui.components.UserSessionDialog
 import com.pronavicola.camion.ui.config.ConfigScreen
 import com.pronavicola.camion.ui.hmi.HmiScreen
 import com.pronavicola.camion.ui.parametros.ParametrosScreen
@@ -45,6 +48,8 @@ fun CamionApp(app: CamionApplication) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: AppDestination.HMI.route
 
+    var showUserDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(uiState.statusMessage) {
         val message = uiState.statusMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message).let { result ->
@@ -57,6 +62,7 @@ fun CamionApp(app: CamionApplication) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         Row(
             modifier = Modifier
@@ -72,7 +78,9 @@ fun CamionApp(app: CamionApplication) {
                         launchSingleTop = true
                         restoreState = true
                     }
-                }
+                },
+                currentUser = uiState.currentUser,
+                onUserClick = { showUserDialog = true },
             )
 
             Column(
@@ -104,26 +112,55 @@ fun CamionApp(app: CamionApplication) {
                         if (user != null) {
                             ConfigScreen(
                                 currentUser = user,
-                                users = uiState.availableUsers,
-                                selectedUserId = uiState.selectedUserId,
-                                loginPassword = uiState.loginPassword,
-                                newPassword = uiState.newPassword,
-                                showChangePassword = uiState.showChangePassword,
                                 deviceId = uiState.deviceId,
                                 mqttBrokerUrl = uiState.mqttBrokerUrl,
-                                onUserSelected = viewModel::onUserSelected,
-                                onLoginPasswordChange = viewModel::onLoginPasswordChange,
-                                onNewPasswordChange = viewModel::onNewPasswordChange,
-                                onToggleChangePassword = viewModel::toggleChangePassword,
-                                onConfirm = viewModel::confirmLogin,
+                                mqttTopicRoot = uiState.mqttTopicRoot,
+                                mqttUsername = uiState.mqttUsername,
+                                mqttPassword = uiState.mqttPassword,
+                                modbusHost = uiState.modbusHost,
+                                modbusPort = uiState.modbusPort,
+                                publishIntervalS = uiState.publishIntervalS,
+                                mqttConnected = uiState.mqttConnected,
+                                modbusConnected = uiState.modbusConnected,
+                                outboxPendingCount = uiState.outboxPendingCount,
                                 onDeviceIdChange = viewModel::onDeviceIdChange,
                                 onMqttBrokerUrlChange = viewModel::onMqttBrokerUrlChange,
+                                onMqttTopicRootChange = viewModel::onMqttTopicRootChange,
+                                onMqttUsernameChange = viewModel::onMqttUsernameChange,
+                                onMqttPasswordChange = viewModel::onMqttPasswordChange,
+                                onModbusHostChange = viewModel::onModbusHostChange,
+                                onModbusPortChange = viewModel::onModbusPortChange,
+                                onPublishIntervalChange = viewModel::onPublishIntervalChange,
                                 onSaveSystemSettings = viewModel::saveSystemSettings,
+                                onSyncAllRegistros = viewModel::syncAllRegistros,
                             )
                         }
                     }
                 }
             }
+        }
+    }
+
+    if (showUserDialog) {
+        val user = uiState.currentUser
+        if (user != null) {
+            UserSessionDialog(
+                currentUser = user,
+                users = uiState.availableUsers,
+                selectedUserId = uiState.selectedUserId,
+                loginPassword = uiState.loginPassword,
+                newPassword = uiState.newPassword,
+                showChangePassword = uiState.showChangePassword,
+                onUserSelected = viewModel::onUserSelected,
+                onLoginPasswordChange = viewModel::onLoginPasswordChange,
+                onNewPasswordChange = viewModel::onNewPasswordChange,
+                onToggleChangePassword = viewModel::toggleChangePassword,
+                onConfirm = {
+                    viewModel.confirmLogin()
+                    showUserDialog = false
+                },
+                onDismiss = { showUserDialog = false },
+            )
         }
     }
 }

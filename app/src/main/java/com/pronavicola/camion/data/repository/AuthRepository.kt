@@ -4,7 +4,6 @@ import com.pronavicola.camion.data.local.dao.UsuarioDao
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.domain.model.SessionUser
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 
 sealed class AuthResult {
     data class Success(val user: SessionUser) : AuthResult()
@@ -45,7 +44,7 @@ class AuthRepository(
             return AuthResult.Success(target.toSession())
         }
 
-        if (password.isBlank() || password != target.password) {
+        if (password.isBlank() || (password != target.password)) {
             return AuthResult.Error("Password no coincide")
         }
 

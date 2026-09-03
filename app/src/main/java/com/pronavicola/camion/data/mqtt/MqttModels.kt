@@ -1,11 +1,10 @@
 package com.pronavicola.camion.data.mqtt
 
 import com.pronavicola.camion.domain.model.ZoneStatus
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * Data structures and JSON serializations for MQTT payloads.
+ * Implemented with pure Kotlin formatting for high throughput and JVM testability.
  */
 data class TelemetryMqttPayload(
     val deviceId: String,
@@ -19,21 +18,13 @@ data class TelemetryMqttPayload(
     val estadoIrrigador: ZoneStatus,
 ) {
     fun toJson(): String {
-        val json = JSONObject()
-        json.put("device_id", deviceId)
-        json.put("timestamp", timestamp)
-        json.put("temperature_c", temperatureC ?: JSONObject.NULL)
-        json.put("temperature_2_c", temperature2C ?: JSONObject.NULL)
-        json.put("humidity_pct", humidityPct ?: JSONObject.NULL)
-        json.put("voltage_v", voltageV ?: JSONObject.NULL)
-        json.put("proceso_activo", procesoActivo)
+        val t1Str = temperatureC?.toString() ?: "null"
+        val t2Str = temperature2C?.toString() ?: "null"
+        val humStr = humidityPct?.toString() ?: "null"
+        val vltStr = voltageV?.toString() ?: "null"
+        val zonasJson = zonas.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"${it.name}\"" }
 
-        val zonasArray = JSONArray()
-        zonas.forEach { zonasArray.put(it.name) }
-        json.put("zonas", zonasArray)
-        json.put("estado_irrigador", estadoIrrigador.name)
-
-        return json.toString()
+        return "{\"device_id\":\"$deviceId\",\"timestamp\":$timestamp,\"temperature_c\":$t1Str,\"temperature_2_c\":$t2Str,\"humidity_pct\":$humStr,\"voltage_v\":$vltStr,\"proceso_activo\":$procesoActivo,\"zonas\":$zonasJson,\"estado_irrigador\":\"${estadoIrrigador.name}\"}"
     }
 }
 
@@ -45,13 +36,7 @@ data class AlarmMqttPayload(
     val triggeredAt: Long = System.currentTimeMillis(),
 ) {
     fun toJson(): String {
-        val json = JSONObject()
-        json.put("device_id", deviceId)
-        json.put("alarm_type", alarmType)
-        json.put("severity", severity)
-        json.put("trigger_value", triggerValue)
-        json.put("triggered_at", triggeredAt)
-        return json.toString()
+        return "{\"device_id\":\"$deviceId\",\"alarm_type\":\"$alarmType\",\"severity\":\"$severity\",\"trigger_value\":$triggerValue,\"triggered_at\":$triggeredAt}"
     }
 }
 
@@ -61,11 +46,7 @@ data class StatusMqttPayload(
     val timestamp: Long = System.currentTimeMillis(),
 ) {
     fun toJson(): String {
-        val json = JSONObject()
-        json.put("device_id", deviceId)
-        json.put("status", status)
-        json.put("timestamp", timestamp)
-        return json.toString()
+        return "{\"device_id\":\"$deviceId\",\"status\":\"$status\",\"timestamp\":$timestamp}"
     }
 }
 

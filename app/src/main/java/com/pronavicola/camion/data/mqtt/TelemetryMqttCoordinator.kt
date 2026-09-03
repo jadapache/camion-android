@@ -1,15 +1,18 @@
 package com.pronavicola.camion.data.mqtt
 
 import android.util.Log
+import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.data.modbus.ModbusClient
+import com.pronavicola.camion.domain.model.ZoneStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * Coordinates telemetry data gathering from ModbusClient and routes payloads
@@ -24,6 +27,8 @@ class TelemetryMqttCoordinator(
 ) {
     private val tag = "TelemetryMqttCoordinator"
     private var activeDeviceId: String = defaultDeviceId
+    private var activeTopicRoot: String = "furgones"
+    private var samplingIntervalMs: Long = TELEMETRY_INTERVAL_MS
     private var coordinatorJob: Job? = null
     private var heartbeatJob: Job? = null
 
@@ -61,6 +66,53 @@ class TelemetryMqttCoordinator(
         activeDeviceId = deviceId
     }
 
+    fun updateTopicRoot(root: String) {
+        activeTopicRoot = root
+    }
+
+    fun setPublishIntervalSeconds(seconds: Long) {
+        samplingIntervalMs = (seconds * 1000L).coerceAtLeast(1000L)
+    }
+
+    /**
+     * Enqueues a single VariableRegistroEntity record to the MQTT outbox queue.
+     */
+    fun enqueueVariableRegistro(registro: VariableRegistroEntity) {
+        val timestamp = parseDateToEpoch(registro.fecha)
+        val payload = TelemetryMqttPayload(
+            deviceId = registro.idVehiculo.ifBlank { activeDeviceId },
+            timestamp = timestamp,
+            temperatureC = registro.temperatura1,
+            temperature2C = registro.temperatura2,
+            humidityPct = registro.humedad,
+            voltageV = null,
+            procesoActivo = true,
+            zonas = emptyList(),
+            estadoIrrigador = ZoneStatus.OFF,
+        )
+        val targetDevice = registro.idVehiculo.ifBlank { activeDeviceId }
+        val topic = "$activeTopicRoot/$targetDevice/telemetry"
+        Log.d(tag, "Enqueuing historical VariableRegistro for $targetDevice to $topic")
+        outboxManager.enqueue(topic, payload.toJson(), qos = 1)
+    }
+
+    /**
+     * Enqueues a list of VariableRegistroEntity records to the MQTT outbox and triggers an immediate drain.
+     */
+    fun syncAllVariableRegistros(registros: List<VariableRegistroEntity>) {
+        registros.forEach { enqueueVariableRegistro(it) }
+        outboxManager.triggerDrain()
+    }
+
+    private fun parseDateToEpoch(dateStr: String): Long {
+        return try {
+            val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+            format.parse(dateStr)?.time ?: System.currentTimeMillis()
+        } catch (_: Exception) {
+            System.currentTimeMillis()
+        }
+    }
+
     private suspend fun startTelemetryPublishingLoop() {
         while (scope.isActive) {
             try {
@@ -84,17 +136,20 @@ class TelemetryMqttCoordinator(
                         zonas = zonas,
                         estadoIrrigador = irrigator,
                     )
-                    val topic = "furgones/$activeDeviceId/telemetry"
+                    val topic = "$activeTopicRoot/$activeDeviceId/telemetry"
+                    Log.d(tag, "Enqueuing telemetry for $activeDeviceId to $topic")
                     outboxManager.enqueue(topic, payload.toJson(), qos = 1)
 
                     // Local alarm evaluation
                     evaluateLocalAlarms(t1, t2, hum, vlt)
+                } else {
+                    Log.v(tag, "No telemetry data to send (T1, T2, Hum are null)")
                 }
             } catch (e: Exception) {
                 Log.w(tag, "Error during telemetry coordination tick: ${e.message}")
             }
 
-            delay(TELEMETRY_INTERVAL_MS)
+            delay(samplingIntervalMs)
         }
     }
 
@@ -106,7 +161,8 @@ class TelemetryMqttCoordinator(
                     deviceId = activeDeviceId,
                     status = status,
                 )
-                val topic = "furgones/$activeDeviceId/status"
+                val topic = "$activeTopicRoot/$activeDeviceId/status"
+                Log.d(tag, "Enqueuing heartbeat for $activeDeviceId to $topic (Status: $status)")
                 outboxManager.enqueue(topic, payload.toJson(), qos = 1)
             } catch (e: Exception) {
                 Log.w(tag, "Error during heartbeat tick: ${e.message}")
@@ -125,7 +181,7 @@ class TelemetryMqttCoordinator(
                 severity = "WARNING",
                 triggerValue = maxTemp,
             )
-            outboxManager.enqueue("furgones/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
+            outboxManager.enqueue("$activeTopicRoot/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
         }
 
         if ((hum ?: 0.0) > HUMIDITY_HIGH_THRESHOLD) {
@@ -135,7 +191,7 @@ class TelemetryMqttCoordinator(
                 severity = "WARNING",
                 triggerValue = hum ?: 0.0,
             )
-            outboxManager.enqueue("furgones/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
+            outboxManager.enqueue("$activeTopicRoot/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
         }
 
         if (vlt != null && vlt > 0.0 && vlt < VOLTAGE_LOW_THRESHOLD) {
@@ -145,7 +201,7 @@ class TelemetryMqttCoordinator(
                 severity = "CRITICAL",
                 triggerValue = vlt,
             )
-            outboxManager.enqueue("furgones/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
+            outboxManager.enqueue("$activeTopicRoot/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
         }
     }
 }
