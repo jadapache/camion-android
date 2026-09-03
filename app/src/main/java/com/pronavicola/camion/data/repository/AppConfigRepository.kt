@@ -15,6 +15,11 @@ class AppConfigRepository(
         const val KEY_MODBUS_HOST = "modbusHost"
         const val KEY_MODBUS_PORT = "modbusPort"
         const val KEY_PUBLISH_INTERVAL = "publishIntervalS"
+        const val KEY_SERVER_BASE_URL = "serverBaseUrl"
+        const val KEY_DEVICE_TOKEN = "deviceToken"
+        const val KEY_PAIRING_CODE = "pairingCode"
+        const val KEY_LICENSE_KEY = "licenseKey"
+        const val KEY_LICENSE_STATUS = "licenseStatus"
     }
 
     suspend fun getDeviceId(): String? = appConfigDao.getValor(KEY_DEVICE_ID)
@@ -40,4 +45,19 @@ class AppConfigRepository(
 
     suspend fun getPublishInterval(): String? = appConfigDao.getValor(KEY_PUBLISH_INTERVAL)
     suspend fun savePublishInterval(interval: String) = appConfigDao.save(AppConfigEntity(KEY_PUBLISH_INTERVAL, interval))
+
+    suspend fun getServerBaseUrl(): String? = appConfigDao.getValor(KEY_SERVER_BASE_URL)
+    suspend fun saveServerBaseUrl(url: String) = appConfigDao.save(AppConfigEntity(KEY_SERVER_BASE_URL, url))
+
+    suspend fun getDeviceToken(): String? = appConfigDao.getValor(KEY_DEVICE_TOKEN)
+    suspend fun saveDeviceToken(token: String) = appConfigDao.save(AppConfigEntity(KEY_DEVICE_TOKEN, token))
+
+    suspend fun getPairingCode(): String? = appConfigDao.getValor(KEY_PAIRING_CODE)
+    suspend fun savePairingCode(code: String) = appConfigDao.save(AppConfigEntity(KEY_PAIRING_CODE, code))
+
+    suspend fun getLicenseKey(): String? = appConfigDao.getValor(KEY_LICENSE_KEY)
+    suspend fun saveLicenseKey(key: String) = appConfigDao.save(AppConfigEntity(KEY_LICENSE_KEY, key))
+
+    suspend fun getLicenseStatus(): String? = appConfigDao.getValor(KEY_LICENSE_STATUS)
+    suspend fun saveLicenseStatus(status: String) = appConfigDao.save(AppConfigEntity(KEY_LICENSE_STATUS, status))
 }

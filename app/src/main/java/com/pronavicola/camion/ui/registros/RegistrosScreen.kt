@@ -65,7 +65,7 @@ private fun TableHeader() {
 }
 
 @Composable
-private fun RowScope.HeaderText(text: String, modifier: Modifier = Modifier) {
+private fun HeaderText(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         color = Color.White,

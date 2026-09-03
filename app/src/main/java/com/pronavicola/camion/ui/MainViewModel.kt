@@ -1,5 +1,6 @@
 package com.pronavicola.camion.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -8,9 +9,11 @@ import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.data.modbus.ModbusClient
 import com.pronavicola.camion.data.modbus.toProcesoEstado
+import com.pronavicola.camion.data.remote.FurgonInfo
 import com.pronavicola.camion.data.repository.AppConfigRepository
 import com.pronavicola.camion.data.repository.AuthRepository
 import com.pronavicola.camion.data.repository.AuthResult
+import com.pronavicola.camion.data.repository.DevicePairingRepository
 import com.pronavicola.camion.data.repository.ParametrosRepository
 import com.pronavicola.camion.data.repository.RegistrosRepository
 import com.pronavicola.camion.domain.model.AppDestination
@@ -59,6 +62,13 @@ data class MainUiState(
     val mqttConnected: Boolean = false,
     val modbusConnected: Boolean = false,
     val outboxPendingCount: Int = 0,
+    val serverBaseUrl: String = "http://192.168.1.50:3000",
+    val deviceToken: String = "",
+    val pairingCode: String = "",
+    val licenseStatus: String = "UNREGISTERED",
+    val licenseKeyInput: String = "",
+    val isPollingPairing: Boolean = false,
+    val availableFurgones: List<FurgonInfo> = emptyList(),
 )
 
 class MainViewModel(
@@ -70,6 +80,7 @@ class MainViewModel(
     private val mqttClientManager: com.pronavicola.camion.data.mqtt.MqttClientManager,
     private val outboxQueueManager: com.pronavicola.camion.data.mqtt.OutboxQueueManager? = null,
     private val telemetryMqttCoordinator: com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator? = null,
+    private val devicePairingRepository: DevicePairingRepository? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -98,6 +109,11 @@ class MainViewModel(
             val savedModbusHost = appConfigRepository.getModbusHost() ?: ModbusClient.DEFAULT_HOST
             val savedModbusPort = appConfigRepository.getModbusPort() ?: ModbusClient.DEFAULT_PORT.toString()
             val savedPublishInterval = appConfigRepository.getPublishInterval() ?: "5"
+            val savedServerUrl = appConfigRepository.getServerBaseUrl() ?: "http://192.168.1.50:3000"
+            val savedDeviceToken = appConfigRepository.getDeviceToken() ?: ""
+            val savedPairingCode = appConfigRepository.getPairingCode() ?: ""
+            val savedLicenseKey = appConfigRepository.getLicenseKey() ?: ""
+            val savedLicenseStatus = appConfigRepository.getLicenseStatus() ?: "UNREGISTERED"
 
             _uiState.update { it.copy(
                 currentUser = user,
@@ -110,6 +126,11 @@ class MainViewModel(
                 modbusHost = savedModbusHost,
                 modbusPort = savedModbusPort,
                 publishIntervalS = savedPublishInterval,
+                serverBaseUrl = savedServerUrl,
+                deviceToken = savedDeviceToken,
+                pairingCode = savedPairingCode,
+                licenseStatus = savedLicenseStatus,
+                licenseKeyInput = savedLicenseKey,
             ) }
 
             telemetryMqttCoordinator?.updateDeviceId(savedDeviceId)
@@ -395,6 +416,149 @@ class MainViewModel(
         _uiState.update { it.copy(publishIntervalS = value) }
     }
 
+    fun onServerBaseUrlChange(value: String) {
+        _uiState.update { it.copy(serverBaseUrl = value) }
+    }
+
+    fun onLicenseKeyInputChange(value: String) {
+        _uiState.update { it.copy(licenseKeyInput = value) }
+    }
+
+    fun requestPairingCode() {
+        val repo = devicePairingRepository ?: return
+        val state = _uiState.value
+        viewModelScope.launch {
+            repo.requestPairingCode(state.serverBaseUrl)
+                .onSuccess { (devId, code) ->
+                    _uiState.update {
+                        it.copy(
+                            deviceId = devId,
+                            pairingCode = code,
+                            licenseStatus = "PENDING_PAIRING",
+                            statusMessage = "Código PIN $code generado. Ingrese el PIN en la web FURGN BI.",
+                        )
+                    }
+                    startPairingCheckLoop()
+                }
+                .onFailure {
+                    showMessage("Error al solicitar PIN: ${it.message}")
+                }
+        }
+    }
+
+    fun checkPairingStatus() {
+        val repo = devicePairingRepository ?: return
+        val state = _uiState.value
+        if (state.pairingCode.isBlank() || state.deviceId.isBlank()) return
+
+        viewModelScope.launch {
+            repo.checkPairingStatus(state.serverBaseUrl, state.pairingCode, state.deviceId)
+                .onSuccess { isPaired ->
+                    if (isPaired) {
+                        val token = appConfigRepository.getDeviceToken() ?: ""
+                        val newDevId = appConfigRepository.getDeviceId() ?: state.deviceId
+                        val newBroker = appConfigRepository.getBrokerUrl() ?: state.mqttBrokerUrl
+                        val newTopic = appConfigRepository.getTopicRoot() ?: state.mqttTopicRoot
+
+                        _uiState.update {
+                            it.copy(
+                                deviceToken = token,
+                                deviceId = newDevId,
+                                mqttBrokerUrl = newBroker,
+                                mqttTopicRoot = newTopic,
+                                licenseStatus = "ACTIVE",
+                                statusMessage = "¡Dispositivo vinculado y activo correctamente!",
+                            )
+                        }
+                    } else {
+                        showMessage("Estado de vinculación: ${state.licenseStatus}")
+                    }
+                }
+                .onFailure {
+                    showMessage("Error consultando estado: ${it.message}")
+                }
+        }
+    }
+
+    fun activateLicenseKey() {
+        val repo = devicePairingRepository ?: return
+        val state = _uiState.value
+        if (state.licenseKeyInput.isBlank()) {
+            showMessage("Ingrese una clave de licencia válida")
+            return
+        }
+
+        viewModelScope.launch {
+            repo.activateLicenseKey(state.serverBaseUrl, state.licenseKeyInput)
+                .onSuccess { isActivated ->
+                    if (isActivated) {
+                        val token = appConfigRepository.getDeviceToken() ?: ""
+                        val newDevId = appConfigRepository.getDeviceId() ?: state.deviceId
+                        val newBroker = appConfigRepository.getBrokerUrl() ?: state.mqttBrokerUrl
+                        val newTopic = appConfigRepository.getTopicRoot() ?: state.mqttTopicRoot
+
+                        _uiState.update {
+                            it.copy(
+                                deviceToken = token,
+                                deviceId = newDevId,
+                                mqttBrokerUrl = newBroker,
+                                mqttTopicRoot = newTopic,
+                                licenseStatus = "ACTIVE",
+                                statusMessage = "¡Licencia activada con éxito!",
+                            )
+                        }
+                    } else {
+                        showMessage("Error activando clave de licencia")
+                    }
+                }
+                .onFailure {
+                    showMessage("Error al activar clave: ${it.message}")
+                }
+        }
+    }
+
+    fun fetchAvailableFurgones() {
+        val repo = devicePairingRepository ?: return
+        val state = _uiState.value
+        viewModelScope.launch {
+            repo.getAvailableFurgones(state.serverBaseUrl, state.deviceToken)
+                .onSuccess { list ->
+                    _uiState.update { it.copy(availableFurgones = list) }
+                }
+                .onFailure {
+                    Log.w("MainViewModel", "Could not fetch furgones list: ${it.message}")
+                }
+        }
+    }
+
+    fun selectAndAssignFurgon(furgonId: String) {
+        val repo = devicePairingRepository ?: return
+        val state = _uiState.value
+        viewModelScope.launch {
+            repo.updateAssociatedFurgon(state.serverBaseUrl, state.deviceToken, furgonId)
+                .onSuccess { newPlate ->
+                    _uiState.update { it.copy(deviceId = newPlate, statusMessage = "Placa de furgón asociada: $newPlate") }
+                    telemetryMqttCoordinator?.updateDeviceId(newPlate)
+                }
+                .onFailure {
+                    showMessage("Error al asociar furgón: ${it.message}")
+                }
+        }
+    }
+
+    private fun startPairingCheckLoop() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPollingPairing = true) }
+            var attempts = 0
+            while (_uiState.value.isPollingPairing && attempts < 120 && _uiState.value.licenseStatus != "ACTIVE") {
+                checkPairingStatus()
+                delay(5000.milliseconds)
+                attempts++
+            }
+            _uiState.update { it.copy(isPollingPairing = false) }
+        }
+    }
+
     fun saveSystemSettings() {
         val state = _uiState.value
         val user = state.currentUser ?: return
@@ -409,6 +573,7 @@ class MainViewModel(
             appConfigRepository.saveModbusHost(state.modbusHost)
             appConfigRepository.saveModbusPort(state.modbusPort)
             appConfigRepository.savePublishInterval(state.publishIntervalS)
+            appConfigRepository.saveServerBaseUrl(state.serverBaseUrl)
 
             telemetryMqttCoordinator?.updateDeviceId(state.deviceId)
             telemetryMqttCoordinator?.updateTopicRoot(state.mqttTopicRoot)
@@ -464,6 +629,7 @@ class MainViewModel(
                 app.mqttClientManager,
                 app.outboxQueueManager,
                 app.telemetryMqttCoordinator,
+                app.devicePairingRepository,
             ) as T
         }
     }

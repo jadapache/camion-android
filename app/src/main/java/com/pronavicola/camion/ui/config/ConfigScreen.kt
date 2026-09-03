@@ -18,21 +18,35 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pronavicola.camion.data.remote.FurgonInfo
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.ui.theme.CamionColors
 
@@ -59,6 +74,12 @@ fun ConfigScreen(
     mqttConnected: Boolean,
     modbusConnected: Boolean,
     outboxPendingCount: Int,
+    serverBaseUrl: String,
+    pairingCode: String,
+    licenseStatus: String,
+    licenseKeyInput: String,
+    isPollingPairing: Boolean,
+    availableFurgones: List<FurgonInfo>,
     onDeviceIdChange: (String) -> Unit,
     onMqttBrokerUrlChange: (String) -> Unit,
     onMqttTopicRootChange: (String) -> Unit,
@@ -67,6 +88,13 @@ fun ConfigScreen(
     onModbusHostChange: (String) -> Unit,
     onModbusPortChange: (String) -> Unit,
     onPublishIntervalChange: (String) -> Unit,
+    onServerBaseUrlChange: (String) -> Unit,
+    onLicenseKeyInputChange: (String) -> Unit,
+    onRequestPairingCode: () -> Unit,
+    onCheckPairingStatus: () -> Unit,
+    onActivateLicenseKey: () -> Unit,
+    onFetchFurgones: () -> Unit,
+    onSelectFurgon: (String) -> Unit,
     onSaveSystemSettings: () -> Unit,
     onSyncAllRegistros: () -> Unit,
     modifier: Modifier = Modifier,
@@ -114,6 +142,184 @@ fun ConfigScreen(
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 14.sp
                 )
+            }
+        }
+
+        // --- SECTION: DEVICE LICENSING & PAIRING ---
+        ConfigSection(
+            title = "Licenciamiento & Vinculación de Pantalla HMI",
+            icon = Icons.Default.Security
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // License Status Badge
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Estado de Licencia Web:",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    val (statusText, badgeColor) = when (licenseStatus) {
+                        "ACTIVE" -> Pair("VINCULADO Y ACTIVO", Color(0xFF4CAF50))
+                        "PENDING_PAIRING" -> Pair("PENDIENTE DE APROBACIÓN", Color(0xFFFFB74D))
+                        else -> Pair("SIN VINCULAR", Color(0xFFEF5350))
+                    }
+
+                    Surface(
+                        color = badgeColor.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor)
+                    ) {
+                        Text(
+                            text = statusText,
+                            color = badgeColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                // Server REST Base URL
+                OutlinedTextField(
+                    value = serverBaseUrl,
+                    onValueChange = onServerBaseUrlChange,
+                    label = { Text("URL SERVIDOR BACKEND REST") },
+                    placeholder = { Text("http://192.168.1.50:3000") },
+                    colors = outlinedTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // Pairing PIN Code Banner
+                if (pairingCode.isNotBlank()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "DISPOSITIVO: $deviceId",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "CÓDIGO PIN: $pairingCode",
+                                color = Color(0xFF64B5F6),
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 2.sp
+                            )
+                            Text(
+                                text = "Ingrese este código PIN en la plataforma web FURGN BI para autorizar la pantalla.",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
+                // Action Buttons for PIN
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onRequestPairingCode,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF005AC1))
+                    ) {
+                        Icon(imageVector = Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("SOLICITAR PIN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = onCheckPairingStatus,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
+                    ) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isPollingPairing) "SONDEANDO..." else "VERIFICAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                // License Key Direct Activation
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = licenseKeyInput,
+                        onValueChange = onLicenseKeyInputChange,
+                        label = { Text("CLAVE DE REGISTRO (FRGN-XXXX-XXXX-XXXX)") },
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.weight(1.8f),
+                        singleLine = true
+                    )
+
+                    Button(
+                        onClick = onActivateLicenseKey,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    ) {
+                        Icon(imageVector = Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("ACTIVAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                // Associated Furgon Selector
+                if (availableFurgones.isNotEmpty()) {
+                    var furgonExpanded by remember { mutableStateOf(false) }
+                    val selectedFurgon = availableFurgones.firstOrNull { it.plate == deviceId }
+
+                    ExposedDropdownMenuBox(
+                        expanded = furgonExpanded,
+                        onExpandedChange = { furgonExpanded = !furgonExpanded },
+                    ) {
+                        OutlinedTextField(
+                            value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" } ?: deviceId,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Furgón Asignado en Web") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = furgonExpanded) },
+                            colors = outlinedTextFieldColors(),
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = furgonExpanded,
+                            onDismissRequest = { furgonExpanded = false },
+                            modifier = Modifier.background(Color(0xFF2C2C2C))
+                        ) {
+                            availableFurgones.forEach { furgon ->
+                                DropdownMenuItem(
+                                    text = { Text("${furgon.plate} - ${furgon.brand ?: "Furgón"}", color = Color.White) },
+                                    onClick = {
+                                        onSelectFurgon(furgon.id)
+                                        furgonExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 

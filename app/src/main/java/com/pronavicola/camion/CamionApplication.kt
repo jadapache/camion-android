@@ -42,6 +42,14 @@ class CamionApplication : Application() {
         AppConfigRepository(database.appConfigDao())
     }
 
+    val screensApiService: com.pronavicola.camion.data.remote.ScreensApiService by lazy {
+        com.pronavicola.camion.data.remote.ScreensApiService()
+    }
+
+    val devicePairingRepository: com.pronavicola.camion.data.repository.DevicePairingRepository by lazy {
+        com.pronavicola.camion.data.repository.DevicePairingRepository(this, screensApiService, appConfigRepository)
+    }
+
     override fun onCreate() {
         super.onCreate()
         mqttClientManager.start()

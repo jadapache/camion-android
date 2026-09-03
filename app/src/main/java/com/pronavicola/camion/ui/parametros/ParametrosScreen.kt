@@ -176,7 +176,7 @@ private fun ValueEditorDialog(
                         error = "Valor numerico invalido"
                         return@TextButton
                     }
-                    if (parsed < parametro.minimo || parsed > parametro.maximo) {
+                    if ((parsed < parametro.minimo) || (parsed > parametro.maximo)) {
                         error = "Fuera de rango permitido"
                         return@TextButton
                     }
