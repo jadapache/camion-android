@@ -1,13 +1,70 @@
-*.iml
-.gradle
-/local.properties
-/.idea/
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Built application files
 *.apk
+*.aar
 *.ap_
 *.aab
-/app/build/
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated and build files (Root & all Multiplatform modules: app, shared, desktop, etc.)
+bin/
+gen/
+out/
+build/
+**/build/
+
+# Gradle cache and files
+.gradle/
+buildOutputCleanup/
+
+# Kotlin compiler, tooling and daemon caches
+.kotlin/
+kotlin-js-store/
+
+# Local configuration files
+local.properties
+
+# Android Studio / IntelliJ IDEA
+*.iml
+.idea/
+.idea_modules/
+*.ipr
+*.iws
+
+# Android Studio captures and native build
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Compose Multiplatform / Desktop packaging
+package/
+dist/
+
+# Log files and crash dumps
+*.log
+hs_err_pid*
+replay_pid*
+*.hprof
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Visual Studio Code
+.vscode/
+
+# Temporary / backup files
+*.tmp
+*.bak
+*.swp
+*~
