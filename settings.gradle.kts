@@ -18,4 +18,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Camion"
+include(":shared")
 include(":app")
+include(":desktop")

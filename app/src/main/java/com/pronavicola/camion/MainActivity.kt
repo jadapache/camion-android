@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         val app = application as CamionApplication
         setContent {
             CamionTheme {
-                CamionApp(app = app)
+                CamionApp(appContext = app.appContext)
             }
         }
     }

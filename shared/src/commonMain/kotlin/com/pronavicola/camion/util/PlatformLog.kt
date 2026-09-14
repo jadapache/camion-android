@@ -1,0 +1,17 @@
+package com.pronavicola.camion.util
+
+expect object PlatformLog {
+    fun v(tag: String, message: String)
+    fun d(tag: String, message: String)
+    fun i(tag: String, message: String)
+    fun w(tag: String, message: String)
+    fun e(tag: String, message: String, throwable: Throwable? = null)
+}
+
+object Log {
+    fun v(tag: String, message: String) = PlatformLog.v(tag, message)
+    fun d(tag: String, message: String) = PlatformLog.d(tag, message)
+    fun i(tag: String, message: String) = PlatformLog.i(tag, message)
+    fun w(tag: String, message: String) = PlatformLog.w(tag, message)
+    fun e(tag: String, message: String, throwable: Throwable? = null) = PlatformLog.e(tag, message, throwable)
+}
