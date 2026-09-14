@@ -13,6 +13,9 @@ interface ModbusClient {
     val procesoActivo: StateFlow<Boolean>
     val zonas: StateFlow<List<ZoneStatus>>
     val estadoIrrigador: StateFlow<ZoneStatus>
+    val damperActivo: StateFlow<Boolean>
+    val calefaccionActiva: StateFlow<Boolean>
+    val alarmasActivas: StateFlow<List<String>>
 
     suspend fun connect(host: String = DEFAULT_HOST, port: Int = DEFAULT_PORT)
     suspend fun disconnect()

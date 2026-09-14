@@ -177,17 +177,21 @@ class MainViewModel(
 
         viewModelScope.launch {
             combine(
-                modbusClient.isConnected,
-                modbusClient.temperatura1,
-                modbusClient.temperatura2,
-                modbusClient.humedad,
-                modbusClient.tension,
-                modbusClient.procesoActivo,
-                modbusClient.zonas,
-                modbusClient.estadoIrrigador,
-                _uiState.map { it.currentUser?.idVehiculo ?: "AAA000" }.distinctUntilChanged(),
+                listOf(
+                    modbusClient.isConnected,
+                    modbusClient.temperatura1,
+                    modbusClient.temperatura2,
+                    modbusClient.humedad,
+                    modbusClient.tension,
+                    modbusClient.procesoActivo,
+                    modbusClient.zonas,
+                    modbusClient.estadoIrrigador,
+                    modbusClient.damperActivo,
+                    modbusClient.calefaccionActiva,
+                    modbusClient.alarmasActivas,
+                    _uiState.map { it.currentUser?.idVehiculo ?: "AAA000" }.distinctUntilChanged(),
+                )
             ) { values ->
-                @Suppress("UNCHECKED_CAST")
                 val connected = values[0] as Boolean
                 val t1 = values[1] as Double?
                 val t2 = values[2] as Double?
@@ -197,7 +201,11 @@ class MainViewModel(
                 @Suppress("UNCHECKED_CAST")
                 val zonas = values[6] as List<ZoneStatus>
                 val irrigator = values[7] as ZoneStatus
-                val vehiculo = values[8] as String
+                val damper = values[8] as Boolean
+                val calefaccion = values[9] as Boolean
+                @Suppress("UNCHECKED_CAST")
+                val alarmas = values[10] as List<String>
+                val vehiculo = values[11] as String
 
                 val currentHistory = _uiState.value.hmiState.history
                 val newHistory = if (proceso && t1 != null && t2 != null && hum != null) {
@@ -219,6 +227,9 @@ class MainViewModel(
                     procesoEstado = proceso.toProcesoEstado(),
                     zonas = zonas,
                     estadoIrrigador = irrigator,
+                    damperActivo = damper,
+                    calefaccionActiva = calefaccion,
+                    alarmasActivas = alarmas,
                     history = newHistory,
                 )
             }.collect { hmi ->

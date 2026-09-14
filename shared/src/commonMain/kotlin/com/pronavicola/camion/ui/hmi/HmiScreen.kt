@@ -16,7 +16,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -24,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.resources.*
 import com.pronavicola.camion.domain.model.HmiState
-import com.pronavicola.camion.domain.model.ProcesoEstado
 import com.pronavicola.camion.domain.model.ZoneStatus
 import com.pronavicola.camion.ui.theme.CamionColors
 import java.util.Locale
@@ -42,15 +40,20 @@ fun HmiScreen(
         // Main HMI Area - Filling the whole container
         TruckHmiLayout(state = state)
 
-        // Connection Badge at the bottom
-        Box(
+        // Connection Badge & Alarms at the bottom
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             ConnectionBadge(conectado = state.conectado)
-        }
 
+            if (state.alarmasActivas.isNotEmpty()) {
+                AlarmsBanner(alarmas = state.alarmasActivas)
+            }
+        }
     }
 }
 
@@ -72,7 +75,7 @@ private fun TruckHmiLayout(state: HmiState) {
             )
 
             // Overlay Components
-            
+
             // ZONA 6 (Top Right)
             ZoneIndicator(
                 label = "ZONA 6",
@@ -115,11 +118,28 @@ private fun TruckHmiLayout(state: HmiState) {
                 ZoneIndicator(label = "ZONA 2", status = state.zonas.getOrElse(1) { ZoneStatus.OFF })
             }
 
-            // Irrigator (Aspersor)
+            // Irrigator (Aspersor / Bomba)
             IrrigatorIndicator(
                 status = state.estadoIrrigador,
                 modifier = Modifier.offset(x = w * 0.35f, y = h * 0.53f)
             )
+
+            // Damper & Calefacción Actuators
+            Column(
+                modifier = Modifier.offset(x = w * 0.26f, y = h * 0.32f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ActuatorIndicator(
+                    label = "DAMPER",
+                    active = state.damperActivo,
+                    activeColor = Color(0xFF00E676),
+                )
+                ActuatorIndicator(
+                    label = "CALOR",
+                    active = state.calefaccionActiva,
+                    activeColor = Color(0xFFFF5722),
+                )
+            }
 
             // Main Chart Area
             Column(
@@ -196,7 +216,7 @@ private fun HmiLinesChart(history: List<com.pronavicola.camion.domain.model.HmiH
         val width = size.width
         val height = size.height
         val maxPoints = 50
-        
+
         // Grid Lines
         for (i in 0..5) {
             val y = height - (i * 20f / 100f * height)
@@ -211,14 +231,14 @@ private fun HmiLinesChart(history: List<com.pronavicola.camion.domain.model.HmiH
         if (history.size < 2) return@Canvas
 
         val stepX = width / (maxPoints - 1)
-        
+
         fun drawSeries(values: List<Double>, color: Color) {
             val path = Path()
             values.forEachIndexed { index, value ->
                 val x = index * stepX
                 val y = height - (value.coerceIn(0.0, 100.0).toFloat() / 100f * height)
                 if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                
+
                 drawCircle(color, 1.5.dp.toPx(), Offset(x, y))
             }
             drawPath(path, color, style = Stroke(width = 1.dp.toPx()))
@@ -263,6 +283,59 @@ private fun IrrigatorIndicator(status: ZoneStatus, modifier: Modifier = Modifier
             contentScale = ContentScale.Fit
         )
         Text("BOMBA", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ActuatorIndicator(
+    label: String,
+    active: Boolean,
+    activeColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    val bgColor = if (active) activeColor.copy(alpha = 0.85f) else Color(0xFF424242).copy(alpha = 0.7f)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(bgColor)
+            .border(0.5.dp, if (active) activeColor else Color.Gray, RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = if (active) Color.White else Color.LightGray,
+            fontSize = 7.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun AlarmsBanner(alarmas: List<String>) {
+    Surface(
+        color = Color(0xFFD32F2F),
+        shape = RoundedCornerShape(4.dp),
+        shadowElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+            )
+            Text(
+                text = "ALARMAS: ${alarmas.joinToString(", ")}",
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 

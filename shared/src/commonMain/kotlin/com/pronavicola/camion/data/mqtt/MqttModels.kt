@@ -16,6 +16,9 @@ data class TelemetryMqttPayload(
     val procesoActivo: Boolean,
     val zonas: List<ZoneStatus>,
     val estadoIrrigador: ZoneStatus,
+    val damperActivo: Boolean = false,
+    val calefaccionActiva: Boolean = false,
+    val alarmas: List<String> = emptyList(),
 ) {
     fun toJson(): String {
         val t1Str = temperatureC?.toString() ?: "null"
@@ -23,8 +26,9 @@ data class TelemetryMqttPayload(
         val humStr = humidityPct?.toString() ?: "null"
         val vltStr = voltageV?.toString() ?: "null"
         val zonasJson = zonas.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"${it.name}\"" }
+        val alarmasJson = alarmas.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"$it\"" }
 
-        return "{\"device_id\":\"$deviceId\",\"timestamp\":$timestamp,\"temperature_c\":$t1Str,\"temperature_2_c\":$t2Str,\"humidity_pct\":$humStr,\"voltage_v\":$vltStr,\"proceso_activo\":$procesoActivo,\"zonas\":$zonasJson,\"estado_irrigador\":\"${estadoIrrigador.name}\"}"
+        return "{\"device_id\":\"$deviceId\",\"timestamp\":$timestamp,\"temperature_c\":$t1Str,\"temperature_2_c\":$t2Str,\"humidity_pct\":$humStr,\"voltage_v\":$vltStr,\"proceso_activo\":$procesoActivo,\"zonas\":$zonasJson,\"estado_irrigador\":\"${estadoIrrigador.name}\",\"damper_activo\":$damperActivo,\"calefaccion_activa\":$calefaccionActiva,\"alarmas\":$alarmasJson}"
     }
 }
 

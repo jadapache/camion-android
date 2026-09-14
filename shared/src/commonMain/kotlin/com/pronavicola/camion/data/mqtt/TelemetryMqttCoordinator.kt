@@ -89,6 +89,9 @@ class TelemetryMqttCoordinator(
             procesoActivo = true,
             zonas = emptyList(),
             estadoIrrigador = ZoneStatus.OFF,
+            damperActivo = false,
+            calefaccionActiva = false,
+            alarmas = emptyList(),
         )
         val targetDevice = registro.idVehiculo.ifBlank { activeDeviceId }
         val topic = "$activeTopicRoot/$targetDevice/telemetry"
@@ -123,6 +126,9 @@ class TelemetryMqttCoordinator(
                 val proceso = modbusClient.procesoActivo.value
                 val zonas = modbusClient.zonas.value
                 val irrigator = modbusClient.estadoIrrigador.value
+                val damper = modbusClient.damperActivo.value
+                val calefaccion = modbusClient.calefaccionActiva.value
+                val alarmas = modbusClient.alarmasActivas.value
 
                 // Publish telemetry if connected or has readings
                 if (t1 != null || t2 != null || hum != null) {
@@ -135,6 +141,9 @@ class TelemetryMqttCoordinator(
                         procesoActivo = proceso,
                         zonas = zonas,
                         estadoIrrigador = irrigator,
+                        damperActivo = damper,
+                        calefaccionActiva = calefaccion,
+                        alarmas = alarmas,
                     )
                     val topic = "$activeTopicRoot/$activeDeviceId/telemetry"
                     Log.d(tag, "Enqueuing telemetry for $activeDeviceId to $topic")

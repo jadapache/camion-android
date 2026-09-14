@@ -40,9 +40,64 @@ data class HmiState(
     val procesoEstado: ProcesoEstado = ProcesoEstado.INACTIVO,
     val zonas: List<ZoneStatus> = List(6) { ZoneStatus.OFF },
     val estadoIrrigador: ZoneStatus = ZoneStatus.OFF,
+    val damperActivo: Boolean = false,
+    val calefaccionActiva: Boolean = false,
+    val alarmasActivas: List<String> = emptyList(),
     val history: List<HmiHistoryPoint> = emptyList(),
     val mensaje: String? = null,
 )
+
+object Micro820ModbusConstants {
+    // Coils (0-based offsets for PDU)
+    const val COIL_INICIO = 0      // Coil 1: INICIO (Pulse FC 05)
+    const val COIL_EN_PROCESO = 1  // Coil 2: EN_PROCESO (Read FC 01)
+    const val COIL_DETENER = 2     // Coil 3: DETENER (Pulse FC 05)
+    const val COUNT_COILS = 3
+
+    // Holding Registers (0-based offsets for PDU: 40001 + offset)
+    const val REG_ALARMAS = 0      // 40001: ALARMAS (Word bitmask)
+    const val REG_CONFIRMAR = 1    // 40002: CONFIRMAR (Word bitmask)
+    const val REG_SALIDAS = 2      // 40003: SALIDAS (Word bitmask)
+    const val REG_HUMEDAD = 4      // 40005: HUMEDAD (REAL 2 words: 40005, 40006)
+    const val REG_TEMPERATURA1 = 6 // 40007: TEMP 1 (REAL 2 words: 40007, 40008)
+    const val REG_TEMPERATURA2 = 8 // 40009: TEMP 2 (REAL 2 words: 40009, 40010)
+    const val REG_TENSION = 10     // 40011: TENSION (REAL 2 words: 40011, 40012)
+    const val COUNT_HOLDING_REGS = 12
+
+    // Holding Registers - Parámetros (40029..40043)
+    const val REG_PARAM_TEMP_MIN = 28               // 40029 (REAL 2 words)
+    const val REG_PARAM_TEMP_MAX = 30               // 40031 (REAL 2 words)
+    const val REG_PARAM_HUM_MIN = 32                // 40033 (REAL 2 words)
+    const val REG_PARAM_HUM_MAX = 34                // 40035 (REAL 2 words)
+    const val REG_PARAM_DAMPER_TIEMPO_OFF = 36      // 40037 (REAL 2 words)
+    const val REG_PARAM_DAMPER_TIEMPO_ON = 38       // 40039 (REAL 2 words)
+    const val REG_PARAM_PULV_TIEMPO_OFF = 40        // 40041 (REAL 2 words)
+    const val REG_PARAM_PULV_TIEMPO_ON = 42         // 40043 (REAL 2 words)
+
+    // Bit positions in REG_CONFIRMAR (40002)
+    const val BIT_CONFIRM_ZONA_1 = 1
+    const val BIT_CONFIRM_ZONA_2 = 2
+    const val BIT_CONFIRM_ZONA_3 = 3
+    const val BIT_CONFIRM_ZONA_4 = 4
+    const val BIT_CONFIRM_ZONA_5 = 5
+    const val BIT_CONFIRM_ZONA_6 = 6
+    const val BIT_CONFIRM_PULVERIZADOR = 7
+    const val BIT_CONFIRM_DAMPER = 8
+    const val BIT_CONFIRM_CALEFACCION = 9
+
+    // Bit positions in REG_ALARMAS (40001)
+    const val BIT_ALARM_FALLA_ENERGIA = 0
+    const val BIT_ALARM_ZONA_1 = 1
+    const val BIT_ALARM_ZONA_2 = 2
+    const val BIT_ALARM_ZONA_3 = 3
+    const val BIT_ALARM_ZONA_4 = 4
+    const val BIT_ALARM_ZONA_5 = 5
+    const val BIT_ALARM_ZONA_6 = 6
+    const val BIT_ALARM_PULVERIZADOR = 7
+    const val BIT_ALARM_DAMPER = 8
+    const val BIT_ALARM_CALEFACCION = 9
+    const val BIT_ALARM_BAJA_TENSION = 10
+}
 
 data class HmiHistoryPoint(
     val t1: Double,
