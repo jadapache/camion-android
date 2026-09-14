@@ -73,9 +73,7 @@ class ModbusTcpClient(
     private var pollJob: Job? = null
     private val socketMutex = Mutex()
 
-    private var isSimulating = false
     private val parameterCache = mutableMapOf<String, Double>()
-    private var simTickCount = 0
 
     companion object {
         const val SOCKET_TIMEOUT_MS = 5000
@@ -107,7 +105,6 @@ class ModbusTcpClient(
             val connectedToPlc = ensureSocketConnected()
 
             if (connectedToPlc) {
-                isSimulating = false
                 _connected.value = true
                 val pollSuccess = pollPlcData()
 
@@ -123,17 +120,7 @@ class ModbusTcpClient(
                     }
                 }
             } else {
-                // If physical PLC is unreachable and fallback is enabled, simulate telemetry
-                if (enableSimulationFallback) {
-                    if (!isSimulating) {
-                        Log.i(tag, "PLC unreachable at $currentHost:$currentPort. Running in simulation mode.")
-                        isSimulating = true
-                    }
-                    _connected.value = true
-                    runSimulationTick()
-                } else {
-                    _connected.value = false
-                }
+                _connected.value = false
                 delay(3000L) // Retry connection periodically
             }
 
@@ -300,68 +287,14 @@ class ModbusTcpClient(
         }
     }
 
-    private fun runSimulationTick() {
-        if (_procesoActivo.value) {
-            simTickCount++
-            _temperatura1.value = drift(_temperatura1.value ?: 14.5, 12.0, 18.0)
-            _temperatura2.value = drift(_temperatura2.value ?: 14.0, 12.0, 18.0)
-            _humedad.value = drift(_humedad.value ?: 62.0, 45.0, 85.0)
-            _tension.value = drift(_tension.value ?: 24.0, 22.0, 26.0)
-
-            val elapsedSec = simTickCount * (POLLING_INTERVAL_MS / 1000.0)
-            val t1 = _temperatura1.value ?: 14.5
-            val hum = _humedad.value ?: 62.0
-
-            // Staggered zone turn-on logic
-            val z1 = elapsedSec >= 7.0
-            val z2 = elapsedSec >= 14.0 && (t1 < 12.0 || t1 > 18.0)
-            val z3 = elapsedSec >= 21.0
-            val z4 = elapsedSec >= 27.0
-            val z5 = elapsedSec >= 35.0 && t1 > 18.0
-            val z6 = elapsedSec >= 42.0
-
-            _zonas.value = listOf(
-                if (z1) ZoneStatus.ON else ZoneStatus.OFF,
-                if (z2) ZoneStatus.ON else ZoneStatus.OFF,
-                if (z3) ZoneStatus.ON else ZoneStatus.OFF,
-                if (z4) ZoneStatus.ON else ZoneStatus.OFF,
-                if (z5) ZoneStatus.ON else ZoneStatus.OFF,
-                if (z6) ZoneStatus.ON else ZoneStatus.OFF,
-            )
-
-            // Pulverizador logic (active if humidity is low)
-            _estadoIrrigador.value = if (hum < 55.0 && ((simTickCount % 6) < 3)) ZoneStatus.ON else ZoneStatus.OFF
-
-            // Damper & Heating logic
-            _calefaccionActiva.value = t1 < 12.0
-            _damperActivo.value = t1 > 18.0 || (t1 < 12.0 && ((simTickCount % 8) < 4))
-            _alarmasActivas.value = emptyList()
-        } else {
-            simTickCount = 0
-            _zonas.value = List(6) { ZoneStatus.OFF }
-            _estadoIrrigador.value = ZoneStatus.OFF
-            _damperActivo.value = false
-            _calefaccionActiva.value = false
-            _alarmasActivas.value = emptyList()
-        }
-    }
-
     override suspend fun iniciarProceso() {
         _procesoActivo.value = true
-        simTickCount = 0
-        if (isSimulating || socket == null) {
-            _temperatura1.value = 14.5
-            _temperatura2.value = 14.0
-            _humedad.value = 62.0
-            _tension.value = 24.0
-        }
         // Write pulse to Coil 1 (INICIO)
         writeCoilToPlc(coilAddress = Micro820ModbusConstants.COIL_INICIO, state = true)
     }
 
     override suspend fun detenerProceso() {
         _procesoActivo.value = false
-        simTickCount = 0
         _zonas.value = List(6) { ZoneStatus.OFF }
         _estadoIrrigador.value = ZoneStatus.OFF
         _damperActivo.value = false
@@ -462,10 +395,5 @@ class ModbusTcpClient(
                 }
             }
         }
-    }
-
-    private fun drift(current: Double, min: Double, max: Double): Double {
-        val next = current + Random.nextDouble(-0.4, 0.4)
-        return next.coerceIn(min, max)
     }
 }

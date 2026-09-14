@@ -41,6 +41,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -80,6 +82,7 @@ fun ConfigScreen(
     licenseKeyInput: String,
     isPollingPairing: Boolean,
     availableFurgones: List<FurgonInfo>,
+    modbusSimulationEnabled: Boolean,
     onDeviceIdChange: (String) -> Unit,
     onMqttBrokerUrlChange: (String) -> Unit,
     onMqttTopicRootChange: (String) -> Unit,
@@ -88,6 +91,7 @@ fun ConfigScreen(
     onModbusHostChange: (String) -> Unit,
     onModbusPortChange: (String) -> Unit,
     onPublishIntervalChange: (String) -> Unit,
+    onModbusSimulationToggle: (Boolean) -> Unit,
     onServerBaseUrlChange: (String) -> Unit,
     onLicenseKeyInputChange: (String) -> Unit,
     onRequestPairingCode: () -> Unit,
@@ -436,6 +440,43 @@ fun ConfigScreen(
             icon = Icons.Default.Lan
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (currentUser.idPerfil == 1) { // 1 = Admin/Desarrollador
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Simulación Modbus Local",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Levanta un servidor TCP en puerto 1502",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Switch(
+                                checked = modbusSimulationEnabled,
+                                onCheckedChange = onModbusSimulationToggle,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = Color(0xFF4CAF50)
+                                )
+                            )
+                        }
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -447,6 +488,7 @@ fun ConfigScreen(
                         placeholder = { Text("192.168.1.10") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(2f),
+                        enabled = !modbusSimulationEnabled,
                     )
 
                     OutlinedTextField(
@@ -456,6 +498,7 @@ fun ConfigScreen(
                         placeholder = { Text("502") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1f),
+                        enabled = !modbusSimulationEnabled,
                     )
                 }
 

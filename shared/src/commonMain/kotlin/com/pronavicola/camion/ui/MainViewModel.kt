@@ -71,6 +71,7 @@ data class MainUiState(
     val licenseKeyInput: String = "",
     val isPollingPairing: Boolean = false,
     val availableFurgones: List<FurgonInfo> = emptyList(),
+    val modbusSimulationEnabled: Boolean = false,
 )
 
 class MainViewModel(
@@ -84,6 +85,8 @@ class MainViewModel(
     private val telemetryMqttCoordinator: com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator? = null,
     private val devicePairingRepository: DevicePairingRepository? = null,
 ) : ViewModel() {
+
+    private val modbusPlcServer = com.pronavicola.camion.data.modbus.ModbusPlcServer(viewModelScope, 1502)
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -116,6 +119,7 @@ class MainViewModel(
             val savedPairingCode = appConfigRepository.getPairingCode() ?: ""
             val savedLicenseKey = appConfigRepository.getLicenseKey() ?: ""
             val savedLicenseStatus = appConfigRepository.getLicenseStatus() ?: "UNREGISTERED"
+            val savedModbusSimulationEnabled = appConfigRepository.getModbusSimulationEnabled()
 
             _uiState.update { it.copy(
                 currentUser = user,
@@ -133,7 +137,12 @@ class MainViewModel(
                 pairingCode = savedPairingCode,
                 licenseStatus = savedLicenseStatus,
                 licenseKeyInput = savedLicenseKey,
+                modbusSimulationEnabled = savedModbusSimulationEnabled,
             ) }
+
+            if (savedModbusSimulationEnabled) {
+                modbusPlcServer.start()
+            }
 
             telemetryMqttCoordinator?.updateDeviceId(savedDeviceId)
             telemetryMqttCoordinator?.updateTopicRoot(savedTopicRoot)
@@ -148,8 +157,9 @@ class MainViewModel(
                 password = savedPassword,
             )
 
-            val port = savedModbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT
-            modbusClient.connect(host = savedModbusHost, port = port)
+            val targetHost = if (savedModbusSimulationEnabled) "127.0.0.1" else savedModbusHost
+            val targetPort = if (savedModbusSimulationEnabled) 1502 else (savedModbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT)
+            modbusClient.connect(host = targetHost, port = targetPort)
             modbusClient.iniciarProceso() // Auto-start simulation/process
         }
 
@@ -433,6 +443,10 @@ class MainViewModel(
         _uiState.update { it.copy(serverBaseUrl = value) }
     }
 
+    fun onModbusSimulationToggle(enabled: Boolean) {
+        _uiState.update { it.copy(modbusSimulationEnabled = enabled) }
+    }
+
     fun onLicenseKeyInputChange(value: String) {
         _uiState.update { it.copy(licenseKeyInput = value) }
     }
@@ -587,6 +601,13 @@ class MainViewModel(
             appConfigRepository.saveModbusPort(state.modbusPort)
             appConfigRepository.savePublishInterval(state.publishIntervalS)
             appConfigRepository.saveServerBaseUrl(state.serverBaseUrl)
+            appConfigRepository.saveModbusSimulationEnabled(state.modbusSimulationEnabled)
+
+            if (state.modbusSimulationEnabled) {
+                modbusPlcServer.start()
+            } else {
+                modbusPlcServer.stop()
+            }
 
             telemetryMqttCoordinator?.updateDeviceId(state.deviceId)
             telemetryMqttCoordinator?.updateTopicRoot(state.mqttTopicRoot)
@@ -603,8 +624,9 @@ class MainViewModel(
             )
 
             // Reconnect Modbus TCP client if host/port changed
-            val port = state.modbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT
-            modbusClient.connect(host = state.modbusHost, port = port)
+            val targetHost = if (state.modbusSimulationEnabled) "127.0.0.1" else state.modbusHost
+            val targetPort = if (state.modbusSimulationEnabled) 1502 else (state.modbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT)
+            modbusClient.connect(host = targetHost, port = targetPort)
 
             _uiState.update { it.copy(
                 currentUser = user.copy(idVehiculo = state.deviceId),

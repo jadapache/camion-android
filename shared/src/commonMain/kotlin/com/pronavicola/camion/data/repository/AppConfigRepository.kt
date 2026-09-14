@@ -20,6 +20,7 @@ class AppConfigRepository(
         const val KEY_PAIRING_CODE = "pairingCode"
         const val KEY_LICENSE_KEY = "licenseKey"
         const val KEY_LICENSE_STATUS = "licenseStatus"
+        const val KEY_MODBUS_SIMULATION_ENABLED = "modbusSimulationEnabled"
     }
 
     suspend fun getDeviceId(): String? = appConfigDao.getValor(KEY_DEVICE_ID)
@@ -60,4 +61,7 @@ class AppConfigRepository(
 
     suspend fun getLicenseStatus(): String? = appConfigDao.getValor(KEY_LICENSE_STATUS)
     suspend fun saveLicenseStatus(status: String) = appConfigDao.save(AppConfigEntity(KEY_LICENSE_STATUS, status))
+
+    suspend fun getModbusSimulationEnabled(): Boolean = appConfigDao.getValor(KEY_MODBUS_SIMULATION_ENABLED)?.toBooleanStrictOrNull() ?: false
+    suspend fun saveModbusSimulationEnabled(enabled: Boolean) = appConfigDao.save(AppConfigEntity(KEY_MODBUS_SIMULATION_ENABLED, enabled.toString()))
 }
