@@ -13,8 +13,12 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 /**
- * Simulates PLC readings until a real Modbus TCP client is wired in.
- * Values drift within realistic ranges for truck temperature control.
+ * High-fidelity PLC Micro820 simulation client.
+ * Reproduces the PLC ladder control sequence:
+ * - Timed staggered zone startup (7s, 14s, 21s, 27s, 35s, 42s).
+ * - Closed-loop spray/irrigator cycles based on humidity and configured ON/OFF timers.
+ * - Closed-loop heating/damper cycles based on temperature thresholds and ON/OFF timers.
+ * - Dynamic parameter adjustment matching PLC holding registers.
  */
 class SimulatedModbusClient(
     private val scope: CoroutineScope,
@@ -43,8 +47,24 @@ class SimulatedModbusClient(
     private val _estadoIrrigador = MutableStateFlow(ZoneStatus.OFF)
     override val estadoIrrigador: StateFlow<ZoneStatus> = _estadoIrrigador.asStateFlow()
 
+    private val _damperActivo = MutableStateFlow(false)
+    override val damperActivo: StateFlow<Boolean> = _damperActivo.asStateFlow()
+
+    private val _calefaccionActiva = MutableStateFlow(false)
+    override val calefaccionActiva: StateFlow<Boolean> = _calefaccionActiva.asStateFlow()
+
+    private val _alarmasActivas = MutableStateFlow<List<String>>(emptyList())
+    override val alarmasActivas: StateFlow<List<String>> = _alarmasActivas.asStateFlow()
+
     private var pollJob: Job? = null
     private val parameterValues = mutableMapOf<String, Double>()
+
+    // Simulation sequence state
+    private var elapsedSeconds = 0
+    private var irrigatorTimer = 0
+    private var irrigatorIsOn = false
+    private var damperTimer = 0
+    private var damperIsOn = false
 
     override suspend fun connect(host: String, port: Int) {
         disconnect()
@@ -53,22 +73,97 @@ class SimulatedModbusClient(
         pollJob = scope.launch(Dispatchers.Default) {
             while (isActive && _connected.value) {
                 if (_procesoActivo.value) {
-                    _temperatura1.value = drift(_temperatura1.value ?: 14.5, 12.0, 18.0)
-                    _temperatura2.value = drift(_temperatura2.value ?: 14.0, 12.0, 18.0)
+                    elapsedSeconds++
+
+                    // Drift sensor readings
+                    _temperatura1.value = drift(_temperatura1.value ?: 14.5, 11.0, 19.0)
+                    _temperatura2.value = drift(_temperatura2.value ?: 14.0, 11.0, 19.0)
                     _humedad.value = drift(_humedad.value ?: 62.0, 45.0, 85.0)
                     _tension.value = drift(_tension.value ?: 24.0, 22.0, 26.0)
 
-                    // Simulate some logic for fans and pump
-                    _zonas.value = List(6) { index ->
-                        val temp = if (index < 3) _temperatura1.value ?: 0.0 else _temperatura2.value ?: 0.0
-                        if (temp > 15.0) ZoneStatus.ON else ZoneStatus.OFF
+                    val t1 = _temperatura1.value ?: 14.5
+                    val hum = _humedad.value ?: 62.0
+
+                    // Configured / default parameter limits
+                    val tempMin = getParam("TempMin", "1", 12.0)
+                    val tempMax = getParam("TempMax", "2", 18.0)
+                    val humMin = getParam("HumMin", "3", 55.0)
+                    val damperTimeOff = getParam("DamperTiempoOff", "5", 30.0).toInt().coerceAtLeast(1)
+                    val damperTimeOn = getParam("DamperTiempoOn", "6", 15.0).toInt().coerceAtLeast(1)
+                    val pulvTimeOff = getParam("PulverizadorTiempoOff", "7", 20.0).toInt().coerceAtLeast(1)
+                    val pulvTimeOn = getParam("PulverizadorTiempoOn", "8", 10.0).toInt().coerceAtLeast(1)
+
+                    // 1. Timed Staggered Startup of Zones
+                    val z1 = elapsedSeconds >= 7
+                    val z2 = elapsedSeconds >= 14 && (t1 < tempMin || t1 > tempMax)
+                    val z3 = elapsedSeconds >= 21
+                    val z4 = elapsedSeconds >= 27
+                    val z5 = elapsedSeconds >= 35 && t1 > tempMax
+                    val z6 = elapsedSeconds >= 42
+
+                    _zonas.value = listOf(
+                        if (z1) ZoneStatus.ON else ZoneStatus.OFF,
+                        if (z2) ZoneStatus.ON else ZoneStatus.OFF,
+                        if (z3) ZoneStatus.ON else ZoneStatus.OFF,
+                        if (z4) ZoneStatus.ON else ZoneStatus.OFF,
+                        if (z5) ZoneStatus.ON else ZoneStatus.OFF,
+                        if (z6) ZoneStatus.ON else ZoneStatus.OFF,
+                    )
+
+                    // 2. Closed-Loop Irrigator / Pulverizer Cycle
+                    if (hum < humMin) {
+                        irrigatorTimer++
+                        if (irrigatorIsOn) {
+                            if (irrigatorTimer >= pulvTimeOn) {
+                                irrigatorIsOn = false
+                                irrigatorTimer = 0
+                            }
+                        } else {
+                            if (irrigatorTimer >= pulvTimeOff) {
+                                irrigatorIsOn = true
+                                irrigatorTimer = 0
+                            }
+                        }
+                        _estadoIrrigador.value = if (irrigatorIsOn) ZoneStatus.ON else ZoneStatus.OFF
+                    } else {
+                        irrigatorTimer = 0
+                        irrigatorIsOn = false
+                        _estadoIrrigador.value = ZoneStatus.OFF
                     }
-                    _estadoIrrigador.value = if ((_humedad.value ?: 100.0) < 55.0) ZoneStatus.ON else ZoneStatus.OFF
+
+                    // 3. Closed-Loop Heating & Damper Cycle
+                    if (t1 < tempMin) {
+                        _calefaccionActiva.value = true
+                        damperTimer++
+                        if (damperIsOn) {
+                            if (damperTimer >= damperTimeOn) {
+                                damperIsOn = false
+                                damperTimer = 0
+                            }
+                        } else {
+                            if (damperTimer >= damperTimeOff) {
+                                damperIsOn = true
+                                damperTimer = 0
+                            }
+                        }
+                        _damperActivo.value = damperIsOn
+                    } else if (t1 > tempMax) {
+                        _calefaccionActiva.value = false
+                        _damperActivo.value = true
+                        damperTimer = 0
+                        damperIsOn = true
+                    } else {
+                        _calefaccionActiva.value = false
+                        _damperActivo.value = false
+                        damperTimer = 0
+                        damperIsOn = false
+                    }
+
+                    _alarmasActivas.value = emptyList()
                 } else {
-                    _zonas.value = List(6) { ZoneStatus.OFF }
-                    _estadoIrrigador.value = ZoneStatus.OFF
+                    resetProcessState()
                 }
-                delay(2000)
+                delay(1000) // 1 second simulation clock
             }
         }
     }
@@ -77,29 +172,61 @@ class SimulatedModbusClient(
         pollJob?.cancel()
         pollJob = null
         _connected.value = false
+        resetProcessState()
     }
 
     override suspend fun iniciarProceso() {
         if (!_connected.value) return
         _procesoActivo.value = true
+        elapsedSeconds = 0
+        irrigatorTimer = 0
+        irrigatorIsOn = false
+        damperTimer = 0
+        damperIsOn = false
+
         _temperatura1.value = 14.5
         _temperatura2.value = 14.0
         _humedad.value = 62.0
         _tension.value = 24.0
         _zonas.value = List(6) { ZoneStatus.OFF }
         _estadoIrrigador.value = ZoneStatus.OFF
+        _damperActivo.value = false
+        _calefaccionActiva.value = false
+        _alarmasActivas.value = emptyList()
     }
 
     override suspend fun detenerProceso() {
         _procesoActivo.value = false
+        resetProcessState()
+    }
+
+    private fun resetProcessState() {
+        elapsedSeconds = 0
+        irrigatorTimer = 0
+        irrigatorIsOn = false
+        damperTimer = 0
+        damperIsOn = false
+        _zonas.value = List(6) { ZoneStatus.OFF }
+        _estadoIrrigador.value = ZoneStatus.OFF
+        _damperActivo.value = false
+        _calefaccionActiva.value = false
+        _alarmasActivas.value = emptyList()
     }
 
     override suspend fun writeParameter(tag: String, value: Double) {
-        parameterValues[tag] = value
+        parameterValues[tag.trim().uppercase()] = value
+        parameterValues[tag.trim()] = value
+    }
+
+    private fun getParam(tag1: String, tag2: String, default: Double): Double {
+        return parameterValues[tag1.uppercase()]
+            ?: parameterValues[tag1]
+            ?: parameterValues[tag2]
+            ?: default
     }
 
     private fun drift(current: Double, min: Double, max: Double): Double {
-        val next = current + Random.nextDouble(-0.4, 0.4)
+        val next = current + Random.nextDouble(-0.3, 0.3)
         return next.coerceIn(min, max)
     }
 }
