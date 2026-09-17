@@ -293,6 +293,21 @@ class ScreensApiService {
         }
     }
 
+    suspend fun unpairDevice(
+        baseUrl: String,
+        deviceToken: String?,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val endpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/unpair"
+            val body = JSONObject()
+            executePost(endpoint, body.toString(), deviceToken)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(tag, "unpairDevice error: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
     private fun executePost(endpoint: String, jsonBody: String, authBearer: String? = null): JSONObject {
         return executeHttp("POST", endpoint, jsonBody, authBearer)
     }

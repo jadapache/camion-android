@@ -17,14 +17,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Button
@@ -53,12 +60,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.data.remote.FurgonInfo
 import com.pronavicola.camion.domain.model.SessionUser
+import com.pronavicola.camion.ui.MqttLogEvent
 import com.pronavicola.camion.ui.theme.CamionColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,6 +94,13 @@ fun ConfigScreen(
     isPollingPairing: Boolean,
     availableFurgones: List<FurgonInfo>,
     modbusSimulationEnabled: Boolean,
+    mqttTransmittedPacketsCount: Int = 0,
+    mqttTestSuccessMessage: String? = null,
+    mqttTestTopic: String? = null,
+    mqttTestPayloadJson: String? = null,
+    mqttTestIsSuccess: Boolean = false,
+    mqttEventLogs: List<MqttLogEvent> = emptyList(),
+    isTestingMqttConnection: Boolean = false,
     onDeviceIdChange: (String) -> Unit,
     onMqttBrokerUrlChange: (String) -> Unit,
     onMqttTopicRootChange: (String) -> Unit,
@@ -99,6 +117,8 @@ fun ConfigScreen(
     onActivateLicenseKey: () -> Unit,
     onFetchFurgones: () -> Unit,
     onSelectFurgon: (String) -> Unit,
+    onUnlinkDevice: () -> Unit,
+    onTestMqttConnection: () -> Unit = {},
     onSaveSystemSettings: () -> Unit,
     onSyncAllRegistros: () -> Unit,
     modifier: Modifier = Modifier,
@@ -199,131 +219,182 @@ fun ConfigScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                // Pairing PIN Code Banner
-                if (pairingCode.isNotBlank()) {
-                    Card(
+                // Associated Furgon Selector
+                if (licenseStatus == "ACTIVE") {
+                    var isManualFurgonEntry by remember { mutableStateOf(false) }
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        if (isManualFurgonEntry) {
+                            OutlinedTextField(
+                                value = deviceId,
+                                onValueChange = onDeviceIdChange,
+                                label = { Text("Placa de Furgón (Manual)") },
+                                colors = outlinedTextFieldColors(),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        } else {
+                            var furgonExpanded by remember { mutableStateOf(false) }
+                            val selectedFurgon = availableFurgones.firstOrNull { it.plate == deviceId }
+
+                            ExposedDropdownMenuBox(
+                                expanded = furgonExpanded,
+                                onExpandedChange = {
+                                    furgonExpanded = !furgonExpanded
+                                    if (furgonExpanded) onFetchFurgones()
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                OutlinedTextField(
+                                    value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" } ?: deviceId,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Furgón Asignado en Web") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = furgonExpanded) },
+                                    colors = outlinedTextFieldColors(),
+                                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(),
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = furgonExpanded,
+                                    onDismissRequest = { furgonExpanded = false },
+                                    modifier = Modifier.background(Color(0xFF2C2C2C))
+                                ) {
+                                    if (availableFurgones.isEmpty()) {
+                                        DropdownMenuItem(text = { Text("Cargando o sin furgones...", color = Color.Gray) }, onClick = { furgonExpanded = false })
+                                    } else {
+                                        availableFurgones.forEach { furgon ->
+                                            DropdownMenuItem(
+                                                text = { Text("${furgon.plate} - ${furgon.brand ?: "Furgón"}", color = Color.White) },
+                                                onClick = {
+                                                    onSelectFurgon(furgon.id)
+                                                    furgonExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        androidx.compose.material3.IconButton(
+                            onClick = { isManualFurgonEntry = !isManualFurgonEntry },
+                            modifier = Modifier.background(Color(0xFF2A2A2A), CircleShape)
                         ) {
-                            Text(
-                                text = "DISPOSITIVO: $deviceId",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "CÓDIGO PIN: $pairingCode",
-                                color = Color(0xFF64B5F6),
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 2.sp
-                            )
-                            Text(
-                                text = "Ingrese este código PIN en la plataforma web FURGN BI para autorizar la pantalla.",
-                                color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 12.sp
+                            Icon(
+                                imageVector = if (isManualFurgonEntry) Icons.Default.CloudSync else Icons.Default.Edit,
+                                contentDescription = "Alternar modo",
+                                tint = Color.White
                             )
                         }
                     }
                 }
 
-                // Action Buttons for PIN
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+                if (licenseStatus == "ACTIVE") {
                     Button(
-                        onClick = onRequestPairingCode,
-                        modifier = Modifier.weight(1f),
+                        onClick = onUnlinkDevice,
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF005AC1))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
                     ) {
-                        Icon(imageVector = Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(imageVector = Icons.Default.Security, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("SOLICITAR PIN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("DESVINCULAR DISPOSITIVO", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
-
-                    Button(
-                        onClick = onCheckPairingStatus,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
-                    ) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isPollingPairing) "SONDEANDO..." else "VERIFICAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-
-                // License Key Direct Activation
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = licenseKeyInput,
-                        onValueChange = onLicenseKeyInputChange,
-                        label = { Text("CLAVE DE REGISTRO (FRGN-XXXX-XXXX-XXXX)") },
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1.8f),
-                        singleLine = true
-                    )
-
-                    Button(
-                        onClick = onActivateLicenseKey,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
-                    ) {
-                        Icon(imageVector = Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("ACTIVAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-
-                // Associated Furgon Selector
-                if (availableFurgones.isNotEmpty()) {
-                    var furgonExpanded by remember { mutableStateOf(false) }
-                    val selectedFurgon = availableFurgones.firstOrNull { it.plate == deviceId }
-
-                    ExposedDropdownMenuBox(
-                        expanded = furgonExpanded,
-                        onExpandedChange = { furgonExpanded = !furgonExpanded },
-                    ) {
-                        OutlinedTextField(
-                            value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" } ?: deviceId,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Furgón Asignado en Web") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = furgonExpanded) },
-                            colors = outlinedTextFieldColors(),
-                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(),
-                        )
-                        ExposedDropdownMenu(
-                            expanded = furgonExpanded,
-                            onDismissRequest = { furgonExpanded = false },
-                            modifier = Modifier.background(Color(0xFF2C2C2C))
+                } else {
+                    // Pairing PIN Code Banner
+                    if (pairingCode.isNotBlank()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
                         ) {
-                            availableFurgones.forEach { furgon ->
-                                DropdownMenuItem(
-                                    text = { Text("${furgon.plate} - ${furgon.brand ?: "Furgón"}", color = Color.White) },
-                                    onClick = {
-                                        onSelectFurgon(furgon.id)
-                                        furgonExpanded = false
-                                    }
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "DISPOSITIVO: $deviceId",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "CÓDIGO PIN: $pairingCode",
+                                    color = Color(0xFF64B5F6),
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 2.sp
+                                )
+                                Text(
+                                    text = "Ingrese este código PIN en la plataforma web FURGN BI para autorizar la pantalla.",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 12.sp
                                 )
                             }
                         }
                     }
+
+                    // Action Buttons for PIN
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = onRequestPairingCode,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF005AC1))
+                        ) {
+                            Icon(imageVector = Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("SOLICITAR PIN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = onCheckPairingStatus,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
+                        ) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isPollingPairing) "SONDEANDO..." else "VERIFICAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    // License Key Direct Activation
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = licenseKeyInput,
+                            onValueChange = onLicenseKeyInputChange,
+                            label = { Text("CLAVE DE REGISTRO (FRGN-XXXX-XXXX-XXXX)") },
+                            colors = outlinedTextFieldColors(),
+                            modifier = Modifier.weight(1.8f),
+                            singleLine = true
+                        )
+
+                        Button(
+                            onClick = onActivateLicenseKey,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                        ) {
+                            Icon(imageVector = Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("ACTIVAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
                 }
+
+
             }
         }
 
@@ -387,29 +458,80 @@ fun ConfigScreen(
         }
 
         // --- SECTION: MQTT SETTINGS ---
-        ConfigSection(
-            title = "Configuración del Broker MQTT",
-            icon = Icons.Default.WifiTethering
+        var showPayloadDetails by remember { mutableStateOf(false) }
+        var showConsoleLogs by remember { mutableStateOf(false) }
+        val clipboardManager = LocalClipboardManager.current
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(
-                    value = mqttBrokerUrl,
-                    onValueChange = onMqttBrokerUrlChange,
-                    label = { Text("URL DEL BROKER (Host & Puerto)") },
-                    placeholder = { Text("tcp://broker.emqx.io:1883") },
-                    colors = outlinedTextFieldColors(),
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Header with Probar Conexión action button
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                )
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.WifiTethering,
+                            contentDescription = null,
+                            tint = Color(0xFF64B5F6),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "SERVIDOR BROKER MQTT",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                OutlinedTextField(
-                    value = mqttTopicRoot,
-                    onValueChange = onMqttTopicRootChange,
-                    label = { Text("TÓPICO RAÍZ (MQTT ROOT)") },
-                    placeholder = { Text("furgones") },
-                    colors = outlinedTextFieldColors(),
+                    Button(
+                        onClick = onTestMqttConnection,
+                        enabled = !isTestingMqttConnection,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF005AC1))
+                    ) {
+                        Text(
+                            text = if (isTestingMqttConnection) "Probando..." else "Probar Conexión",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                // Inputs Row
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                )
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = mqttBrokerUrl,
+                        onValueChange = onMqttBrokerUrlChange,
+                        label = { Text("Broker URL") },
+                        placeholder = { Text("mqtt://hayabusa.proxy.rlwy.net:58666") },
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
 
+                    OutlinedTextField(
+                        value = mqttTopicRoot,
+                        onValueChange = onMqttTopicRootChange,
+                        label = { Text("Tópico de Publicación") },
+                        placeholder = { Text("telemetria/{idVehiculo}") },
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+
+                // Optional Credentials Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -420,6 +542,7 @@ fun ConfigScreen(
                         label = { Text("USUARIO MQTT (Opcional)") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1f),
+                        singleLine = true
                     )
 
                     OutlinedTextField(
@@ -429,7 +552,269 @@ fun ConfigScreen(
                         visualTransformation = PasswordVisualTransformation(),
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1f),
+                        singleLine = true
                     )
+                }
+
+                // Connection Test Result Banner (Blue Card - Image 2)
+                if (mqttTestSuccessMessage != null && mqttTestIsSuccess) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF052354)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E5BB0))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00E676),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = mqttTestSuccessMessage,
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Button(
+                                onClick = { showPayloadDetails = !showPayloadDetails },
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0040A8))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Code,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (showPayloadDetails) "Ocultar\nPayload" else "Ver Payload\nJSON",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 13.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = if (showPayloadDetails) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Expanded Payload JSON Card (Image 4)
+                    if (showPayloadDetails && mqttTestPayloadJson != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0F18)),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Payload de Telemetría Transmitido:",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    androidx.compose.material3.TextButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(mqttTestPayloadJson))
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ContentCopy,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.8f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Copiar JSON",
+                                            color = Color.White.copy(alpha = 0.8f),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = Color(0xFF040811),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                                ) {
+                                    Text(
+                                        text = mqttTestPayloadJson,
+                                        color = Color(0xFF00E676),
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(10.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Status Ticker & Console Toggle Link (Image 2 & 3)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    color = if (mqttConnected) Color(0xFF00E676) else Color(0xFFEF5350),
+                                    shape = CircleShape
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Estado Broker: ",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 12.sp
+                        )
+                        Text(
+                            text = if (mqttConnected) "CONNECTED" else "DISCONNECTED",
+                            color = if (mqttConnected) Color(0xFF00E676) else Color(0xFFEF5350),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = " • $mqttTransmittedPacketsCount paquetes transmitidos",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .background(Color.Transparent)
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.TextButton(
+                            onClick = { showConsoleLogs = !showConsoleLogs }
+                        ) {
+                            Text(
+                                text = if (showConsoleLogs) ">_ Ocultar Consola MQTT" else ">_ Ver Registro de Eventos MQTT",
+                                color = Color(0xFF64B5F6),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Expanded MQTT Event Log Console (Image 3)
+                if (showConsoleLogs) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF060B12)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "REGISTRO DE COMUNICACIÓN MQTT (ÚLTIMOS EVENTOS)",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Total: ${mqttEventLogs.size} eventos",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (mqttEventLogs.isEmpty()) {
+                                    Text("Sin eventos registrados.", color = Color.Gray, fontSize = 12.sp)
+                                } else {
+                                    mqttEventLogs.take(10).forEach { log ->
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "[${log.timestamp}] ",
+                                                color = Color.White.copy(alpha = 0.6f),
+                                                fontSize = 11.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+
+                                            val badgeColor = when (log.level) {
+                                                "SUCCESS" -> Color(0xFF005AC1)
+                                                "ERROR" -> Color(0xFFC62828)
+                                                else -> Color(0xFF374151)
+                                            }
+
+                                            Surface(
+                                                color = badgeColor,
+                                                shape = RoundedCornerShape(4.dp),
+                                                modifier = Modifier.padding(horizontal = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = log.level,
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(6.dp))
+
+                                            Text(
+                                                text = log.message,
+                                                color = Color.White.copy(alpha = 0.9f),
+                                                fontSize = 11.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

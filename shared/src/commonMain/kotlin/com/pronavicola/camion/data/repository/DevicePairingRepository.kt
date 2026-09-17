@@ -87,12 +87,12 @@ class DevicePairingRepository(
         }
     }
 
-    suspend fun validateScreen(serverUrl: String, deviceToken: String?, deviceId: String?): Result<Boolean> = withContext(Dispatchers.IO) {
+    suspend fun validateScreen(serverUrl: String, deviceToken: String?, deviceId: String?): Result<com.pronavicola.camion.data.remote.ValidateScreenResponse> = withContext(Dispatchers.IO) {
         val result = apiService.validateScreen(serverUrl, deviceToken, deviceId)
         if (result.isSuccess) {
             val resp = result.getOrThrow()
             configRepository.saveLicenseStatus(resp.status)
-            Result.success(resp.isValid)
+            Result.success(resp)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error de validación"))
         }
@@ -115,6 +115,15 @@ class DevicePairingRepository(
             Result.success(furgon.plate)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error actualizando furgón"))
+        }
+    }
+
+    suspend fun unpairDevice(serverUrl: String, deviceToken: String?): Result<Unit> = withContext(Dispatchers.IO) {
+        val result = apiService.unpairDevice(serverUrl, deviceToken)
+        if (result.isSuccess) {
+            Result.success(Unit)
+        } else {
+            Result.failure(result.exceptionOrNull() ?: Exception("Error desvinculando dispositivo"))
         }
     }
 }

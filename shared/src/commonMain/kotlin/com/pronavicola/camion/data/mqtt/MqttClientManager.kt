@@ -119,7 +119,12 @@ class MqttClientManager(
     private suspend fun tryConnect(): Boolean = clientMutex.withLock {
         try {
             disconnectInternal()
-            val client = MqttAsyncClient(currentBrokerUrl, currentClientId, MemoryPersistence())
+            val sanitizedUrl = when {
+                currentBrokerUrl.startsWith("mqtt://") -> "tcp://" + currentBrokerUrl.removePrefix("mqtt://")
+                !currentBrokerUrl.startsWith("tcp://") && !currentBrokerUrl.startsWith("ssl://") -> "tcp://$currentBrokerUrl"
+                else -> currentBrokerUrl
+            }
+            val client = MqttAsyncClient(sanitizedUrl, currentClientId, MemoryPersistence())
             mqttClient = client
 
             client.setCallback(object : MqttCallbackExtended {

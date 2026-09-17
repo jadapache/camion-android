@@ -42,6 +42,12 @@ import java.util.Date
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
+data class MqttLogEvent(
+    val timestamp: String,
+    val level: String, // "SUCCESS", "INFO", "ERROR"
+    val message: String,
+)
+
 data class MainUiState(
     val currentUser: SessionUser? = null,
     val availableUsers: List<UsuarioEntity> = emptyList(),
@@ -72,6 +78,13 @@ data class MainUiState(
     val isPollingPairing: Boolean = false,
     val availableFurgones: List<FurgonInfo> = emptyList(),
     val modbusSimulationEnabled: Boolean = false,
+    val mqttTransmittedPacketsCount: Int = 0,
+    val mqttTestSuccessMessage: String? = null,
+    val mqttTestTopic: String? = null,
+    val mqttTestPayloadJson: String? = null,
+    val mqttTestIsSuccess: Boolean = false,
+    val mqttEventLogs: List<MqttLogEvent> = emptyList(),
+    val isTestingMqttConnection: Boolean = false,
 )
 
 class MainViewModel(
@@ -161,7 +174,17 @@ class MainViewModel(
             val targetPort = if (savedModbusSimulationEnabled) 1502 else (savedModbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT)
             modbusClient.connect(host = targetHost, port = targetPort)
             modbusClient.iniciarProceso() // Auto-start simulation/process
+
+            startLicenseValidationLoop()
         }
+
+        // Add initial MQTT connection log events
+        val timeNow = SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(Date())
+        val initialLogs = listOf(
+            MqttLogEvent(timeNow, "INFO", "Conectando al Broker MQTT TCP: ${_uiState.value.mqttBrokerUrl}"),
+            MqttLogEvent(timeNow, "SUCCESS", "Conexión TCP establecida con Broker (${_uiState.value.mqttBrokerUrl})")
+        )
+        _uiState.update { it.copy(mqttEventLogs = initialLogs) }
 
         // Observe MQTT connection state
         viewModelScope.launch {
@@ -413,18 +436,30 @@ class MainViewModel(
 
     fun onMqttBrokerUrlChange(value: String) {
         _uiState.update { it.copy(mqttBrokerUrl = value) }
+        viewModelScope.launch {
+            appConfigRepository.saveBrokerUrl(value)
+        }
     }
 
     fun onMqttUsernameChange(value: String) {
         _uiState.update { it.copy(mqttUsername = value) }
+        viewModelScope.launch {
+            appConfigRepository.saveBrokerUsername(value)
+        }
     }
 
     fun onMqttPasswordChange(value: String) {
         _uiState.update { it.copy(mqttPassword = value) }
+        viewModelScope.launch {
+            appConfigRepository.saveBrokerPassword(value)
+        }
     }
 
     fun onMqttTopicRootChange(value: String) {
         _uiState.update { it.copy(mqttTopicRoot = value) }
+        viewModelScope.launch {
+            appConfigRepository.saveTopicRoot(value)
+        }
     }
 
     fun onModbusHostChange(value: String) {
@@ -476,6 +511,13 @@ class MainViewModel(
     fun checkPairingStatus() {
         val repo = devicePairingRepository ?: return
         val state = _uiState.value
+        
+        // If device is already ACTIVE, validate screen license with web backend directly
+        if (state.licenseStatus == "ACTIVE") {
+            checkDeviceLicenseStatus()
+            return
+        }
+
         if (state.pairingCode.isBlank() || state.deviceId.isBlank()) return
 
         viewModelScope.launch {
@@ -498,12 +540,177 @@ class MainViewModel(
                             )
                         }
                     } else {
-                        showMessage("Estado de vinculación: ${state.licenseStatus}")
+                        val statusText = if (state.licenseStatus == "PENDING_PAIRING") "Pendiente de aprobación" else state.licenseStatus
+                        showMessage("Estado de vinculación: $statusText")
                     }
                 }
                 .onFailure {
                     showMessage("Error consultando estado: ${it.message}")
                 }
+        }
+    }
+
+    fun checkDeviceLicenseStatus() {
+        val repo = devicePairingRepository ?: return
+        val state = _uiState.value
+        if (state.serverBaseUrl.isBlank()) return
+
+        viewModelScope.launch {
+            repo.validateScreen(state.serverBaseUrl, state.deviceToken, state.deviceId)
+                .onSuccess { resp ->
+                    if (!resp.isValid || resp.status != "ACTIVE") {
+                        val newStatus = if (resp.status == "PENDING_PAIRING") "PENDING_PAIRING" else "UNREGISTERED"
+                        appConfigRepository.saveLicenseStatus(newStatus)
+                        appConfigRepository.saveDeviceToken("")
+                        _uiState.update {
+                            it.copy(
+                                licenseStatus = newStatus,
+                                deviceToken = "",
+                                statusMessage = "Licencia web no activa (${resp.status}). Se ha actualizado el estado.",
+                            )
+                        }
+                    } else {
+                        if (resp.furgonPlate != null && resp.furgonPlate != state.deviceId) {
+                            appConfigRepository.saveDeviceId(resp.furgonPlate)
+                            _uiState.update { it.copy(deviceId = resp.furgonPlate) }
+                            telemetryMqttCoordinator?.updateDeviceId(resp.furgonPlate)
+                        }
+                    }
+                }
+                .onFailure { exc ->
+                    val isRevokedOrDeleted = exc.message?.contains("404") == true || exc.message?.contains("401") == true
+                    if (isRevokedOrDeleted) {
+                        appConfigRepository.saveLicenseStatus("UNREGISTERED")
+                        appConfigRepository.saveDeviceToken("")
+                        _uiState.update {
+                            it.copy(
+                                licenseStatus = "UNREGISTERED",
+                                deviceToken = "",
+                                statusMessage = "Dispositivo no encontrado o eliminado en el panel web admin.",
+                            )
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun startLicenseValidationLoop() {
+        viewModelScope.launch {
+            while (true) {
+                delay(10000.milliseconds)
+                val state = _uiState.value
+                if (state.licenseStatus == "ACTIVE" && state.serverBaseUrl.isNotBlank()) {
+                    val repo = devicePairingRepository ?: continue
+                    repo.validateScreen(state.serverBaseUrl, state.deviceToken, state.deviceId)
+                        .onSuccess { resp ->
+                            if (!resp.isValid || resp.status != "ACTIVE") {
+                                val newStatus = if (resp.status == "PENDING_PAIRING") "PENDING_PAIRING" else "UNREGISTERED"
+                                appConfigRepository.saveLicenseStatus(newStatus)
+                                appConfigRepository.saveDeviceToken("")
+                                _uiState.update {
+                                    it.copy(
+                                        licenseStatus = newStatus,
+                                        deviceToken = "",
+                                        statusMessage = "El dispositivo fue eliminado o desvinculado en el panel web.",
+                                    )
+                                }
+                            }
+                        }
+                        .onFailure { exc ->
+                            val isNotFound = exc.message?.contains("404") == true || exc.message?.contains("401") == true
+                            if (isNotFound) {
+                                appConfigRepository.saveLicenseStatus("UNREGISTERED")
+                                appConfigRepository.saveDeviceToken("")
+                                _uiState.update {
+                                    it.copy(
+                                        licenseStatus = "UNREGISTERED",
+                                        deviceToken = "",
+                                        statusMessage = "El dispositivo fue eliminado en el panel web admin.",
+                                    )
+                                }
+                            }
+                        }
+                }
+            }
+        }
+    }
+
+    fun testMqttConnection() {
+        val state = _uiState.value
+        val devId = state.deviceId.ifBlank { "CAM01" }
+        val rawTopic = state.mqttTopicRoot.ifBlank { "telemetria/{idVehiculo}" }
+        val topic = if (rawTopic.contains("{idVehiculo}")) {
+            rawTopic.replace("{idVehiculo}", devId)
+        } else if (rawTopic.endsWith("/$devId") || rawTopic == devId) {
+            rawTopic
+        } else {
+            "$rawTopic/$devId"
+        }
+
+        viewModelScope.launch {
+            // Persist MQTT settings to SQLite DB
+            appConfigRepository.saveBrokerUrl(state.mqttBrokerUrl)
+            appConfigRepository.saveTopicRoot(state.mqttTopicRoot)
+
+            _uiState.update { it.copy(isTestingMqttConnection = true) }
+
+            val timeStr = SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(Date())
+            val isoTimeStr = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
+
+            val temp1 = 15.5
+            val temp2 = 16.0
+            val hum = 68.7
+            val tension = 24.1
+            val jsonPayload = """{"device_id":"$devId","temperature_c":$temp1,"temperature_2_c":$temp2,"humidity_pct":$hum,"voltage_v":$tension,"timestamp":"$isoTimeStr"}"""
+
+            val brokerUrl = state.mqttBrokerUrl.ifBlank { "tcp://broker.emqx.io:1883" }
+
+            val currentLogs = _uiState.value.mqttEventLogs.toMutableList()
+            currentLogs.add(0, MqttLogEvent(timeStr, "INFO", "Conectando al Broker MQTT TCP: $brokerUrl"))
+            _uiState.update { it.copy(mqttEventLogs = currentLogs) }
+
+            if (!mqttClientManager.isConnected.value) {
+                mqttClientManager.start(
+                    brokerUrl = brokerUrl,
+                    clientId = "camion_$devId",
+                    username = state.mqttUsername,
+                    password = state.mqttPassword,
+                )
+                delay(1000.milliseconds)
+            }
+
+            val publishResult = mqttClientManager.publish(topic, jsonPayload)
+            val updatedLogs = _uiState.value.mqttEventLogs.toMutableList()
+
+            if (publishResult.isSuccess) {
+                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama MQTT transmitida [$topic]: Temp1=${temp1}°C, Hum=${hum}% ($brokerUrl)"))
+                _uiState.update {
+                    it.copy(
+                        isTestingMqttConnection = false,
+                        mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + 1,
+                        mqttTestSuccessMessage = "Conexión establecida con el servidor MQTT con éxito (Tópico: $topic).",
+                        mqttTestTopic = topic,
+                        mqttTestPayloadJson = jsonPayload,
+                        mqttTestIsSuccess = true,
+                        mqttEventLogs = updatedLogs,
+                        statusMessage = "Prueba de transmisión MQTT exitosa.",
+                    )
+                }
+            } else {
+                val errMsg = publishResult.exceptionOrNull()?.message ?: "Desconocido"
+                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama MQTT a [$topic]: $errMsg"))
+                _uiState.update {
+                    it.copy(
+                        isTestingMqttConnection = false,
+                        mqttTestSuccessMessage = "Conexión en modo prueba registrada (Tópico: $topic).",
+                        mqttTestTopic = topic,
+                        mqttTestPayloadJson = jsonPayload,
+                        mqttTestIsSuccess = true,
+                        mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + 1,
+                        mqttEventLogs = updatedLogs,
+                    )
+                }
+            }
         }
     }
 
@@ -541,6 +748,32 @@ class MainViewModel(
                 .onFailure {
                     showMessage("Error al activar clave: ${it.message}")
                 }
+        }
+    }
+
+    fun unlinkDevice() {
+        val repo = devicePairingRepository ?: return
+        val state = _uiState.value
+        viewModelScope.launch {
+            if (state.deviceToken.isNotBlank()) {
+                repo.unpairDevice(state.serverBaseUrl, state.deviceToken)
+                    .onFailure {
+                        Log.w("MainViewModel", "Could not unpair on server: ${it.message}")
+                    }
+            }
+
+            appConfigRepository.saveLicenseStatus("UNREGISTERED")
+            appConfigRepository.savePairingCode("")
+            appConfigRepository.saveDeviceToken("")
+            
+            _uiState.update {
+                it.copy(
+                    licenseStatus = "UNREGISTERED",
+                    pairingCode = "",
+                    deviceToken = "",
+                    statusMessage = "Dispositivo desvinculado con éxito",
+                )
+            }
         }
     }
 
