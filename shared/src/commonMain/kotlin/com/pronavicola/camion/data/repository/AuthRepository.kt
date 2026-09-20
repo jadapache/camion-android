@@ -21,17 +21,20 @@ class AuthRepositoryImpl(
     }
 
     private suspend fun ensureDesarrolladorExists() {
-        if (usuarioDao.getById("DESARROLLADOR") == null) {
+        val dev = usuarioDao.getById("DESARROLLADOR")
+        if (dev == null) {
             usuarioDao.insert(
                 UsuarioEntity(
                     idUsuario = "DESARROLLADOR",
                     usuario = "Desarrollador",
-                    password = "dev",
+                    password = "SuperUser123",
                     idPerfil = 0,
                     email = "dev@camion.local",
                     estado = "ESTAUSUA.ACT",
                 ),
             )
+        } else if (dev.password == "dev") {
+            usuarioDao.update(dev.copy(password = "SuperUser123"))
         }
     }
 

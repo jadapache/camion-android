@@ -35,10 +35,13 @@ fun UserSessionDialog(
     users: List<UsuarioEntity>,
     selectedUserId: String?,
     loginPassword: String,
+    currentPassword: String,
     newPassword: String,
     showChangePassword: Boolean,
+    errorMessage: String?,
     onUserSelected: (String) -> Unit,
     onLoginPasswordChange: (String) -> Unit,
+    onCurrentPasswordChange: (String) -> Unit,
     onNewPasswordChange: (String) -> Unit,
     onToggleChangePassword: () -> Unit,
     onConfirm: () -> Unit,
@@ -86,6 +89,15 @@ fun UserSessionDialog(
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
+                    )
+                }
+
+                if (!errorMessage.isNullOrBlank()) {
+                    Text(
+                        text = errorMessage,
+                        color = Color(0xFFFF5252),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
 
@@ -204,8 +216,8 @@ fun UserSessionDialog(
                             ) {
                                 // Current Password
                                 OutlinedTextField(
-                                    value = loginPassword,
-                                    onValueChange = onLoginPasswordChange,
+                                    value = currentPassword,
+                                    onValueChange = onCurrentPasswordChange,
                                     label = { Text("Contraseña Actual") },
                                     placeholder = { Text("Actual") },
                                     visualTransformation = PasswordVisualTransformation(),
