@@ -1,5 +1,6 @@
-package com.pronavicola.camion.ui.components
+package com.pronavicola.camion.presentation.auth.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -178,7 +179,7 @@ fun UserSessionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF0B101A)),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),

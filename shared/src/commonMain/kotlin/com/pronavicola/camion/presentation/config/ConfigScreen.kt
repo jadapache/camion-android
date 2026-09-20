@@ -1,6 +1,7 @@
-package com.pronavicola.camion.ui.config
+package com.pronavicola.camion.presentation.config
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
@@ -34,8 +35,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +46,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -54,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,11 +69,12 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.data.remote.FurgonInfo
 import com.pronavicola.camion.domain.model.SessionUser
-import com.pronavicola.camion.ui.MqttLogEvent
+import com.pronavicola.camion.domain.model.MqttLogEvent
 import com.pronavicola.camion.ui.theme.CamionColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,7 +84,7 @@ fun ConfigScreen(
     deviceId: String,
     furgonPlate: String = "",
     mqttBrokerUrl: String,
-    mqttTopicRoot: String,
+    mqttTopicRoot: String = "furgones",
     mqttUsername: String,
     mqttPassword: String,
     modbusHost: String,
@@ -97,10 +99,9 @@ fun ConfigScreen(
     licenseKeyInput: String,
     isPollingPairing: Boolean,
     availableFurgones: List<FurgonInfo>,
-    modbusSimulationEnabled: Boolean,
+    modbusSimulationEnabled: Boolean = false,
     mqttTransmittedPacketsCount: Int = 0,
     mqttTestSuccessMessage: String? = null,
-    mqttTestTopic: String? = null,
     mqttTestPayloadJson: String? = null,
     mqttTestIsSuccess: Boolean = false,
     mqttEventLogs: List<MqttLogEvent> = emptyList(),
@@ -108,13 +109,13 @@ fun ConfigScreen(
     onDeviceIdChange: (String) -> Unit,
     onFurgonPlateChange: (String) -> Unit = {},
     onMqttBrokerUrlChange: (String) -> Unit,
-    onMqttTopicRootChange: (String) -> Unit,
+    onMqttTopicRootChange: (String) -> Unit = {},
     onMqttUsernameChange: (String) -> Unit,
     onMqttPasswordChange: (String) -> Unit,
     onModbusHostChange: (String) -> Unit,
     onModbusPortChange: (String) -> Unit,
     onPublishIntervalChange: (String) -> Unit,
-    onModbusSimulationToggle: (Boolean) -> Unit,
+    onModbusSimulationToggle: (Boolean) -> Unit = {},
     onServerBaseUrlChange: (String) -> Unit,
     onLicenseKeyInputChange: (String) -> Unit,
     onRequestPairingCode: () -> Unit,
@@ -202,7 +203,7 @@ fun ConfigScreen(
                     Surface(
                         color = badgeColor.copy(alpha = 0.2f),
                         shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor)
+                        border = BorderStroke(1.dp, badgeColor)
                     ) {
                         Text(
                             text = statusText,
@@ -283,7 +284,7 @@ fun ConfigScreen(
                                 }
                             }
                         }
-                        androidx.compose.material3.IconButton(
+                        IconButton(
                             onClick = { isManualFurgonEntry = !isManualFurgonEntry },
                             modifier = Modifier.background(Color(0xFF2A2A2A), CircleShape)
                         ) {
@@ -314,7 +315,7 @@ fun ConfigScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                            border = BorderStroke(1.dp, Color(0xFF1E293B))
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
@@ -511,30 +512,26 @@ fun ConfigScreen(
                     }
                 }
 
-                // Host / Broker URL and Topic TextField
-                Row(
+                // Host / Broker URL
+                OutlinedTextField(
+                    value = mqttBrokerUrl,
+                    onValueChange = onMqttBrokerUrlChange,
+                    label = { Text("Broker URL") },
+                    placeholder = { Text("tcp://broker.emqx.io:1883") },
+                    colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = mqttBrokerUrl,
-                        onValueChange = onMqttBrokerUrlChange,
-                        label = { Text("Broker URL") },
-                        placeholder = { Text("mqtt://hayabusa.proxy.rlwy.net:58666") },
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = mqttTopicRoot,
-                        onValueChange = onMqttTopicRootChange,
-                        label = { Text("Tópico de Publicación") },
-                        placeholder = { Text("telemetria/{idVehiculo}") },
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                }
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = mqttTopicRoot,
+                    onValueChange = onMqttTopicRootChange,
+                    label = { Text("MQTT Topic Root") },
+                    placeholder = { Text("furgones") },
+                    colors = outlinedTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
 
                 // Collapsible Panel Header / Toggle for Credentials
                 Row(
@@ -603,7 +600,7 @@ fun ConfigScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF052354)),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E5BB0))
+                        border = BorderStroke(1.dp, Color(0xFF1E5BB0))
                     ) {
                         Row(
                             modifier = Modifier
@@ -649,7 +646,7 @@ fun ConfigScreen(
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     lineHeight = 13.sp,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    textAlign = TextAlign.Center
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
@@ -667,7 +664,7 @@ fun ConfigScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0F18)),
                             shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                            border = BorderStroke(1.dp, Color(0xFF1E293B))
                         ) {
                             Column(
                                 modifier = Modifier.padding(12.dp),
@@ -685,7 +682,7 @@ fun ConfigScreen(
                                         fontWeight = FontWeight.Bold
                                     )
 
-                                    androidx.compose.material3.TextButton(
+                                    TextButton(
                                         onClick = {
                                             clipboardManager.setText(AnnotatedString(mqttTestPayloadJson))
                                         }
@@ -709,7 +706,7 @@ fun ConfigScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     color = Color(0xFF040811),
                                     shape = RoundedCornerShape(6.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                                    border = BorderStroke(1.dp, Color(0xFF1E293B))
                                 ) {
                                     Text(
                                         text = mqttTestPayloadJson,
@@ -764,7 +761,7 @@ fun ConfigScreen(
                             .padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        androidx.compose.material3.TextButton(
+                        TextButton(
                             onClick = { showConsoleLogs = !showConsoleLogs }
                         ) {
                             Text(
@@ -783,7 +780,7 @@ fun ConfigScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF060B12)),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
@@ -867,43 +864,6 @@ fun ConfigScreen(
             icon = Icons.Default.Lan
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                if (currentUser.idPerfil == 1) { // 1 = Admin/Desarrollador
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Simulación Modbus Local",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Levanta un servidor TCP en puerto 1502",
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Switch(
-                                checked = modbusSimulationEnabled,
-                                onCheckedChange = onModbusSimulationToggle,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = Color(0xFF4CAF50)
-                                )
-                            )
-                        }
-                    }
-                }
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -915,7 +875,6 @@ fun ConfigScreen(
                         placeholder = { Text("192.168.1.10") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(2f),
-                        enabled = !modbusSimulationEnabled,
                     )
 
                     OutlinedTextField(
@@ -925,7 +884,6 @@ fun ConfigScreen(
                         placeholder = { Text("502") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1f),
-                        enabled = !modbusSimulationEnabled,
                     )
                 }
 
@@ -949,6 +907,34 @@ fun ConfigScreen(
                         placeholder = { Text("5") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Simulación Modbus PLC",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Generar datos simulados sin PLC físico",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    Switch(
+                        checked = modbusSimulationEnabled,
+                        onCheckedChange = onModbusSimulationToggle,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF2E7D32)
+                        )
                     )
                 }
 

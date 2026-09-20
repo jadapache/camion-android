@@ -3,19 +3,16 @@ package com.pronavicola.camion.data.repository
 import com.pronavicola.camion.data.local.dao.UsuarioDao
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.domain.model.SessionUser
+import com.pronavicola.camion.domain.repository.AuthRepository
+import com.pronavicola.camion.domain.repository.AuthResult
 import kotlinx.coroutines.flow.Flow
 
-sealed class AuthResult {
-    data class Success(val user: SessionUser) : AuthResult()
-    data class Error(val message: String) : AuthResult()
-}
-
-class AuthRepository(
+class AuthRepositoryImpl(
     private val usuarioDao: UsuarioDao,
-) {
-    val activeUsers: Flow<List<UsuarioEntity>> = usuarioDao.observeActiveUsers()
+) : AuthRepository {
+    override val activeUsers: Flow<List<UsuarioEntity>> = usuarioDao.observeActiveUsers()
 
-    suspend fun loadDefaultUser(): SessionUser {
+    override suspend fun loadDefaultUser(): SessionUser {
         val user = usuarioDao.getDefaultUser()
             ?: usuarioDao.getById("OPERARIO")
             ?: error("Usuario OPERARIO no encontrado en Furgones.db")
@@ -24,11 +21,11 @@ class AuthRepository(
 
     /**
      * Mirrors legacy Config.xaml.vb login rules:
-     * - Lower IdPerfil = higher privilege (Admin=1, Operario=4)
+     * - Lower IdPerfil = higher privilege (Admin=1, Operario=4, Desarrollador=0)
      * - Switching to equal/lower privilege requires password
      * - Switching to higher privilege (target IdPerfil > current) is allowed without password
      */
-    suspend fun switchUser(
+    override suspend fun switchUser(
         currentUser: SessionUser,
         targetIdUsuario: String,
         password: String,
@@ -51,7 +48,7 @@ class AuthRepository(
         return AuthResult.Success(target.toSession())
     }
 
-    suspend fun changePassword(
+    override suspend fun changePassword(
         currentUser: SessionUser,
         currentPassword: String,
         newPassword: String,
@@ -67,12 +64,12 @@ class AuthRepository(
         return AuthResult.Success(user.copy(password = newPassword).toSession())
     }
 
-    suspend fun updateDeviceId(userId: String, deviceId: String) {
+    override suspend fun updateDeviceId(userId: String, deviceId: String) {
         val user = usuarioDao.getById(userId) ?: return
         usuarioDao.update(user.copy(idVehiculo = deviceId))
     }
 
-    fun canAccessScreen(idPerfil: Int, accessLevel: Int): Boolean = idPerfil <= accessLevel
+    override fun canAccessScreen(idPerfil: Int, accessLevel: Int): Boolean = idPerfil <= accessLevel
 
     private fun UsuarioEntity.toSession(): SessionUser = SessionUser(
         idUsuario = idUsuario,

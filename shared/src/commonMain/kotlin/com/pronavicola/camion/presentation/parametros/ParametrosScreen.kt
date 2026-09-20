@@ -1,4 +1,4 @@
-package com.pronavicola.camion.ui.parametros
+package com.pronavicola.camion.presentation.parametros
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

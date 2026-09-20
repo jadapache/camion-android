@@ -1,4 +1,4 @@
-package com.pronavicola.camion.ui.components
+package com.pronavicola.camion.presentation.navigation
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Settings
@@ -153,5 +154,6 @@ private fun getIconForDestination(destination: AppDestination): ImageVector {
         AppDestination.REGISTROS -> Icons.Default.History
         AppDestination.PARAMETROS -> Icons.Default.Tune
         AppDestination.CONFIG -> Icons.Default.Settings
+        AppDestination.SIMULACION -> Icons.Default.Build
     }
 }

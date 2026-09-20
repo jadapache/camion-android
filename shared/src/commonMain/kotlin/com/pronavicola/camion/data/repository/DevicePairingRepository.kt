@@ -2,21 +2,24 @@ package com.pronavicola.camion.data.repository
 
 import com.pronavicola.camion.data.remote.FurgonInfo
 import com.pronavicola.camion.data.remote.ScreensApiService
+import com.pronavicola.camion.data.remote.ValidateScreenResponse
+import com.pronavicola.camion.domain.repository.AppConfigRepository
+import com.pronavicola.camion.domain.repository.DevicePairingRepository
 import com.pronavicola.camion.util.Log
 import com.pronavicola.camion.util.PlatformInfoProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class DevicePairingRepository(
+class DevicePairingRepositoryImpl(
     private val platformInfoProvider: PlatformInfoProvider,
     private val apiService: ScreensApiService,
     private val configRepository: AppConfigRepository,
-) {
+) : DevicePairingRepository {
     private val tag = "DevicePairingRepository"
 
-    fun getHardwareFingerprint(): String = platformInfoProvider.getHardwareFingerprint()
+    override fun getHardwareFingerprint(): String = platformInfoProvider.getHardwareFingerprint()
 
-    suspend fun requestPairingCode(serverUrl: String): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
+    override suspend fun requestPairingCode(serverUrl: String): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
         val fingerprint = platformInfoProvider.getHardwareFingerprint()
         val brand = platformInfoProvider.getDeviceBrand()
         val model = platformInfoProvider.getDeviceModel()
@@ -37,7 +40,7 @@ class DevicePairingRepository(
         }
     }
 
-    suspend fun checkPairingStatus(serverUrl: String, pairingCode: String, deviceId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    override suspend fun checkPairingStatus(serverUrl: String, pairingCode: String, deviceId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         val result = apiService.checkPairingStatus(serverUrl, pairingCode, deviceId)
         if (result.isSuccess) {
             val resp = result.getOrThrow()
@@ -61,7 +64,7 @@ class DevicePairingRepository(
         }
     }
 
-    suspend fun activateLicenseKey(serverUrl: String, licenseKey: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    override suspend fun activateLicenseKey(serverUrl: String, licenseKey: String): Result<Boolean> = withContext(Dispatchers.IO) {
         val fingerprint = platformInfoProvider.getHardwareFingerprint()
         val brand = platformInfoProvider.getDeviceBrand()
         val model = platformInfoProvider.getDeviceModel()
@@ -90,7 +93,7 @@ class DevicePairingRepository(
         }
     }
 
-    suspend fun validateScreen(serverUrl: String, deviceToken: String?, deviceId: String?): Result<com.pronavicola.camion.data.remote.ValidateScreenResponse> = withContext(Dispatchers.IO) {
+    override suspend fun validateScreen(serverUrl: String, deviceToken: String?, deviceId: String?): Result<ValidateScreenResponse> = withContext(Dispatchers.IO) {
         val result = apiService.validateScreen(serverUrl, deviceToken, deviceId)
         if (result.isSuccess) {
             val resp = result.getOrThrow()
@@ -101,7 +104,7 @@ class DevicePairingRepository(
         }
     }
 
-    suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?): Result<List<FurgonInfo>> = withContext(Dispatchers.IO) {
+    override suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?): Result<List<FurgonInfo>> = withContext(Dispatchers.IO) {
         val result = apiService.getAvailableFurgones(serverUrl, deviceToken)
         if (result.isSuccess) {
             Result.success(result.getOrThrow().availableFurgones)
@@ -110,7 +113,7 @@ class DevicePairingRepository(
         }
     }
 
-    suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String): Result<String> = withContext(Dispatchers.IO) {
         val result = apiService.updateAssociatedFurgon(serverUrl, deviceToken, furgonId)
         if (result.isSuccess) {
             val furgon = result.getOrThrow()
@@ -121,7 +124,7 @@ class DevicePairingRepository(
         }
     }
 
-    suspend fun unpairDevice(serverUrl: String, deviceToken: String?): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun unpairDevice(serverUrl: String, deviceToken: String?): Result<Unit> = withContext(Dispatchers.IO) {
         val result = apiService.unpairDevice(serverUrl, deviceToken)
         if (result.isSuccess) {
             Result.success(Unit)

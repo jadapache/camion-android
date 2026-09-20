@@ -1,4 +1,4 @@
-package com.pronavicola.camion.ui.hmi
+package com.pronavicola.camion.presentation.hmi
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -21,6 +21,7 @@ import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pronavicola.camion.domain.model.HmiHistoryPoint
 import com.pronavicola.camion.resources.*
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ZoneStatus
@@ -211,7 +212,7 @@ private fun SensorLabelValue(label: String, value: Double?, color: Color) {
 }
 
 @Composable
-private fun HmiLinesChart(history: List<com.pronavicola.camion.domain.model.HmiHistoryPoint>) {
+private fun HmiLinesChart(history: List<HmiHistoryPoint>) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val width = size.width
         val height = size.height

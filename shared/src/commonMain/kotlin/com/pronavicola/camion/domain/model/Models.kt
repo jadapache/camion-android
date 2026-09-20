@@ -111,5 +111,12 @@ enum class AppDestination(val route: String, val label: String, val accessLevel:
     REGISTROS("registros", "REGISTROS", 4),
     PARAMETROS("parametros", "PARAM", 4),
     CONFIG("config", "CONFIG", 4),
+    SIMULACION("simulacion", "SIMULADOR", 0),
 }
+
+data class MqttLogEvent(
+    val timestamp: String,
+    val level: String,
+    val message: String,
+)
 
