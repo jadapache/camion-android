@@ -82,9 +82,11 @@ fun CamionApp(
                         }
                         AppDestination.REGISTROS.route -> {
                             RegistrosScreen(
+                                currentUser = uiState.currentUser,
                                 registros = uiState.registros,
                                 deviceId = uiState.deviceId,
                                 onResendRegistro = viewModel::resendSingleRegistro,
+                                onClearAllRegistros = viewModel::clearAllRegistros,
                             )
                         }
                         AppDestination.PARAMETROS.route -> {

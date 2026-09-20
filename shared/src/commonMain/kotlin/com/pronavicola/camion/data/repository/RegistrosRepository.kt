@@ -18,4 +18,8 @@ class RegistrosRepository(
     suspend fun updateEstadoEnvio(idRegistro: Int, estado: String) {
         variableRegistroDao.updateEstadoEnvio(idRegistro, estado)
     }
+
+    suspend fun clearAllRegistros() {
+        variableRegistroDao.deleteAll()
+    }
 }

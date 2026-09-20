@@ -989,6 +989,24 @@ class MainViewModel(
         }
     }
 
+    fun clearAllRegistros() {
+        val user = _uiState.value.currentUser
+        if (user == null || user.idPerfil > 2) {
+            showMessage("No tiene permisos para limpiar el historial de registros")
+            return
+        }
+
+        viewModelScope.launch {
+            registrosRepository.clearAllRegistros()
+            _uiState.update {
+                it.copy(
+                    registros = emptyList(),
+                    statusMessage = "Historial de registros limpiado correctamente",
+                )
+            }
+        }
+    }
+
     fun resendSingleRegistro(registro: VariableRegistroEntity) {
         val state = _uiState.value
         val devId = state.deviceId.ifBlank { registro.idVehiculo.ifBlank { "CAM01" } }

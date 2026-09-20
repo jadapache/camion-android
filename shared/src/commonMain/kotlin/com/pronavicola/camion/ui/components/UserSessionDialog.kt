@@ -327,6 +327,7 @@ fun UserSessionDialog(
 
 private fun getPerfilLabel(user: UsuarioEntity): String {
     val role = when (user.idPerfil) {
+        0 -> "Desarrollador"
         1 -> "Administrador"
         2 -> "Supervisor"
         3 -> "Técnico"

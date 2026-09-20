@@ -92,6 +92,9 @@ interface VariableRegistroDao {
 
     @Query("UPDATE VariableRegistros SET EstadoEnvio = :estado WHERE IdRegistro = :idRegistro")
     suspend fun updateEstadoEnvio(idRegistro: Int, estado: String)
+
+    @Query("DELETE FROM VariableRegistros")
+    suspend fun deleteAll()
 }
 
 @Dao
