@@ -125,7 +125,8 @@ class MainViewModel(
 
             val savedDeviceId = appConfigRepository.getDeviceId() ?: user.idVehiculo
             val savedFurgonPlate = appConfigRepository.getFurgonPlate() ?: user.idVehiculo
-            val savedBrokerUrl = appConfigRepository.getBrokerUrl() ?: com.pronavicola.camion.data.mqtt.MqttClientManager.DEFAULT_BROKER_URL
+            val savedBrokerUrl = appConfigRepository.getBrokerUrl()
+                ?: com.pronavicola.camion.data.mqtt.MqttClientManager.DEFAULT_BROKER_URL
             val savedTopicRoot = appConfigRepository.getTopicRoot() ?: "furgones"
             val savedUsername = appConfigRepository.getBrokerUsername() ?: ""
             val savedPassword = appConfigRepository.getBrokerPassword() ?: ""
@@ -139,25 +140,27 @@ class MainViewModel(
             val savedLicenseStatus = appConfigRepository.getLicenseStatus() ?: "UNREGISTERED"
             val savedModbusSimulationEnabled = appConfigRepository.getModbusSimulationEnabled()
 
-            _uiState.update { it.copy(
-                currentUser = user,
-                selectedUserId = user.idUsuario,
-                deviceId = savedDeviceId,
-                furgonPlate = savedFurgonPlate,
-                mqttBrokerUrl = savedBrokerUrl,
-                mqttTopicRoot = savedTopicRoot,
-                mqttUsername = savedUsername,
-                mqttPassword = savedPassword,
-                modbusHost = savedModbusHost,
-                modbusPort = savedModbusPort,
-                publishIntervalS = savedPublishInterval,
-                serverBaseUrl = savedServerUrl,
-                deviceToken = savedDeviceToken,
-                pairingCode = savedPairingCode,
-                licenseStatus = savedLicenseStatus,
-                licenseKeyInput = savedLicenseKey,
-                modbusSimulationEnabled = savedModbusSimulationEnabled,
-            ) }
+            _uiState.update {
+                it.copy(
+                    currentUser = user,
+                    selectedUserId = user.idUsuario,
+                    deviceId = savedDeviceId,
+                    furgonPlate = savedFurgonPlate,
+                    mqttBrokerUrl = savedBrokerUrl,
+                    mqttTopicRoot = savedTopicRoot,
+                    mqttUsername = savedUsername,
+                    mqttPassword = savedPassword,
+                    modbusHost = savedModbusHost,
+                    modbusPort = savedModbusPort,
+                    publishIntervalS = savedPublishInterval,
+                    serverBaseUrl = savedServerUrl,
+                    deviceToken = savedDeviceToken,
+                    pairingCode = savedPairingCode,
+                    licenseStatus = savedLicenseStatus,
+                    licenseKeyInput = savedLicenseKey,
+                    modbusSimulationEnabled = savedModbusSimulationEnabled,
+                )
+            }
 
             if (savedModbusSimulationEnabled) {
                 modbusPlcServer.start()
@@ -177,7 +180,8 @@ class MainViewModel(
             )
 
             val targetHost = if (savedModbusSimulationEnabled) "127.0.0.1" else savedModbusHost
-            val targetPort = if (savedModbusSimulationEnabled) 1502 else (savedModbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT)
+            val targetPort =
+                if (savedModbusSimulationEnabled) 1502 else (savedModbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT)
             modbusClient.connect(host = targetHost, port = targetPort)
             modbusClient.iniciarProceso() // Auto-start simulation/process
 
@@ -237,11 +241,13 @@ class MainViewModel(
                 val hum = values[3] as Double?
                 val ten = values[4] as Double?
                 val proceso = values[5] as Boolean
+
                 @Suppress("UNCHECKED_CAST")
                 val zonas = values[6] as List<ZoneStatus>
                 val irrigator = values[7] as ZoneStatus
                 val damper = values[8] as Boolean
                 val calefaccion = values[9] as Boolean
+
                 @Suppress("UNCHECKED_CAST")
                 val alarmas = values[10] as List<String>
                 val vehiculo = values[11] as String
@@ -319,8 +325,10 @@ class MainViewModel(
                 val state = _uiState.value
                 val user = state.currentUser
                 val hmi = state.hmiState
+                val isModbusConnected = state.modbusConnected && hmi.conectado
+                val hasValidTelemetry = hmi.temperatura1 != null || hmi.temperatura2 != null || hmi.humedad != null
 
-                if (user != null && hmi.procesoEstado == ProcesoEstado.ACTIVO) {
+                if (user != null && isModbusConnected && hasValidTelemetry && hmi.procesoEstado == ProcesoEstado.ACTIVO) {
                     val registro = VariableRegistroEntity(
                         idVehiculo = user.idVehiculo.ifBlank { state.deviceId.ifBlank { "AAA000" } },
                         fecha = dateFormat.format(Date()),
@@ -385,6 +393,7 @@ class MainViewModel(
                             )
                         }
                     }
+
                     is AuthResult.Error -> showMessage(result.message)
                 }
             } else {
@@ -401,6 +410,7 @@ class MainViewModel(
                             )
                         }
                     }
+
                     is AuthResult.Error -> showMessage(result.message)
                 }
             }
@@ -522,7 +532,7 @@ class MainViewModel(
     fun checkPairingStatus() {
         val repo = devicePairingRepository ?: return
         val state = _uiState.value
-        
+
         // If device is already ACTIVE, validate screen license with web backend directly
         if (state.licenseStatus == "ACTIVE") {
             checkDeviceLicenseStatus()
@@ -551,7 +561,8 @@ class MainViewModel(
                             )
                         }
                     } else {
-                        val statusText = if (state.licenseStatus == "PENDING_PAIRING") "Pendiente de aprobación" else state.licenseStatus
+                        val statusText =
+                            if (state.licenseStatus == "PENDING_PAIRING") "Pendiente de aprobación" else state.licenseStatus
                         showMessage("Estado de vinculación: $statusText")
                     }
                 }
@@ -588,7 +599,8 @@ class MainViewModel(
                     }
                 }
                 .onFailure { exc ->
-                    val isRevokedOrDeleted = exc.message?.contains("404") == true || exc.message?.contains("401") == true
+                    val isRevokedOrDeleted =
+                        exc.message?.contains("404") == true || exc.message?.contains("401") == true
                     if (isRevokedOrDeleted) {
                         appConfigRepository.saveLicenseStatus("UNREGISTERED")
                         appConfigRepository.saveDeviceToken("")
@@ -614,7 +626,8 @@ class MainViewModel(
                     repo.validateScreen(state.serverBaseUrl, state.deviceToken, state.deviceId)
                         .onSuccess { resp ->
                             if (!resp.isValid || resp.status != "ACTIVE") {
-                                val newStatus = if (resp.status == "PENDING_PAIRING") "PENDING_PAIRING" else "UNREGISTERED"
+                                val newStatus =
+                                    if (resp.status == "PENDING_PAIRING") "PENDING_PAIRING" else "UNREGISTERED"
                                 appConfigRepository.saveLicenseStatus(newStatus)
                                 appConfigRepository.saveDeviceToken("")
                                 _uiState.update {
@@ -627,7 +640,8 @@ class MainViewModel(
                             }
                         }
                         .onFailure { exc ->
-                            val isNotFound = exc.message?.contains("404") == true || exc.message?.contains("401") == true
+                            val isNotFound =
+                                exc.message?.contains("404") == true || exc.message?.contains("401") == true
                             if (isNotFound) {
                                 appConfigRepository.saveLicenseStatus("UNREGISTERED")
                                 appConfigRepository.saveDeviceToken("")
@@ -729,26 +743,52 @@ class MainViewModel(
 
             if (res1.isSuccess) {
                 successCount++
-                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama Telemetría transmitida [$telemetryTopic]: Temp1=15.5°C, Hum=68.7% ($brokerUrl)"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(
+                        timeStr,
+                        "SUCCESS",
+                        "Trama Telemetría transmitida [$telemetryTopic]: Temp1=15.5°C, Hum=68.7% ($brokerUrl)"
+                    )
+                )
             } else {
                 val err = res1.exceptionOrNull()?.message ?: "Desconocido"
-                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Telemetría a [$telemetryTopic]: $err"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Telemetría a [$telemetryTopic]: $err")
+                )
             }
 
             if (res2.isSuccess) {
                 successCount++
-                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama Ubicación transmitida [$locationTopic]: Lat=4.7110, Lon=-74.0721, Vel=45.2 km/h ($brokerUrl)"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(
+                        timeStr,
+                        "SUCCESS",
+                        "Trama Ubicación transmitida [$locationTopic]: Lat=4.7110, Lon=-74.0721, Vel=45.2 km/h ($brokerUrl)"
+                    )
+                )
             } else {
                 val err = res2.exceptionOrNull()?.message ?: "Desconocido"
-                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Ubicación a [$locationTopic]: $err"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Ubicación a [$locationTopic]: $err")
+                )
             }
 
             if (res3.isSuccess) {
                 successCount++
-                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama Alarma transmitida [$alarmsTopic]: TEST_ALARM (INFO)"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(timeStr, "SUCCESS", "Trama Alarma transmitida [$alarmsTopic]: TEST_ALARM (INFO)")
+                )
             } else {
                 val err = res3.exceptionOrNull()?.message ?: "Desconocido"
-                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Alarma a [$alarmsTopic]: $err"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Alarma a [$alarmsTopic]: $err")
+                )
             }
 
             val isAllSuccess = (successCount > 0)
@@ -824,7 +864,7 @@ class MainViewModel(
             appConfigRepository.saveLicenseStatus("UNREGISTERED")
             appConfigRepository.savePairingCode("")
             appConfigRepository.saveDeviceToken("")
-            
+
             _uiState.update {
                 it.copy(
                     licenseStatus = "UNREGISTERED",
@@ -857,7 +897,12 @@ class MainViewModel(
             repo.updateAssociatedFurgon(state.serverBaseUrl, state.deviceToken, furgonId)
                 .onSuccess { newPlate ->
                     appConfigRepository.saveFurgonPlate(newPlate)
-                    _uiState.update { it.copy(furgonPlate = newPlate, statusMessage = "Placa de furgón asociada: $newPlate") }
+                    _uiState.update {
+                        it.copy(
+                            furgonPlate = newPlate,
+                            statusMessage = "Placa de furgón asociada: $newPlate"
+                        )
+                    }
                 }
                 .onFailure {
                     showMessage("Error al asociar furgón: ${it.message}")
@@ -918,13 +963,16 @@ class MainViewModel(
 
             // Reconnect Modbus TCP client if host/port changed
             val targetHost = if (state.modbusSimulationEnabled) "127.0.0.1" else state.modbusHost
-            val targetPort = if (state.modbusSimulationEnabled) 1502 else (state.modbusPort.toIntOrNull() ?: ModbusClient.DEFAULT_PORT)
+            val targetPort = if (state.modbusSimulationEnabled) 1502 else (state.modbusPort.toIntOrNull()
+                ?: ModbusClient.DEFAULT_PORT)
             modbusClient.connect(host = targetHost, port = targetPort)
 
-            _uiState.update { it.copy(
-                currentUser = user.copy(idVehiculo = state.furgonPlate),
-                statusMessage = "Configuración de sistema guardada correctamente",
-            ) }
+            _uiState.update {
+                it.copy(
+                    currentUser = user.copy(idVehiculo = state.furgonPlate),
+                    statusMessage = "Configuración de sistema guardada correctamente",
+                )
+            }
         }
     }
 
@@ -965,7 +1013,8 @@ class MainViewModel(
             val temp2 = registro.temperatura2
             val hum = registro.humedad
             val tension = 24.1
-            val jsonPayload = """{"device_id":"$devId","temperature_c":$temp1,"temperature_2_c":$temp2,"humidity_pct":$hum,"voltage_v":$tension,"timestamp":"$isoTimeStr"}"""
+            val jsonPayload =
+                """{"device_id":"$devId","temperature_c":$temp1,"temperature_2_c":$temp2,"humidity_pct":$hum,"voltage_v":$tension,"timestamp":"$isoTimeStr"}"""
 
             if (!mqttClientManager.isConnected.value) {
                 mqttClientManager.start(
@@ -982,7 +1031,14 @@ class MainViewModel(
 
             if (publishResult.isSuccess) {
                 registrosRepository.updateEstadoEnvio(registro.idRegistro, "ENVIADO")
-                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama MQTT transmitida [$topic]: Temp1=${temp1}°C, Hum=${hum}% (${state.mqttBrokerUrl})"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(
+                        timeStr,
+                        "SUCCESS",
+                        "Trama MQTT transmitida [$topic]: Temp1=${temp1}°C, Hum=${hum}% (${state.mqttBrokerUrl})"
+                    )
+                )
                 _uiState.update {
                     it.copy(
                         mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + 1,
@@ -992,7 +1048,14 @@ class MainViewModel(
                 }
             } else {
                 val errMsg = publishResult.exceptionOrNull()?.message ?: "Fallo de conexión MQTT"
-                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Fallo transmisión MQTT Registro #${registro.idRegistro} [$topic]: $errMsg"))
+                updatedLogs.add(
+                    0,
+                    MqttLogEvent(
+                        timeStr,
+                        "ERROR",
+                        "Fallo transmisión MQTT Registro #${registro.idRegistro} [$topic]: $errMsg"
+                    )
+                )
                 _uiState.update {
                     it.copy(
                         mqttEventLogs = updatedLogs,

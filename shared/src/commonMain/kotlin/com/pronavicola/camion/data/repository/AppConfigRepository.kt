@@ -21,10 +21,14 @@ class AppConfigRepository(
         const val KEY_LICENSE_KEY = "licenseKey"
         const val KEY_LICENSE_STATUS = "licenseStatus"
         const val KEY_MODBUS_SIMULATION_ENABLED = "modbusSimulationEnabled"
+        const val KEY_FURGON_PLATE = "furgonPlate"
     }
 
     suspend fun getDeviceId(): String? = appConfigDao.getValor(KEY_DEVICE_ID)
     suspend fun saveDeviceId(id: String) = appConfigDao.save(AppConfigEntity(KEY_DEVICE_ID, id))
+
+    suspend fun getFurgonPlate(): String? = appConfigDao.getValor(KEY_FURGON_PLATE)
+    suspend fun saveFurgonPlate(plate: String) = appConfigDao.save(AppConfigEntity(KEY_FURGON_PLATE, plate))
 
     suspend fun getBrokerUrl(): String? = appConfigDao.getValor(KEY_BROKER_URL)
     suspend fun saveBrokerUrl(url: String) = appConfigDao.save(AppConfigEntity(KEY_BROKER_URL, url))

@@ -206,6 +206,10 @@ class SimulatedModbusClient(
         irrigatorIsOn = false
         damperTimer = 0
         damperIsOn = false
+        _temperatura1.value = null
+        _temperatura2.value = null
+        _humedad.value = null
+        _tension.value = null
         _zonas.value = List(6) { ZoneStatus.OFF }
         _estadoIrrigador.value = ZoneStatus.OFF
         _damperActivo.value = false

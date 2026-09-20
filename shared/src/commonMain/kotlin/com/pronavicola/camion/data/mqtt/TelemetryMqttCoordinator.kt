@@ -137,6 +137,7 @@ class TelemetryMqttCoordinator(
     private suspend fun startTelemetryPublishingLoop() {
         while (scope.isActive) {
             try {
+                val isModbusConnected = modbusClient.isConnected.value
                 val t1 = modbusClient.temperatura1.value
                 val t2 = modbusClient.temperatura2.value
                 val hum = modbusClient.humedad.value
@@ -148,8 +149,8 @@ class TelemetryMqttCoordinator(
                 val calefaccion = modbusClient.calefaccionActiva.value
                 val alarmas = modbusClient.alarmasActivas.value
 
-                // Publish telemetry if connected or has readings
-                if (t1 != null || t2 != null || hum != null) {
+                // Publish telemetry if connected AND has valid sensor readings
+                if (isModbusConnected && (t1 != null || t2 != null || hum != null)) {
                     val payload = TelemetryMqttPayload(
                         deviceId = activeDeviceId,
                         temperatureC = t1,
@@ -169,6 +170,11 @@ class TelemetryMqttCoordinator(
 
                     // Local alarm evaluation
                     evaluateLocalAlarms(t1, t2, hum, vlt)
+                } else if (!isModbusConnected) {
+                    Log.v(
+                        tag,
+                        "Modbus disconnected: skipping telemetry publishing and alarm evaluations to avoid sending 0/stale values"
+                    )
                 } else {
                     Log.v(tag, "No telemetry data to send (T1, T2, Hum are null)")
                 }

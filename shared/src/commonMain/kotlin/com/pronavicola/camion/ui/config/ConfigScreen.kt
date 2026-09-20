@@ -1,6 +1,9 @@
 package com.pronavicola.camion.ui.config
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +80,7 @@ import com.pronavicola.camion.ui.theme.CamionColors
 fun ConfigScreen(
     currentUser: SessionUser,
     deviceId: String,
+    furgonPlate: String = "",
     mqttBrokerUrl: String,
     mqttTopicRoot: String,
     mqttUsername: String,
@@ -102,6 +106,7 @@ fun ConfigScreen(
     mqttEventLogs: List<MqttLogEvent> = emptyList(),
     isTestingMqttConnection: Boolean = false,
     onDeviceIdChange: (String) -> Unit,
+    onFurgonPlateChange: (String) -> Unit = {},
     onMqttBrokerUrlChange: (String) -> Unit,
     onMqttTopicRootChange: (String) -> Unit,
     onMqttUsernameChange: (String) -> Unit,
@@ -229,8 +234,8 @@ fun ConfigScreen(
                     ) {
                         if (isManualFurgonEntry) {
                             OutlinedTextField(
-                                value = deviceId,
-                                onValueChange = onDeviceIdChange,
+                                value = furgonPlate,
+                                onValueChange = onFurgonPlateChange,
                                 label = { Text("Placa de Furgón (Manual)") },
                                 colors = outlinedTextFieldColors(),
                                 modifier = Modifier.weight(1f),
@@ -238,7 +243,7 @@ fun ConfigScreen(
                             )
                         } else {
                             var furgonExpanded by remember { mutableStateOf(false) }
-                            val selectedFurgon = availableFurgones.firstOrNull { it.plate == deviceId }
+                            val selectedFurgon = availableFurgones.firstOrNull { it.plate == furgonPlate }
 
                             ExposedDropdownMenuBox(
                                 expanded = furgonExpanded,
@@ -249,7 +254,7 @@ fun ConfigScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 OutlinedTextField(
-                                    value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" } ?: deviceId,
+                                    value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" } ?: furgonPlate.ifBlank { "Sin Furgón Asignado" },
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("Furgón Asignado en Web") },
@@ -460,6 +465,7 @@ fun ConfigScreen(
         // --- SECTION: MQTT SETTINGS ---
         var showPayloadDetails by remember { mutableStateOf(false) }
         var showConsoleLogs by remember { mutableStateOf(false) }
+        var showAuthCredentials by remember { mutableStateOf(mqttUsername.isNotBlank() || mqttPassword.isNotBlank()) }
         val clipboardManager = LocalClipboardManager.current
 
         Card(
@@ -505,55 +511,76 @@ fun ConfigScreen(
                     }
                 }
 
-                // Inputs Row
-                Row(
+                // Host / Broker URL TextField (Single Full Width Field)
+                OutlinedTextField(
+                    value = mqttBrokerUrl,
+                    onValueChange = onMqttBrokerUrlChange,
+                    label = { Text("Broker URI / Host") },
+                    placeholder = { Text("mqtt://hayabusa.proxy.rlwy.net:58666") },
+                    colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = mqttBrokerUrl,
-                        onValueChange = onMqttBrokerUrlChange,
-                        label = { Text("Broker URL") },
-                        placeholder = { Text("mqtt://hayabusa.proxy.rlwy.net:58666") },
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
+                    singleLine = true
+                )
 
-                    OutlinedTextField(
-                        value = mqttTopicRoot,
-                        onValueChange = onMqttTopicRootChange,
-                        label = { Text("Tópico de Publicación") },
-                        placeholder = { Text("telemetria/{idVehiculo}") },
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
+                // Collapsible Panel Header / Toggle for Credentials
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showAuthCredentials = !showAuthCredentials }
+                        .background(Color(0xFF252525))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Key,
+                            contentDescription = null,
+                            tint = Color(0xFF64B5F6),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Autenticación MQTT (Opcional)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Icon(
+                        imageVector = if (showAuthCredentials) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (showAuthCredentials) "Ocultar autenticación" else "Mostrar autenticación",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                // Optional Credentials Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = mqttUsername,
-                        onValueChange = onMqttUsernameChange,
-                        label = { Text("USUARIO MQTT (Opcional)") },
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
+                // Collapsible Optional Credentials Textboxes
+                AnimatedVisibility(visible = showAuthCredentials) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = mqttUsername,
+                            onValueChange = onMqttUsernameChange,
+                            label = { Text("USUARIO MQTT (Opcional)") },
+                            colors = outlinedTextFieldColors(),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
 
-                    OutlinedTextField(
-                        value = mqttPassword,
-                        onValueChange = onMqttPasswordChange,
-                        label = { Text("CONTRASEÑA MQTT") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
+                        OutlinedTextField(
+                            value = mqttPassword,
+                            onValueChange = onMqttPasswordChange,
+                            label = { Text("CONTRASEÑA MQTT") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            colors = outlinedTextFieldColors(),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
                 }
 
                 // Connection Test Result Banner (Blue Card - Image 2)

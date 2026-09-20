@@ -96,6 +96,15 @@ class ModbusTcpClient(
         pollJob = null
         closeSocket()
         _connected.value = false
+        resetSensorReadings()
+    }
+
+    private fun resetSensorReadings() {
+        _temperatura1.value = null
+        _temperatura2.value = null
+        _humedad.value = null
+        _tension.value = null
+        _alarmasActivas.value = emptyList()
     }
 
     private suspend fun startPollingLoop() {
@@ -116,11 +125,13 @@ class ModbusTcpClient(
                     if (consecutiveFailures >= 3) {
                         closeSocket()
                         _connected.value = false
+                        resetSensorReadings()
                         applyExponentialBackoff(consecutiveFailures)
                     }
                 }
             } else {
                 _connected.value = false
+                resetSensorReadings()
                 delay(3000L) // Retry connection periodically
             }
 
