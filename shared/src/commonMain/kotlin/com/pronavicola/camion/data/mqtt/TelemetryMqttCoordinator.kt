@@ -16,7 +16,11 @@ import java.util.Locale
 
 /**
  * Coordinates telemetry data gathering from ModbusClient and routes payloads
- * through the OutboxQueueManager to EMQX MQTT topics.
+ * through the OutboxQueueManager to EMQX MQTT topics using standard schema:
+ * - furgones/{device_id}/telemetry
+ * - furgones/{device_id}/location
+ * - furgones/{device_id}/alarms
+ * - furgones/{device_id}/status
  */
 class TelemetryMqttCoordinator(
     private val modbusClient: ModbusClient,
@@ -27,7 +31,6 @@ class TelemetryMqttCoordinator(
 ) {
     private val tag = "TelemetryMqttCoordinator"
     private var activeDeviceId: String = defaultDeviceId
-    private var activeTopicRoot: String = "furgones"
     private var samplingIntervalMs: Long = TELEMETRY_INTERVAL_MS
     private var coordinatorJob: Job? = null
     private var heartbeatJob: Job? = null
@@ -66,8 +69,8 @@ class TelemetryMqttCoordinator(
         activeDeviceId = deviceId
     }
 
-    fun updateTopicRoot(root: String) {
-        activeTopicRoot = root
+    fun updateTopicRoot(@Suppress("UNUSED_PARAMETER") root: String) {
+        // Maintained for backward compatibility; standard topics use MqttTopics.TOPIC_ROOT
     }
 
     fun setPublishIntervalSeconds(seconds: Long) {
@@ -80,7 +83,7 @@ class TelemetryMqttCoordinator(
     fun enqueueVariableRegistro(registro: VariableRegistroEntity) {
         val timestamp = parseDateToEpoch(registro.fecha)
         val payload = TelemetryMqttPayload(
-            deviceId = registro.idVehiculo.ifBlank { activeDeviceId },
+            deviceId = activeDeviceId,
             timestamp = timestamp,
             temperatureC = registro.temperatura1,
             temperature2C = registro.temperatura2,
@@ -93,9 +96,24 @@ class TelemetryMqttCoordinator(
             calefaccionActiva = false,
             alarmas = emptyList(),
         )
-        val targetDevice = registro.idVehiculo.ifBlank { activeDeviceId }
-        val topic = "$activeTopicRoot/$targetDevice/telemetry"
-        Log.d(tag, "Enqueuing historical VariableRegistro for $targetDevice to $topic")
+        val topic = MqttTopics.telemetry(activeDeviceId)
+        Log.d(tag, "Enqueuing historical VariableRegistro for $activeDeviceId to $topic")
+        outboxManager.enqueue(topic, payload.toJson(), qos = 1)
+    }
+
+    /**
+     * Enqueues a location payload to the MQTT outbox queue: furgones/{device_id}/location
+     */
+    fun enqueueLocation(latitude: Double, longitude: Double, speedKmh: Double? = null, altitudeM: Double? = null) {
+        val payload = LocationMqttPayload(
+            deviceId = activeDeviceId,
+            latitude = latitude,
+            longitude = longitude,
+            speedKmh = speedKmh,
+            altitudeM = altitudeM,
+        )
+        val topic = MqttTopics.location(activeDeviceId)
+        Log.d(tag, "Enqueuing Location for $activeDeviceId to $topic")
         outboxManager.enqueue(topic, payload.toJson(), qos = 1)
     }
 
@@ -145,7 +163,7 @@ class TelemetryMqttCoordinator(
                         calefaccionActiva = calefaccion,
                         alarmas = alarmas,
                     )
-                    val topic = "$activeTopicRoot/$activeDeviceId/telemetry"
+                    val topic = MqttTopics.telemetry(activeDeviceId)
                     Log.d(tag, "Enqueuing telemetry for $activeDeviceId to $topic")
                     outboxManager.enqueue(topic, payload.toJson(), qos = 1)
 
@@ -170,7 +188,7 @@ class TelemetryMqttCoordinator(
                     deviceId = activeDeviceId,
                     status = status,
                 )
-                val topic = "$activeTopicRoot/$activeDeviceId/status"
+                val topic = MqttTopics.status(activeDeviceId)
                 Log.d(tag, "Enqueuing heartbeat for $activeDeviceId to $topic (Status: $status)")
                 outboxManager.enqueue(topic, payload.toJson(), qos = 1)
             } catch (e: Exception) {
@@ -183,6 +201,7 @@ class TelemetryMqttCoordinator(
 
     private fun evaluateLocalAlarms(t1: Double?, t2: Double?, hum: Double?, vlt: Double?) {
         val maxTemp = maxOf(t1 ?: -100.0, t2 ?: -100.0)
+        val alarmTopic = MqttTopics.alarms(activeDeviceId)
         if (maxTemp > TEMP_HIGH_THRESHOLD) {
             val alarm = AlarmMqttPayload(
                 deviceId = activeDeviceId,
@@ -190,7 +209,7 @@ class TelemetryMqttCoordinator(
                 severity = "WARNING",
                 triggerValue = maxTemp,
             )
-            outboxManager.enqueue("$activeTopicRoot/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
+            outboxManager.enqueue(alarmTopic, alarm.toJson(), qos = 1)
         }
 
         if ((hum ?: 0.0) > HUMIDITY_HIGH_THRESHOLD) {
@@ -200,7 +219,7 @@ class TelemetryMqttCoordinator(
                 severity = "WARNING",
                 triggerValue = hum ?: 0.0,
             )
-            outboxManager.enqueue("$activeTopicRoot/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
+            outboxManager.enqueue(alarmTopic, alarm.toJson(), qos = 1)
         }
 
         if (vlt != null && vlt > 0.0 && vlt < VOLTAGE_LOW_THRESHOLD) {
@@ -210,7 +229,7 @@ class TelemetryMqttCoordinator(
                 severity = "CRITICAL",
                 triggerValue = vlt,
             )
-            outboxManager.enqueue("$activeTopicRoot/$activeDeviceId/alarms", alarm.toJson(), qos = 1)
+            outboxManager.enqueue(alarmTopic, alarm.toJson(), qos = 1)
         }
     }
 }

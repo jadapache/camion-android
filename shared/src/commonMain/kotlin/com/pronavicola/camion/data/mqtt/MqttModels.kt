@@ -3,6 +3,18 @@ package com.pronavicola.camion.data.mqtt
 import com.pronavicola.camion.domain.model.ZoneStatus
 
 /**
+ * Standard topics designated for traces/telemetry, locations, alarms, and status.
+ */
+object MqttTopics {
+    const val TOPIC_ROOT = "furgones"
+
+    fun telemetry(deviceId: String): String = "$TOPIC_ROOT/$deviceId/telemetry"
+    fun location(deviceId: String): String = "$TOPIC_ROOT/$deviceId/location"
+    fun alarms(deviceId: String): String = "$TOPIC_ROOT/$deviceId/alarms"
+    fun status(deviceId: String): String = "$TOPIC_ROOT/$deviceId/status"
+}
+
+/**
  * Data structures and JSON serializations for MQTT payloads.
  * Implemented with pure Kotlin formatting for high throughput and JVM testability.
  */
@@ -29,6 +41,21 @@ data class TelemetryMqttPayload(
         val alarmasJson = alarmas.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"$it\"" }
 
         return "{\"device_id\":\"$deviceId\",\"timestamp\":$timestamp,\"temperature_c\":$t1Str,\"temperature_2_c\":$t2Str,\"humidity_pct\":$humStr,\"voltage_v\":$vltStr,\"proceso_activo\":$procesoActivo,\"zonas\":$zonasJson,\"estado_irrigador\":\"${estadoIrrigador.name}\",\"damper_activo\":$damperActivo,\"calefaccion_activa\":$calefaccionActiva,\"alarmas\":$alarmasJson}"
+    }
+}
+
+data class LocationMqttPayload(
+    val deviceId: String,
+    val latitude: Double,
+    val longitude: Double,
+    val speedKmh: Double? = null,
+    val altitudeM: Double? = null,
+    val timestamp: Long = System.currentTimeMillis(),
+) {
+    fun toJson(): String {
+        val speedStr = speedKmh?.toString() ?: "null"
+        val altStr = altitudeM?.toString() ?: "null"
+        return "{\"device_id\":\"$deviceId\",\"latitude\":$latitude,\"longitude\":$longitude,\"speed_kmh\":$speedStr,\"altitude_m\":$altStr,\"timestamp\":$timestamp}"
     }
 }
 

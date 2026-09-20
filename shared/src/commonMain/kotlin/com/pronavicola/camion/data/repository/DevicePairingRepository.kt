@@ -45,10 +45,13 @@ class DevicePairingRepository(
 
             if (resp.status == "ACTIVE") {
                 resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
-                resp.furgon?.plate?.let { configRepository.saveDeviceId(it) }
+                if (resp.deviceId.isNotBlank()) {
+                    configRepository.saveDeviceId(resp.deviceId)
+                }
+                resp.furgon?.plate?.let { configRepository.saveFurgonPlate(it) }
                 resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
                 resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
-                Log.i(tag, "Screen is ACTIVE and paired successfully")
+                Log.i(tag, "Screen is ACTIVE and paired successfully (deviceId=${resp.deviceId}, furgon=${resp.furgon?.plate})")
                 Result.success(true)
             } else {
                 Result.success(false)
@@ -111,7 +114,7 @@ class DevicePairingRepository(
         val result = apiService.updateAssociatedFurgon(serverUrl, deviceToken, furgonId)
         if (result.isSuccess) {
             val furgon = result.getOrThrow()
-            configRepository.saveDeviceId(furgon.plate)
+            configRepository.saveFurgonPlate(furgon.plate)
             Result.success(furgon.plate)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error actualizando furgón"))

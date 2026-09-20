@@ -12,6 +12,10 @@ import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.data.modbus.ModbusClient
 import com.pronavicola.camion.data.modbus.toProcesoEstado
 import com.pronavicola.camion.data.remote.FurgonInfo
+import com.pronavicola.camion.data.mqtt.MqttTopics
+import com.pronavicola.camion.data.mqtt.TelemetryMqttPayload
+import com.pronavicola.camion.data.mqtt.LocationMqttPayload
+import com.pronavicola.camion.data.mqtt.AlarmMqttPayload
 import com.pronavicola.camion.data.repository.AppConfigRepository
 import com.pronavicola.camion.data.repository.AuthRepository
 import com.pronavicola.camion.data.repository.AuthResult
@@ -60,6 +64,7 @@ data class MainUiState(
     val selectedUserId: String? = null,
     val showChangePassword: Boolean = false,
     val deviceId: String = "",
+    val furgonPlate: String = "",
     val mqttBrokerUrl: String = "",
     val mqttUsername: String = "",
     val mqttPassword: String = "",
@@ -118,8 +123,8 @@ class MainViewModel(
         viewModelScope.launch {
             val user = authRepository.loadDefaultUser()
 
-            // Load persistent configuration from AppConfigRepository
             val savedDeviceId = appConfigRepository.getDeviceId() ?: user.idVehiculo
+            val savedFurgonPlate = appConfigRepository.getFurgonPlate() ?: user.idVehiculo
             val savedBrokerUrl = appConfigRepository.getBrokerUrl() ?: com.pronavicola.camion.data.mqtt.MqttClientManager.DEFAULT_BROKER_URL
             val savedTopicRoot = appConfigRepository.getTopicRoot() ?: "furgones"
             val savedUsername = appConfigRepository.getBrokerUsername() ?: ""
@@ -138,6 +143,7 @@ class MainViewModel(
                 currentUser = user,
                 selectedUserId = user.idUsuario,
                 deviceId = savedDeviceId,
+                furgonPlate = savedFurgonPlate,
                 mqttBrokerUrl = savedBrokerUrl,
                 mqttTopicRoot = savedTopicRoot,
                 mqttUsername = savedUsername,
@@ -392,10 +398,8 @@ class MainViewModel(
                                 selectedUserId = result.user.idUsuario,
                                 statusMessage = "Usuario cambio a: ${result.user.usuario}",
                                 loginPassword = "",
-                                deviceId = result.user.idVehiculo,
                             )
                         }
-                        result.user.idVehiculo.takeIf { it.isNotBlank() }?.let { telemetryMqttCoordinator?.updateDeviceId(it) }
                     }
                     is AuthResult.Error -> showMessage(result.message)
                 }
@@ -432,6 +436,13 @@ class MainViewModel(
 
     fun onDeviceIdChange(value: String) {
         _uiState.update { it.copy(deviceId = value) }
+    }
+
+    fun onFurgonPlateChange(value: String) {
+        _uiState.update { it.copy(furgonPlate = value) }
+        viewModelScope.launch {
+            appConfigRepository.saveFurgonPlate(value)
+        }
     }
 
     fun onMqttBrokerUrlChange(value: String) {
@@ -570,10 +581,9 @@ class MainViewModel(
                             )
                         }
                     } else {
-                        if (resp.furgonPlate != null && resp.furgonPlate != state.deviceId) {
-                            appConfigRepository.saveDeviceId(resp.furgonPlate)
-                            _uiState.update { it.copy(deviceId = resp.furgonPlate) }
-                            telemetryMqttCoordinator?.updateDeviceId(resp.furgonPlate)
+                        if (resp.furgonPlate != null && resp.furgonPlate != state.furgonPlate) {
+                            appConfigRepository.saveFurgonPlate(resp.furgonPlate)
+                            _uiState.update { it.copy(furgonPlate = resp.furgonPlate) }
                         }
                     }
                 }
@@ -635,17 +645,16 @@ class MainViewModel(
         }
     }
 
+    private fun computeTelemetryTopic(rawTopic: String, devId: String): String {
+        return MqttTopics.telemetry(devId)
+    }
+
     fun testMqttConnection() {
         val state = _uiState.value
         val devId = state.deviceId.ifBlank { "CAM01" }
-        val rawTopic = state.mqttTopicRoot.ifBlank { "telemetria/{idVehiculo}" }
-        val topic = if (rawTopic.contains("{idVehiculo}")) {
-            rawTopic.replace("{idVehiculo}", devId)
-        } else if (rawTopic.endsWith("/$devId") || rawTopic == devId) {
-            rawTopic
-        } else {
-            "$rawTopic/$devId"
-        }
+        val telemetryTopic = MqttTopics.telemetry(devId)
+        val locationTopic = MqttTopics.location(devId)
+        val alarmsTopic = MqttTopics.alarms(devId)
 
         viewModelScope.launch {
             // Persist MQTT settings to SQLite DB
@@ -655,13 +664,44 @@ class MainViewModel(
             _uiState.update { it.copy(isTestingMqttConnection = true) }
 
             val timeStr = SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(Date())
-            val isoTimeStr = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
 
-            val temp1 = 15.5
-            val temp2 = 16.0
-            val hum = 68.7
-            val tension = 24.1
-            val jsonPayload = """{"device_id":"$devId","temperature_c":$temp1,"temperature_2_c":$temp2,"humidity_pct":$hum,"voltage_v":$tension,"timestamp":"$isoTimeStr"}"""
+            val telemetryPayload = TelemetryMqttPayload(
+                deviceId = devId,
+                timestamp = System.currentTimeMillis(),
+                temperatureC = 15.5,
+                temperature2C = 16.0,
+                humidityPct = 68.7,
+                voltageV = 24.1,
+                procesoActivo = true,
+                zonas = listOf(ZoneStatus.ON, ZoneStatus.ON, ZoneStatus.OFF),
+                estadoIrrigador = ZoneStatus.ON,
+                damperActivo = false,
+                calefaccionActiva = false,
+                alarmas = emptyList(),
+            ).toJson()
+
+            val locationPayload = LocationMqttPayload(
+                deviceId = devId,
+                latitude = 4.7110,
+                longitude = -74.0721,
+                speedKmh = 45.2,
+                altitudeM = 2600.0,
+                timestamp = System.currentTimeMillis(),
+            ).toJson()
+
+            val alarmPayload = AlarmMqttPayload(
+                deviceId = devId,
+                alarmType = "TEST_ALARM",
+                severity = "INFO",
+                triggerValue = 0.0,
+                triggeredAt = System.currentTimeMillis(),
+            ).toJson()
+
+            val combinedJson = """{
+  "telemetry": $telemetryPayload,
+  "location": $locationPayload,
+  "alarms": $alarmPayload
+}"""
 
             val brokerUrl = state.mqttBrokerUrl.ifBlank { "tcp://broker.emqx.io:1883" }
 
@@ -679,37 +719,56 @@ class MainViewModel(
                 delay(1000.milliseconds)
             }
 
-            val publishResult = mqttClientManager.publish(topic, jsonPayload)
-            val updatedLogs = _uiState.value.mqttEventLogs.toMutableList()
+            // Publish to the 3 standard MQTT topics
+            val res1 = mqttClientManager.publish(telemetryTopic, telemetryPayload)
+            val res2 = mqttClientManager.publish(locationTopic, locationPayload)
+            val res3 = mqttClientManager.publish(alarmsTopic, alarmPayload)
 
-            if (publishResult.isSuccess) {
-                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama MQTT transmitida [$topic]: Temp1=${temp1}°C, Hum=${hum}% ($brokerUrl)"))
-                _uiState.update {
-                    it.copy(
-                        isTestingMqttConnection = false,
-                        mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + 1,
-                        mqttTestSuccessMessage = "Conexión establecida con el servidor MQTT con éxito (Tópico: $topic).",
-                        mqttTestTopic = topic,
-                        mqttTestPayloadJson = jsonPayload,
-                        mqttTestIsSuccess = true,
-                        mqttEventLogs = updatedLogs,
-                        statusMessage = "Prueba de transmisión MQTT exitosa.",
-                    )
-                }
+            val updatedLogs = _uiState.value.mqttEventLogs.toMutableList()
+            var successCount = 0
+
+            if (res1.isSuccess) {
+                successCount++
+                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama Telemetría transmitida [$telemetryTopic]: Temp1=15.5°C, Hum=68.7% ($brokerUrl)"))
             } else {
-                val errMsg = publishResult.exceptionOrNull()?.message ?: "Desconocido"
-                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama MQTT a [$topic]: $errMsg"))
-                _uiState.update {
-                    it.copy(
-                        isTestingMqttConnection = false,
-                        mqttTestSuccessMessage = "Conexión en modo prueba registrada (Tópico: $topic).",
-                        mqttTestTopic = topic,
-                        mqttTestPayloadJson = jsonPayload,
-                        mqttTestIsSuccess = true,
-                        mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + 1,
-                        mqttEventLogs = updatedLogs,
-                    )
-                }
+                val err = res1.exceptionOrNull()?.message ?: "Desconocido"
+                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Telemetría a [$telemetryTopic]: $err"))
+            }
+
+            if (res2.isSuccess) {
+                successCount++
+                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama Ubicación transmitida [$locationTopic]: Lat=4.7110, Lon=-74.0721, Vel=45.2 km/h ($brokerUrl)"))
+            } else {
+                val err = res2.exceptionOrNull()?.message ?: "Desconocido"
+                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Ubicación a [$locationTopic]: $err"))
+            }
+
+            if (res3.isSuccess) {
+                successCount++
+                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama Alarma transmitida [$alarmsTopic]: TEST_ALARM (INFO)"))
+            } else {
+                val err = res3.exceptionOrNull()?.message ?: "Desconocido"
+                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Error transmitiendo trama Alarma a [$alarmsTopic]: $err"))
+            }
+
+            val isAllSuccess = (successCount > 0)
+            val successMsg = if (successCount == 3) {
+                "Conexión exitosa. 3 tramas transmitidas (telemetry, location, alarms)."
+            } else {
+                "Conexión parcial ($successCount/3 tramas transmitidas)."
+            }
+
+            _uiState.update {
+                it.copy(
+                    isTestingMqttConnection = false,
+                    mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + successCount,
+                    mqttTestSuccessMessage = successMsg,
+                    mqttTestTopic = "$telemetryTopic | $locationTopic | $alarmsTopic",
+                    mqttTestPayloadJson = combinedJson,
+                    mqttTestIsSuccess = isAllSuccess,
+                    mqttEventLogs = updatedLogs,
+                    statusMessage = if (isAllSuccess) "Prueba de transmisión MQTT exitosa ($successCount/3 tópicos)." else "Error en prueba MQTT.",
+                )
             }
         }
     }
@@ -797,8 +856,8 @@ class MainViewModel(
         viewModelScope.launch {
             repo.updateAssociatedFurgon(state.serverBaseUrl, state.deviceToken, furgonId)
                 .onSuccess { newPlate ->
-                    _uiState.update { it.copy(deviceId = newPlate, statusMessage = "Placa de furgón asociada: $newPlate") }
-                    telemetryMqttCoordinator?.updateDeviceId(newPlate)
+                    appConfigRepository.saveFurgonPlate(newPlate)
+                    _uiState.update { it.copy(furgonPlate = newPlate, statusMessage = "Placa de furgón asociada: $newPlate") }
                 }
                 .onFailure {
                     showMessage("Error al asociar furgón: ${it.message}")
@@ -826,6 +885,7 @@ class MainViewModel(
             // Save to database
             authRepository.updateDeviceId(user.idUsuario, state.deviceId)
             appConfigRepository.saveDeviceId(state.deviceId)
+            appConfigRepository.saveFurgonPlate(state.furgonPlate)
             appConfigRepository.saveBrokerUrl(state.mqttBrokerUrl)
             appConfigRepository.saveTopicRoot(state.mqttTopicRoot)
             appConfigRepository.saveBrokerUsername(state.mqttUsername)
@@ -862,7 +922,7 @@ class MainViewModel(
             modbusClient.connect(host = targetHost, port = targetPort)
 
             _uiState.update { it.copy(
-                currentUser = user.copy(idVehiculo = state.deviceId),
+                currentUser = user.copy(idVehiculo = state.furgonPlate),
                 statusMessage = "Configuración de sistema guardada correctamente",
             ) }
         }
@@ -878,6 +938,68 @@ class MainViewModel(
             }
             telemetryMqttCoordinator?.syncAllVariableRegistros(registros)
             showMessage("Enviando ${registros.size} registros a la cola MQTT...")
+        }
+    }
+
+    fun resendSingleRegistro(registro: VariableRegistroEntity) {
+        val state = _uiState.value
+        val devId = state.deviceId.ifBlank { registro.idVehiculo.ifBlank { "CAM01" } }
+        val topic = computeTelemetryTopic(state.mqttTopicRoot, devId)
+
+        viewModelScope.launch {
+            val timeStr = SimpleDateFormat("h:mm:ss a", Locale.getDefault()).format(Date())
+            val isoTimeStr = try {
+                if (registro.fecha.contains(" ") && !registro.fecha.contains("T")) {
+                    val parts = registro.fecha.split(" ")
+                    "${parts[0]}T${parts[1]}.000Z"
+                } else if (registro.fecha.contains("T")) {
+                    if (registro.fecha.endsWith("Z")) registro.fecha else "${registro.fecha}Z"
+                } else {
+                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
+                }
+            } catch (_: Exception) {
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
+            }
+
+            val temp1 = registro.temperatura1
+            val temp2 = registro.temperatura2
+            val hum = registro.humedad
+            val tension = 24.1
+            val jsonPayload = """{"device_id":"$devId","temperature_c":$temp1,"temperature_2_c":$temp2,"humidity_pct":$hum,"voltage_v":$tension,"timestamp":"$isoTimeStr"}"""
+
+            if (!mqttClientManager.isConnected.value) {
+                mqttClientManager.start(
+                    brokerUrl = state.mqttBrokerUrl.ifBlank { "tcp://broker.emqx.io:1883" },
+                    clientId = "camion_$devId",
+                    username = state.mqttUsername,
+                    password = state.mqttPassword,
+                )
+                delay(1000.milliseconds)
+            }
+
+            val publishResult = mqttClientManager.publish(topic, jsonPayload)
+            val updatedLogs = _uiState.value.mqttEventLogs.toMutableList()
+
+            if (publishResult.isSuccess) {
+                registrosRepository.updateEstadoEnvio(registro.idRegistro, "ENVIADO")
+                updatedLogs.add(0, MqttLogEvent(timeStr, "SUCCESS", "Trama MQTT transmitida [$topic]: Temp1=${temp1}°C, Hum=${hum}% (${state.mqttBrokerUrl})"))
+                _uiState.update {
+                    it.copy(
+                        mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + 1,
+                        mqttEventLogs = updatedLogs,
+                        statusMessage = "Registro #${registro.idRegistro} re-enviado con éxito a $topic",
+                    )
+                }
+            } else {
+                val errMsg = publishResult.exceptionOrNull()?.message ?: "Fallo de conexión MQTT"
+                updatedLogs.add(0, MqttLogEvent(timeStr, "ERROR", "Fallo transmisión MQTT Registro #${registro.idRegistro} [$topic]: $errMsg"))
+                _uiState.update {
+                    it.copy(
+                        mqttEventLogs = updatedLogs,
+                        statusMessage = "Error al re-enviar Registro #${registro.idRegistro}: $errMsg",
+                    )
+                }
+            }
         }
     }
 
