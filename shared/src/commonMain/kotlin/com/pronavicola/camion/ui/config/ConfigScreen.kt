@@ -511,16 +511,30 @@ fun ConfigScreen(
                     }
                 }
 
-                // Host / Broker URL TextField (Single Full Width Field)
-                OutlinedTextField(
-                    value = mqttBrokerUrl,
-                    onValueChange = onMqttBrokerUrlChange,
-                    label = { Text("Broker URI / Host") },
-                    placeholder = { Text("mqtt://hayabusa.proxy.rlwy.net:58666") },
-                    colors = outlinedTextFieldColors(),
+                // Host / Broker URL and Topic TextField
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = mqttBrokerUrl,
+                        onValueChange = onMqttBrokerUrlChange,
+                        label = { Text("Broker URL") },
+                        placeholder = { Text("mqtt://hayabusa.proxy.rlwy.net:58666") },
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = mqttTopicRoot,
+                        onValueChange = onMqttTopicRootChange,
+                        label = { Text("Tópico de Publicación") },
+                        placeholder = { Text("telemetria/{idVehiculo}") },
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
 
                 // Collapsible Panel Header / Toggle for Credentials
                 Row(
@@ -634,7 +648,8 @@ fun ConfigScreen(
                                     text = if (showPayloadDetails) "Ocultar\nPayload" else "Ver Payload\nJSON",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    lineHeight = 13.sp
+                                    lineHeight = 13.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(

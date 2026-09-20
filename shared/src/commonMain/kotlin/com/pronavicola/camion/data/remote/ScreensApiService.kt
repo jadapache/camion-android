@@ -320,6 +320,8 @@ class ScreensApiService {
         return executeHttp("GET", endpoint, null, authBearer, deviceIdHeader)
     }
 
+    class ApiException(val code: Int, message: String) : Exception(message)
+
     private fun executeHttp(
         method: String,
         endpoint: String,
@@ -361,7 +363,7 @@ class ScreensApiService {
             } catch (_: Exception) {
                 "HTTP $responseCode: $responseText"
             }
-            throw Exception(errMsg)
+            throw ApiException(responseCode, errMsg)
         }
 
         return if (responseText.isBlank()) JSONObject() else JSONObject(responseText)

@@ -640,8 +640,7 @@ class MainViewModel(
                             }
                         }
                         .onFailure { exc ->
-                            val isNotFound =
-                                exc.message?.contains("404") == true || exc.message?.contains("401") == true
+                            val isNotFound = exc is com.pronavicola.camion.data.remote.ScreensApiService.ApiException && exc.code in listOf(401, 403, 404)
                             if (isNotFound) {
                                 appConfigRepository.saveLicenseStatus("UNREGISTERED")
                                 appConfigRepository.saveDeviceToken("")
@@ -710,12 +709,6 @@ class MainViewModel(
                 triggerValue = 0.0,
                 triggeredAt = System.currentTimeMillis(),
             ).toJson()
-
-            val combinedJson = """{
-  "telemetry": $telemetryPayload,
-  "location": $locationPayload,
-  "alarms": $alarmPayload
-}"""
 
             val brokerUrl = state.mqttBrokerUrl.ifBlank { "tcp://broker.emqx.io:1883" }
 
@@ -792,10 +785,10 @@ class MainViewModel(
             }
 
             val isAllSuccess = (successCount > 0)
-            val successMsg = if (successCount == 3) {
-                "Conexión exitosa. 3 tramas transmitidas (telemetry, location, alarms)."
+            val successMsg = if (successCount > 0) {
+                "Conexión establecida con el servidor MQTT con éxito (Tópico: $telemetryTopic)."
             } else {
-                "Conexión parcial ($successCount/3 tramas transmitidas)."
+                "Error en la conexión con el servidor MQTT."
             }
 
             _uiState.update {
@@ -803,11 +796,11 @@ class MainViewModel(
                     isTestingMqttConnection = false,
                     mqttTransmittedPacketsCount = it.mqttTransmittedPacketsCount + successCount,
                     mqttTestSuccessMessage = successMsg,
-                    mqttTestTopic = "$telemetryTopic | $locationTopic | $alarmsTopic",
-                    mqttTestPayloadJson = combinedJson,
+                    mqttTestTopic = telemetryTopic,
+                    mqttTestPayloadJson = telemetryPayload,
                     mqttTestIsSuccess = isAllSuccess,
                     mqttEventLogs = updatedLogs,
-                    statusMessage = if (isAllSuccess) "Prueba de transmisión MQTT exitosa ($successCount/3 tópicos)." else "Error en prueba MQTT.",
+                    statusMessage = if (isAllSuccess) "Prueba de transmisión MQTT exitosa." else "Error en prueba MQTT.",
                 )
             }
         }
