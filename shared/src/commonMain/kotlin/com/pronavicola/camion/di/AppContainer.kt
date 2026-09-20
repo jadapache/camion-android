@@ -33,6 +33,7 @@ import com.pronavicola.camion.domain.usecase.config.GetAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.PairDeviceUseCase
 import com.pronavicola.camion.domain.usecase.config.SaveAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.TestMqttConnectionUseCase
+import com.pronavicola.camion.domain.usecase.config.UpdateTruckPlateUseCase
 import com.pronavicola.camion.domain.usecase.hmi.ConnectModbusUseCase
 import com.pronavicola.camion.domain.usecase.hmi.DisconnectModbusUseCase
 import com.pronavicola.camion.domain.usecase.hmi.ObserveHmiStateUseCase
@@ -79,6 +80,22 @@ class AppContainer(
         ScreensApiService()
     }
 
+    val alarmaDao by lazy {
+        database.alarmaDao()
+    }
+
+    val alarmaRegistroDao by lazy {
+        database.alarmaRegistroDao()
+    }
+
+    val definicionDao by lazy {
+        database.definicionDao()
+    }
+
+    val vehiculoDao by lazy {
+        database.vehiculoDao()
+    }
+
     val modbusClient: ModbusClient by lazy {
         ModbusTcpClient(appScope)
     }
@@ -105,11 +122,11 @@ class AppContainer(
     }
 
     val parametrosRepository: ParametrosRepository by lazy {
-        ParametrosRepositoryImpl(database.parametroDao(), modbusClient)
+        ParametrosRepositoryImpl(database.parametroDao(), database.vehiculoDao(), modbusClient)
     }
 
     val registrosRepository: RegistrosRepository by lazy {
-        RegistrosRepositoryImpl(database.variableRegistroDao())
+        RegistrosRepositoryImpl(database.variableRegistroDao(), database.vehiculoDao())
     }
 
     val mqttRepository: MqttRepository by lazy {
@@ -174,6 +191,9 @@ class AppContainer(
     val saveAppConfigUseCase: SaveAppConfigUseCase by lazy { SaveAppConfigUseCase(appConfigRepository) }
     val testMqttConnectionUseCase: TestMqttConnectionUseCase by lazy { TestMqttConnectionUseCase(mqttRepository, appConfigRepository) }
     val pairDeviceUseCase: PairDeviceUseCase by lazy { PairDeviceUseCase(devicePairingRepository) }
+    val updateTruckPlateUseCase: UpdateTruckPlateUseCase by lazy {
+        UpdateTruckPlateUseCase(database.vehiculoDao(), database.parametroDao(), appConfigRepository)
+    }
 
     // 9. Use Cases - Simulation
     val getSimulationStateUseCase: GetSimulationStateUseCase by lazy { GetSimulationStateUseCase(simulationRepository) }
@@ -187,7 +207,7 @@ class AppContainer(
     fun startBackgroundServices() {
         appScope.launch {
             val brokerUrl = appConfigRepository.getBrokerUrl() ?: "tcp://broker.emqx.io:1883"
-            val deviceId = appConfigRepository.getDeviceId() ?: "CAM01"
+            val deviceId = appConfigRepository.getDeviceId() ?: "ABC123"
             val username = appConfigRepository.getBrokerUsername() ?: ""
             val password = appConfigRepository.getBrokerPassword() ?: ""
             val host = appConfigRepository.getModbusHost() ?: "127.0.0.1"

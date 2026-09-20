@@ -1,19 +1,27 @@
 package com.pronavicola.camion.data.repository
 
 import com.pronavicola.camion.data.local.dao.ParametroDao
+import com.pronavicola.camion.data.local.dao.VehiculoDao
 import com.pronavicola.camion.data.modbus.ModbusClient
 import com.pronavicola.camion.domain.model.ParametroUiModel
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.repository.ParametrosRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ParametrosRepositoryImpl(
     private val parametroDao: ParametroDao,
+    private val vehiculoDao: VehiculoDao,
     private val modbusClient: ModbusClient,
 ) : ParametrosRepository {
     override fun observeParametros(user: SessionUser): Flow<List<ParametroUiModel>> =
-        parametroDao.observeParametros(user.idVehiculo).map { rows ->
+        vehiculoDao.observePredeterminado().flatMapLatest { activeVehiculo ->
+            val vehiculoId = activeVehiculo?.idVehiculo ?: user.idVehiculo
+            parametroDao.observeParametros(vehiculoId)
+        }.map { rows ->
             rows.map { row ->
                 ParametroUiModel(
                     idParametro = row.idParametro,
@@ -34,7 +42,7 @@ class ParametrosRepositoryImpl(
         user: SessionUser,
     ): List<ParametroUiModel> = parametros.map { param ->
         param.copy(
-            editable = parametroDao.canEdit(user.idPerfil, user.idVehiculo, param.idParametro),
+            editable = parametroDao.canEdit(user.idPerfil, param.idParametro),
         )
     }
 
@@ -43,14 +51,15 @@ class ParametrosRepositoryImpl(
         parametro: ParametroUiModel,
         nuevoValor: Double,
     ): Result<Double> {
-        if (!parametroDao.canEdit(user.idPerfil, user.idVehiculo, parametro.idParametro)) {
+        val vehiculoId = vehiculoDao.getPredeterminado()?.idVehiculo ?: user.idVehiculo
+        if (!parametroDao.canEdit(user.idPerfil, parametro.idParametro)) {
             return Result.failure(IllegalAccessException("Sin permiso para editar ${parametro.nombre}"))
         }
         if (nuevoValor < parametro.minimo || nuevoValor > parametro.maximo) {
             return Result.failure(IllegalArgumentException("Valor fuera de rango permitido"))
         }
 
-        parametroDao.updateValor(user.idVehiculo, parametro.idParametro, nuevoValor)
+        parametroDao.updateValor(vehiculoId, parametro.idParametro, nuevoValor)
         modbusClient.writeParameter(parametro.tag, nuevoValor)
         return Result.success(nuevoValor)
     }

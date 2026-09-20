@@ -56,6 +56,7 @@ class CamionViewModelFactory(
                 testMqttConnectionUseCase = appContainer.testMqttConnectionUseCase,
                 pairDeviceUseCase = appContainer.pairDeviceUseCase,
                 connectModbusUseCase = appContainer.connectModbusUseCase,
+                updateTruckPlateUseCase = appContainer.updateTruckPlateUseCase,
             ) as T
 
             SimulationViewModel::class -> SimulationViewModel(

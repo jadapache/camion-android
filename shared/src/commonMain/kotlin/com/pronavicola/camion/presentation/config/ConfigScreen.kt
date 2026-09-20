@@ -75,7 +75,7 @@ import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.data.remote.FurgonInfo
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.model.MqttLogEvent
-import com.pronavicola.camion.ui.theme.CamionColors
+import com.pronavicola.camion.presentation.theme.CamionColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -894,8 +894,8 @@ fun ConfigScreen(
                     OutlinedTextField(
                         value = deviceId,
                         onValueChange = onDeviceIdChange,
-                        label = { Text("ID DE VEHICULO / EQUIPO") },
-                        placeholder = { Text("CAM01") },
+                        label = { Text("PLACA DE FURGÓN (TRUCK PLATE)") },
+                        placeholder = { Text("ABC123") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1.5f),
                     )

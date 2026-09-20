@@ -32,7 +32,7 @@ data class RegistrosUiState(
     val payloadJsonPreview: String? = null,
     val statusMessage: String? = null,
     val isSending: Boolean = false,
-    val deviceId: String = "CAM01",
+    val deviceId: String = "ABC123",
 ) {
     val filteredRegistros: List<VariableRegistroEntity>
         get() {
@@ -47,7 +47,7 @@ data class RegistrosUiState(
                     hastaMillis != null -> rMillis <= hastaMillis
                     else -> true
                 }
-                val matchesPlaca = filterPlaca.isBlank() || r.idVehiculo.contains(filterPlaca, ignoreCase = true)
+                val matchesPlaca = filterPlaca.isBlank() || r.idVehiculo.toString().contains(filterPlaca, ignoreCase = true)
                 val matchesEstado = when (filterEstado) {
                     "ENVIADO" -> r.estadoEnvio.equals("Enviado", ignoreCase = true)
                     "PENDIENTE" -> !r.estadoEnvio.equals("Enviado", ignoreCase = true)
@@ -62,6 +62,7 @@ data class RegistrosUiState(
                     SortColumn.T1 -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.temperatura1 } else result.sortedByDescending { it.temperatura1 }
                     SortColumn.T2 -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.temperatura2 } else result.sortedByDescending { it.temperatura2 }
                     SortColumn.HUM -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.humedad } else result.sortedByDescending { it.humedad }
+                    SortColumn.TENSION -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.tension } else result.sortedByDescending { it.tension }
                     SortColumn.ESTADO -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.estadoEnvio } else result.sortedByDescending { it.estadoEnvio }
                     else -> result
                 }
@@ -97,7 +98,7 @@ data class RegistrosUiState(
 }
 
 enum class SortColumn {
-    FECHA, T1, T2, HUM, ESTADO, NONE
+    FECHA, T1, T2, HUM, TENSION, ESTADO, NONE
 }
 
 enum class SortDirection {
@@ -118,7 +119,7 @@ class RegistrosViewModel(
 
     init {
         viewModelScope.launch {
-            val devId = appConfigRepository.getDeviceId() ?: "CAM01"
+            val devId = appConfigRepository.getDeviceId() ?: "ABC123"
             _uiState.update { it.copy(deviceId = devId) }
         }
     }

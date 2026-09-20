@@ -224,6 +224,7 @@ fun CamionApp(
                                     onSaveSystemSettings = {
                                         configViewModel.saveMqttConfig()
                                         configViewModel.saveModbusConfig()
+                                        configViewModel.saveSystemSettings()
                                     },
                                     onSyncAllRegistros = {},
                                 )

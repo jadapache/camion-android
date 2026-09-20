@@ -17,8 +17,8 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.pronavicola.camion.CamionAppContext
-import com.pronavicola.camion.ui.CamionApp
-import com.pronavicola.camion.ui.theme.CamionTheme
+import com.pronavicola.camion.presentation.CamionApp
+import com.pronavicola.camion.presentation.theme.CamionTheme
 
 fun main() = application {
     val appContext = remember {

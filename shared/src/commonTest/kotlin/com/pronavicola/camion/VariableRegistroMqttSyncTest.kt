@@ -12,7 +12,7 @@ class VariableRegistroMqttSyncTest {
     fun testVariableRegistroToJsonConversion() {
         val registro = VariableRegistroEntity(
             idRegistro = 10,
-            idVehiculo = "CAM01",
+            idVehiculo = 1,
             fecha = "2026-09-01 14:30:00",
             temperatura1 = 14.5,
             temperatura2 = 15.2,
@@ -20,7 +20,7 @@ class VariableRegistroMqttSyncTest {
         )
 
         val payload = TelemetryMqttPayload(
-            deviceId = registro.idVehiculo,
+            deviceId = "ABC123",
             timestamp = 1788273000000L,
             temperatureC = registro.temperatura1,
             temperature2C = registro.temperatura2,
@@ -33,7 +33,7 @@ class VariableRegistroMqttSyncTest {
 
         val jsonStr = payload.toJson()
 
-        assertTrue(jsonStr.contains("\"device_id\":\"CAM01\""))
+        assertTrue(jsonStr.contains("\"device_id\":\"ABC123\""))
         assertTrue(jsonStr.contains("\"temperature_c\":14.5"))
         assertTrue(jsonStr.contains("\"temperature_2_c\":15.2"))
         assertTrue(jsonStr.contains("\"humidity_pct\":65.0"))

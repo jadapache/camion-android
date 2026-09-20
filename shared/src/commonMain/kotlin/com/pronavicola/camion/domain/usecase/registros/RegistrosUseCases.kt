@@ -64,6 +64,7 @@ class BuildTelemetryPayloadUseCase {
           "temperatura_1": ${registro.temperatura1},
           "temperatura_2": ${registro.temperatura2},
           "humedad": ${registro.humedad},
+          "tension": ${registro.tension},
           "id_registro_local": ${registro.idRegistro}
         }
         """.trimIndent()
@@ -88,9 +89,9 @@ class BuildTelemetryPayloadUseCase {
 class ExportRegistrosCsvUseCase {
     operator fun invoke(data: List<VariableRegistroEntity>): String {
         val sb = StringBuilder()
-        sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,EstadoEnvio\n")
+        sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,Tension,EstadoEnvio\n")
         data.forEach { r ->
-            sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},\"${r.estadoEnvio}\"\n")
+            sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension},\"${r.estadoEnvio}\"\n")
         }
         return sb.toString()
     }

@@ -4,14 +4,18 @@ import androidx.room.ConstructedBy
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
-import androidx.room.migration.Migration
-import androidx.sqlite.SQLiteConnection
-import androidx.sqlite.execSQL
+import com.pronavicola.camion.data.local.dao.AlarmaDao
+import com.pronavicola.camion.data.local.dao.AlarmaRegistroDao
+import com.pronavicola.camion.data.local.dao.AppConfigDao
+import com.pronavicola.camion.data.local.dao.DefinicionDao
 import com.pronavicola.camion.data.local.dao.ParametroDao
 import com.pronavicola.camion.data.local.dao.PerfilDao
 import com.pronavicola.camion.data.local.dao.UsuarioDao
 import com.pronavicola.camion.data.local.dao.VariableRegistroDao
-import com.pronavicola.camion.data.local.dao.AppConfigDao
+import com.pronavicola.camion.data.local.dao.VehiculoDao
+import com.pronavicola.camion.data.local.entity.AlarmaEntity
+import com.pronavicola.camion.data.local.entity.AlarmaRegistroEntity
+import com.pronavicola.camion.data.local.entity.AppConfigEntity
 import com.pronavicola.camion.data.local.entity.DefinicionEntity
 import com.pronavicola.camion.data.local.entity.ParametroEntity
 import com.pronavicola.camion.data.local.entity.PerfilEntity
@@ -19,7 +23,8 @@ import com.pronavicola.camion.data.local.entity.PerfilParametroEntity
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.data.local.entity.VariableEntity
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
-import com.pronavicola.camion.data.local.entity.AppConfigEntity
+import com.pronavicola.camion.data.local.entity.VariablesRegistrosEntity
+import com.pronavicola.camion.data.local.entity.VehiculoEntity
 
 @Database(
     entities = [
@@ -29,10 +34,16 @@ import com.pronavicola.camion.data.local.entity.AppConfigEntity
         ParametroEntity::class,
         PerfilParametroEntity::class,
         VariableEntity::class,
-        VariableRegistroEntity::class,
+        VariablesRegistrosEntity::class,
         AppConfigEntity::class,
+        AlarmaEntity::class,
+        AlarmaRegistroEntity::class,
+        VehiculoEntity::class,
     ],
-    version = 10,
+    views = [
+        VariableRegistroEntity::class,
+    ],
+    version = 17,
     exportSchema = false,
 )
 @ConstructedBy(FurgonesDatabaseConstructor::class)
@@ -42,52 +53,13 @@ abstract class FurgonesDatabase : RoomDatabase() {
     abstract fun parametroDao(): ParametroDao
     abstract fun variableRegistroDao(): VariableRegistroDao
     abstract fun appConfigDao(): AppConfigDao
+    abstract fun alarmaDao(): AlarmaDao
+    abstract fun alarmaRegistroDao(): AlarmaRegistroDao
+    abstract fun definicionDao(): DefinicionDao
+    abstract fun vehiculoDao(): VehiculoDao
 
     companion object {
         const val DB_NAME = "Furgones.db"
-
-        fun getMigrations(): Array<Migration> {
-            val list = mutableListOf<Migration>()
-            for (from in 1..9) {
-                list.add(object : Migration(from, 10) {
-                    override fun migrate(connection: SQLiteConnection) {
-                        createMissingTables(connection)
-                        try {
-                            connection.execSQL("ALTER TABLE `VariableRegistros` ADD COLUMN `EstadoEnvio` TEXT NOT NULL DEFAULT 'PENDIENTE'")
-                        } catch (_: Exception) {}
-                    }
-                })
-            }
-            return list.toTypedArray()
-        }
-
-        fun createMissingTables(connection: SQLiteConnection) {
-            connection.execSQL(
-                "CREATE TABLE IF NOT EXISTS `Variables` (" +
-                    "`IdVariable` INTEGER NOT NULL, " +
-                    "`Variable` TEXT NOT NULL, " +
-                    "`Minimo` REAL, " +
-                    "`Maximo` REAL, " +
-                    "`Estado` TEXT, " +
-                    "PRIMARY KEY(`IdVariable`))"
-            )
-            connection.execSQL(
-                "CREATE TABLE IF NOT EXISTS `VariableRegistros` (" +
-                    "`IdRegistro` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                    "`IdVehiculo` TEXT NOT NULL, " +
-                    "`Fecha` TEXT NOT NULL, " +
-                    "`Temperatura1` REAL NOT NULL, " +
-                    "`Temperatura2` REAL NOT NULL, " +
-                    "`Humedad` REAL NOT NULL, " +
-                    "`EstadoEnvio` TEXT NOT NULL DEFAULT 'PENDIENTE')"
-            )
-            connection.execSQL(
-                "CREATE TABLE IF NOT EXISTS `AppConfig` (" +
-                    "`Clave` TEXT NOT NULL, " +
-                    "`Valor` TEXT NOT NULL, " +
-                    "PRIMARY KEY(`Clave`))"
-            )
-        }
     }
 }
 

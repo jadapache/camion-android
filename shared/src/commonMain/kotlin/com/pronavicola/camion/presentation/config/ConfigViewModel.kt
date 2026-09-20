@@ -7,6 +7,7 @@ import com.pronavicola.camion.domain.usecase.config.GetAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.PairDeviceUseCase
 import com.pronavicola.camion.domain.usecase.config.SaveAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.TestMqttConnectionUseCase
+import com.pronavicola.camion.domain.usecase.config.UpdateTruckPlateUseCase
 import com.pronavicola.camion.domain.usecase.hmi.ConnectModbusUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,8 +24,8 @@ data class ConfigUiState(
     val modbusHost: String = "127.0.0.1",
     val modbusPort: String = "502",
     val publishInterval: String = "5",
-    val deviceId: String = "CAM01",
-    val furgonPlate: String = "AAA000",
+    val deviceId: String = "ABC123",
+    val furgonPlate: String = "ABC123",
     val serverBaseUrl: String = "https://screens-api.pronavicola.com",
     val pairingCode: String = "",
     val licenseStatus: String = "UNPAIRED",
@@ -43,6 +44,7 @@ class ConfigViewModel(
     private val testMqttConnectionUseCase: TestMqttConnectionUseCase,
     private val pairDeviceUseCase: PairDeviceUseCase,
     private val connectModbusUseCase: ConnectModbusUseCase,
+    private val updateTruckPlateUseCase: UpdateTruckPlateUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ConfigUiState())
@@ -81,8 +83,37 @@ class ConfigViewModel(
     fun onModbusHostChange(host: String) = _uiState.update { it.copy(modbusHost = host) }
     fun onModbusPortChange(port: String) = _uiState.update { it.copy(modbusPort = port) }
     fun onPublishIntervalChange(interval: String) = _uiState.update { it.copy(publishInterval = interval) }
-    fun onDeviceIdChange(id: String) = _uiState.update { it.copy(deviceId = id) }
-    fun onFurgonPlateChange(plate: String) = _uiState.update { it.copy(furgonPlate = plate) }
+    fun onDeviceIdChange(id: String) = _uiState.update { it.copy(deviceId = id, furgonPlate = id) }
+    fun onFurgonPlateChange(plate: String) = _uiState.update { it.copy(furgonPlate = plate, deviceId = plate) }
+
+    fun saveSystemSettings() {
+        viewModelScope.launch {
+            val plateToSave = _uiState.value.deviceId.ifBlank { _uiState.value.furgonPlate }.trim()
+            val interval = _uiState.value.publishInterval
+            saveAppConfigUseCase(
+                publishInterval = interval,
+                deviceId = plateToSave,
+                furgonPlate = plateToSave,
+            )
+
+            val result = updateTruckPlateUseCase(plateToSave)
+            if (result.isSuccess) {
+                val vehiculo = result.getOrThrow()
+                _uiState.update {
+                    it.copy(
+                        deviceId = vehiculo.placa,
+                        furgonPlate = vehiculo.placa,
+                        saveMessage = "Ajustes guardados. Placa '${vehiculo.placa}' (Vehículo #${vehiculo.idVehiculo}) configurada con sus parámetros.",
+                    )
+                }
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Error al registrar la placa del vehículo"
+                _uiState.update {
+                    it.copy(saveMessage = "Error: $err")
+                }
+            }
+        }
+    }
 
     fun saveMqttConfig() {
         viewModelScope.launch {

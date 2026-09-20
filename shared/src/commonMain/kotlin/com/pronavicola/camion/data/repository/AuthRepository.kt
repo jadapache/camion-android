@@ -13,10 +13,26 @@ class AuthRepositoryImpl(
     override val activeUsers: Flow<List<UsuarioEntity>> = usuarioDao.observeActiveUsers()
 
     override suspend fun loadDefaultUser(): SessionUser {
+        ensureDesarrolladorExists()
         val user = usuarioDao.getDefaultUser()
             ?: usuarioDao.getById("OPERARIO")
             ?: error("Usuario OPERARIO no encontrado en Furgones.db")
         return user.toSession()
+    }
+
+    private suspend fun ensureDesarrolladorExists() {
+        if (usuarioDao.getById("DESARROLLADOR") == null) {
+            usuarioDao.insert(
+                UsuarioEntity(
+                    idUsuario = "DESARROLLADOR",
+                    usuario = "Desarrollador",
+                    password = "dev",
+                    idPerfil = 0,
+                    email = "dev@camion.local",
+                    estado = "ESTAUSUA.ACT",
+                ),
+            )
+        }
     }
 
     /**
@@ -64,17 +80,12 @@ class AuthRepositoryImpl(
         return AuthResult.Success(user.copy(password = newPassword).toSession())
     }
 
-    override suspend fun updateDeviceId(userId: String, deviceId: String) {
-        val user = usuarioDao.getById(userId) ?: return
-        usuarioDao.update(user.copy(idVehiculo = deviceId))
-    }
-
     override fun canAccessScreen(idPerfil: Int, accessLevel: Int): Boolean = idPerfil <= accessLevel
 
     private fun UsuarioEntity.toSession(): SessionUser = SessionUser(
         idUsuario = idUsuario,
         usuario = usuario,
         idPerfil = idPerfil,
-        idVehiculo = idVehiculo ?: "CAM01",
+        idVehiculo = 1,
     )
 }

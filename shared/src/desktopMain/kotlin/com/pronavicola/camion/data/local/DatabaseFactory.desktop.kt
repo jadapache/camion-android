@@ -40,7 +40,6 @@ actual fun createFurgonesDatabase(platformContext: Any?): FurgonesDatabase {
     )
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
-        .addMigrations(*FurgonesDatabase.getMigrations())
         .fallbackToDestructiveMigration(dropAllTables = false)
         .build()
 }

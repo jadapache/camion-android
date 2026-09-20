@@ -1,7 +1,6 @@
 package com.pronavicola.camion.presentation.simulation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +45,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.domain.model.Micro820ModbusConstants
-import com.pronavicola.camion.ui.theme.CamionColors
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

@@ -74,26 +74,19 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.domain.model.SessionUser
-import com.pronavicola.camion.ui.theme.CamionColors
+import com.pronavicola.camion.presentation.theme.CamionColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-enum class SortColumn {
-    FECHA, T1, T2, HUM, ESTADO, NONE
-}
-
-enum class SortDirection {
-    ASC, DESC, NONE
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegistrosScreen(
     currentUser: SessionUser? = null,
     registros: List<VariableRegistroEntity>,
-    deviceId: String = "CAM01",
+    deviceId: String = "ABC123",
     onResendRegistro: (VariableRegistroEntity) -> Unit = {},
     onClearAllRegistros: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -149,7 +142,7 @@ fun RegistrosScreen(
             val datePart = reg.fecha.substringBefore(" ").trim()
             val matchDesde = filterFechaDesde.isBlank() || datePart >= filterFechaDesde
             val matchHasta = filterFechaHasta.isBlank() || datePart <= filterFechaHasta
-            val matchPlaca = filterPlaca.isBlank() || reg.idVehiculo.contains(filterPlaca.trim(), ignoreCase = true)
+            val matchPlaca = filterPlaca.isBlank() || reg.idVehiculo.toString().contains(filterPlaca.trim(), ignoreCase = true)
             val matchEstado = when (filterEstado) {
                 "ENVIADO" -> reg.estadoEnvio.equals("ENVIADO", ignoreCase = true)
                 "PENDIENTE" -> !reg.estadoEnvio.equals("ENVIADO", ignoreCase = true)
@@ -163,6 +156,7 @@ fun RegistrosScreen(
             SortColumn.T1 -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.temperatura1 } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.temperatura1 } else list
             SortColumn.T2 -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.temperatura2 } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.temperatura2 } else list
             SortColumn.HUM -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.humedad } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.humedad } else list
+            SortColumn.TENSION -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.tension } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.tension } else list
             SortColumn.ESTADO -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.estadoEnvio } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.estadoEnvio } else list
             SortColumn.NONE -> list
         }
@@ -674,6 +668,14 @@ private fun TableHeader(
             modifier = Modifier.weight(1.0f)
         )
         SortableHeaderItem(
+            title = "Tensión",
+            column = SortColumn.TENSION,
+            currentColumn = sortColumn,
+            direction = sortDirection,
+            onSort = onSort,
+            modifier = Modifier.weight(1.0f)
+        )
+        SortableHeaderItem(
             title = "Estado",
             column = SortColumn.ESTADO,
             currentColumn = sortColumn,
@@ -783,6 +785,15 @@ private fun RegistroRow(
                 fontWeight = FontWeight.Normal
             )
 
+            // Tensión
+            Text(
+                text = "${registro.tension}V",
+                modifier = Modifier.weight(1.0f),
+                fontSize = 13.sp,
+                color = Color(0xFF1A1A1A),
+                fontWeight = FontWeight.Normal
+            )
+
             // Estado (Texto plano sin badges ni containers)
             Text(
                 text = if (isEnviado) "Enviado" else "Pendiente",
@@ -848,7 +859,7 @@ private fun JsonPayloadDialog(
 ) {
     val clipboardManager = LocalClipboardManager.current
     val isEnviado = registro.estadoEnvio.equals("ENVIADO", ignoreCase = true)
-    val devId = registro.idVehiculo.ifBlank { deviceId.ifBlank { "FURG-001-AND" } }
+    val devId = registro.idVehiculo.toString().ifBlank { deviceId.ifBlank { "FURG-001-AND" } }
     val isoTimestamp = formatIsoTimestamp(registro.fecha)
 
     val jsonPayload = """{
@@ -856,7 +867,7 @@ private fun JsonPayloadDialog(
   "temperature_c": ${registro.temperatura1},
   "temperature_2_c": ${registro.temperatura2},
   "humidity_pct": ${registro.humedad},
-  "voltage_v": 24.1,
+  "voltage_v": ${registro.tension},
   "timestamp": "$isoTimestamp"
 }"""
 
@@ -1063,9 +1074,9 @@ private fun formatIsoTimestamp(fechaStr: String): String {
 
 private fun generateCsv(data: List<VariableRegistroEntity>): String {
     val sb = StringBuilder()
-    sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,EstadoEnvio\n")
+    sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,Tension,EstadoEnvio\n")
     data.forEach { r ->
-        sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},\"${r.estadoEnvio}\"\n")
+        sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension},\"${r.estadoEnvio}\"\n")
     }
     return sb.toString()
 }

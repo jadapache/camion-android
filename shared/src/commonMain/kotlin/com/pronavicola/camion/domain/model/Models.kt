@@ -4,7 +4,7 @@ data class SessionUser(
     val idUsuario: String,
     val usuario: String,
     val idPerfil: Int,
-    val idVehiculo: String,
+    val idVehiculo: Int = 1,
 )
 
 data class ParametroUiModel(
@@ -31,7 +31,7 @@ enum class ZoneStatus {
 }
 
 data class HmiState(
-    val idVehiculo: String = "AAA000",
+    val idVehiculo: String = "ABC123",
     val conectado: Boolean = false,
     val temperatura1: Double? = null,
     val temperatura2: Double? = null,

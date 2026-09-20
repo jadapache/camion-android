@@ -59,21 +59,22 @@ class ModbusPollingCoordinator(
 
                     // Condition: When Modbus is disconnected, do not save dummy zeros or stale telemetry
                     if (isConnected && (t1 != null || t2 != null || hum != null)) {
-                        val deviceId = appConfigRepository.getDeviceId() ?: "CAM01"
+                        val deviceId = appConfigRepository.getDeviceId() ?: "ABC123"
                         val isMqttConnected = mqttClientManager.isConnected.value
 
                         val registro = VariableRegistroEntity(
-                            idVehiculo = deviceId,
+                            idVehiculo = 1,
                             fecha = dateFormat.format(Date()),
                             temperatura1 = t1 ?: 0.0,
                             temperatura2 = t2 ?: 0.0,
                             humedad = hum ?: 0.0,
+                            tension = tension ?: 0.0,
                             estadoEnvio = if (isMqttConnected) "Enviado" else "Pendiente",
                         )
 
                         // 1. Persist to local SQLite database
                         registrosRepository.saveRegistro(registro)
-                        Log.d(tag, "Saved telemetry record to SQLite: T1=$t1, T2=$t2, Hum=$hum, Estado=${registro.estadoEnvio}")
+                        Log.d(tag, "Saved telemetry record to SQLite: T1=$t1, T2=$t2, Hum=$hum, Tension=$tension, Estado=${registro.estadoEnvio}")
 
                         // 2. Transmit via MQTT outbox coordinator
                         telemetryMqttCoordinator.enqueueVariableRegistro(registro)

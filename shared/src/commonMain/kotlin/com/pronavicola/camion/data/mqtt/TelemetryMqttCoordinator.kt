@@ -88,7 +88,7 @@ class TelemetryMqttCoordinator(
             temperatureC = registro.temperatura1,
             temperature2C = registro.temperatura2,
             humidityPct = registro.humedad,
-            voltageV = null,
+            voltageV = registro.tension,
             procesoActivo = true,
             zonas = emptyList(),
             estadoIrrigador = ZoneStatus.OFF,

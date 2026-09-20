@@ -25,7 +25,7 @@ import com.pronavicola.camion.domain.model.HmiHistoryPoint
 import com.pronavicola.camion.resources.*
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ZoneStatus
-import com.pronavicola.camion.ui.theme.CamionColors
+import com.pronavicola.camion.presentation.theme.CamionColors
 import java.util.Locale
 
 @Composable

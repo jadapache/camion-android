@@ -22,6 +22,5 @@ interface AuthRepository {
         currentPassword: String,
         newPassword: String,
     ): AuthResult
-    suspend fun updateDeviceId(userId: String, deviceId: String)
     fun canAccessScreen(idPerfil: Int, accessLevel: Int): Boolean
 }

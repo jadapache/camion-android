@@ -32,7 +32,7 @@ class GetAppConfigUseCase(
 ) {
     suspend operator fun invoke(): AppConfigData = withContext(Dispatchers.Default) {
         AppConfigData(
-            deviceId = appConfigRepository.getDeviceId() ?: "CAM01",
+            deviceId = appConfigRepository.getDeviceId() ?: "ABC123",
             furgonPlate = appConfigRepository.getFurgonPlate() ?: "AAA000",
             brokerUrl = appConfigRepository.getBrokerUrl() ?: "tcp://broker.emqx.io:1883",
             topicRoot = appConfigRepository.getTopicRoot() ?: "furgones",
@@ -81,7 +81,7 @@ class TestMqttConnectionUseCase(
 ) {
     suspend operator fun invoke(): Result<String> = withContext(Dispatchers.IO) {
         val brokerUrl = appConfigRepository.getBrokerUrl() ?: "tcp://broker.emqx.io:1883"
-        val deviceId = appConfigRepository.getDeviceId() ?: "CAM01"
+        val deviceId = appConfigRepository.getDeviceId() ?: "ABC123"
         val username = appConfigRepository.getBrokerUsername() ?: ""
         val password = appConfigRepository.getBrokerPassword() ?: ""
 

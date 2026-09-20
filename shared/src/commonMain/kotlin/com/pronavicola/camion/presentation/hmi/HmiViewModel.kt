@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 data class HmiUiState(
     val hmiState: HmiState = HmiState(),
-    val deviceId: String = "CAM01",
+    val deviceId: String = "ABC123",
     val furgonPlate: String = "AAA000",
     val historyPoints: List<HmiHistoryPoint> = emptyList(),
     val isConnecting: Boolean = false,
@@ -39,7 +39,7 @@ class HmiViewModel(
 
     init {
         viewModelScope.launch {
-            val devId = appConfigRepository.getDeviceId() ?: "CAM01"
+            val devId = appConfigRepository.getDeviceId() ?: "ABC123"
             val plate = appConfigRepository.getFurgonPlate() ?: "AAA000"
             _uiState.update { it.copy(deviceId = devId, furgonPlate = plate) }
 
