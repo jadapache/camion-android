@@ -113,6 +113,7 @@ data class VariableRegistroEntity(
     @ColumnInfo(name = "Temperatura1") val temperatura1: Double,
     @ColumnInfo(name = "Temperatura2") val temperatura2: Double,
     @ColumnInfo(name = "Humedad") val humedad: Double,
+    @ColumnInfo(name = "EstadoEnvio") val estadoEnvio: String = "PENDIENTE",
 )
 
 @Entity(tableName = "AppConfig")

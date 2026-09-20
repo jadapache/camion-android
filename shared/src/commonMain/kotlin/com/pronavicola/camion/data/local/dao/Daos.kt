@@ -89,6 +89,9 @@ interface VariableRegistroDao {
 
     @androidx.room.Insert
     suspend fun insert(registro: VariableRegistroEntity)
+
+    @Query("UPDATE VariableRegistros SET EstadoEnvio = :estado WHERE IdRegistro = :idRegistro")
+    suspend fun updateEstadoEnvio(idRegistro: Int, estado: String)
 }
 
 @Dao

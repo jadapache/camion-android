@@ -83,6 +83,8 @@ fun CamionApp(
                         AppDestination.REGISTROS.route -> {
                             RegistrosScreen(
                                 registros = uiState.registros,
+                                deviceId = uiState.deviceId,
+                                onResendRegistro = viewModel::resendSingleRegistro,
                             )
                         }
                         AppDestination.PARAMETROS.route -> {
@@ -97,6 +99,7 @@ fun CamionApp(
                                 ConfigScreen(
                                     currentUser = user,
                                     deviceId = uiState.deviceId,
+                                    furgonPlate = uiState.furgonPlate,
                                     mqttBrokerUrl = uiState.mqttBrokerUrl,
                                     mqttTopicRoot = uiState.mqttTopicRoot,
                                     mqttUsername = uiState.mqttUsername,
@@ -122,6 +125,7 @@ fun CamionApp(
                                     mqttEventLogs = uiState.mqttEventLogs,
                                     isTestingMqttConnection = uiState.isTestingMqttConnection,
                                     onDeviceIdChange = viewModel::onDeviceIdChange,
+                                    onFurgonPlateChange = viewModel::onFurgonPlateChange,
                                     onMqttBrokerUrlChange = viewModel::onMqttBrokerUrlChange,
                                     onMqttTopicRootChange = viewModel::onMqttTopicRootChange,
                                     onMqttUsernameChange = viewModel::onMqttUsernameChange,

@@ -32,7 +32,7 @@ import com.pronavicola.camion.data.local.entity.AppConfigEntity
         VariableRegistroEntity::class,
         AppConfigEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 @ConstructedBy(FurgonesDatabaseConstructor::class)
@@ -48,10 +48,13 @@ abstract class FurgonesDatabase : RoomDatabase() {
 
         fun getMigrations(): Array<Migration> {
             val list = mutableListOf<Migration>()
-            for (from in 1..8) {
-                list.add(object : Migration(from, 9) {
+            for (from in 1..9) {
+                list.add(object : Migration(from, 10) {
                     override fun migrate(connection: SQLiteConnection) {
                         createMissingTables(connection)
+                        try {
+                            connection.execSQL("ALTER TABLE `VariableRegistros` ADD COLUMN `EstadoEnvio` TEXT NOT NULL DEFAULT 'PENDIENTE'")
+                        } catch (_: Exception) {}
                     }
                 })
             }
@@ -75,7 +78,8 @@ abstract class FurgonesDatabase : RoomDatabase() {
                     "`Fecha` TEXT NOT NULL, " +
                     "`Temperatura1` REAL NOT NULL, " +
                     "`Temperatura2` REAL NOT NULL, " +
-                    "`Humedad` REAL NOT NULL)"
+                    "`Humedad` REAL NOT NULL, " +
+                    "`EstadoEnvio` TEXT NOT NULL DEFAULT 'PENDIENTE')"
             )
             connection.execSQL(
                 "CREATE TABLE IF NOT EXISTS `AppConfig` (" +

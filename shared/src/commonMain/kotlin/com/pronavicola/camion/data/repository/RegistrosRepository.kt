@@ -14,4 +14,8 @@ class RegistrosRepository(
     suspend fun saveRegistro(registro: VariableRegistroEntity) {
         variableRegistroDao.insert(registro)
     }
+
+    suspend fun updateEstadoEnvio(idRegistro: Int, estado: String) {
+        variableRegistroDao.updateEstadoEnvio(idRegistro, estado)
+    }
 }
