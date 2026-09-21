@@ -122,7 +122,16 @@ class ModbusPlcServer(
             serverSocket?.close()
         } catch (_: Exception) {}
         serverSocket = null
-        _state.update { it.copy(isRunning = false, clientCount = 0) }
+        _state.update { 
+            it.copy(
+                isRunning = false, 
+                clientCount = 0,
+                currentT1 = 0.0,
+                currentT2 = 0.0,
+                currentHum = 0.0,
+                currentVoltage = 0.0
+            ) 
+        }
         Log.i(tag, "Modbus Simulator Server stopped")
     }
 

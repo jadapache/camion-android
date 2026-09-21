@@ -1,6 +1,7 @@
 package com.pronavicola.camion.presentation.simulation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,8 +31,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -45,11 +47,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.domain.model.Micro820ModbusConstants
+import com.pronavicola.camion.presentation.theme.CamionColors
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SimulationScreen(
     viewModel: SimulationViewModel,
+    onNavigateToConfig: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -58,7 +62,7 @@ fun SimulationScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(CamionColors.panelBackground)
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -78,39 +82,67 @@ fun SimulationScreen(
                 )
                 Text(
                     text = "Control desacoplado de simulación Micro820 (Rol Desarrollador)",
-                    color = Color(0xFF94A3B8),
+                    color = Color.White.copy(alpha = 0.7f),
                     fontSize = 13.sp,
                 )
             }
 
-            // Server Status Badge
+            // Server Status Badge & Configuraciones Button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (simState.isRunning) Color(0x3300E676) else Color(0x33EF4444))
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Box(
+                Button(
+                    onClick = onNavigateToConfig,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E1E1E),
+                        contentColor = Color.White,
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Configuraciones",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Configuraciones",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(if (simState.isRunning) Color(0xFF00E676) else Color(0xFFEF4444)),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (simState.isRunning) "SERVIDOR ACTIVO (${simState.config.port})" else "DETENIDO",
-                    color = if (simState.isRunning) Color(0xFF00E676) else Color(0xFFEF4444),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                )
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (simState.isRunning) Color(0x3300E676) else Color(0x33EF4444))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(if (simState.isRunning) Color(0xFF00E676) else Color(0xFFEF4444)),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (simState.isRunning) "SERVIDOR ACTIVO (${simState.config.port})" else "DETENIDO",
+                        color = if (simState.isRunning) Color(0xFF00E676) else Color(0xFFEF4444),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                    )
+                }
             }
         }
 
         // Notification Banner
         uiState.message?.let { msg ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -118,7 +150,7 @@ fun SimulationScreen(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Default.Build, contentDescription = null, tint = Color(0xFF38BDF8))
+                    Icon(Icons.Default.Build, contentDescription = null, tint = Color(0xFF64B5F6))
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(text = msg, color = Color.White, fontSize = 13.sp)
                 }
@@ -127,7 +159,7 @@ fun SimulationScreen(
 
         // Card 1: Server Control & Status
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -148,12 +180,12 @@ fun SimulationScreen(
                     Column {
                         Text(
                             text = "Modbus TCP Server en puerto 502",
-                            color = Color(0xFFE2E8F0),
+                            color = Color.White,
                             fontSize = 14.sp,
                         )
                         Text(
                             text = "Responde a FC 01, 03, 05, 06, 16 emulando PLC Allen-Bradley Micro820",
-                            color = Color(0xFF94A3B8),
+                            color = Color.White.copy(alpha = 0.7f),
                             fontSize = 12.sp,
                         )
                     }
@@ -161,7 +193,7 @@ fun SimulationScreen(
                     Button(
                         onClick = { viewModel.toggleServer(!simState.isRunning) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (simState.isRunning) Color(0xFFEF4444) else Color(0xFF00E676),
+                            containerColor = if (simState.isRunning) Color(0xFFEF4444) else Color(0xFF008700),
                             contentColor = Color.White,
                         ),
                         shape = RoundedCornerShape(8.dp),
@@ -181,81 +213,141 @@ fun SimulationScreen(
             }
         }
 
-        // Card 2: Simulated Dynamic Variables
+        // Card 2: Simulated Dynamic Variables (Sliders with DB Ranges)
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Parámetros Base de Sensores",
+                    text = "Parámetros Base de Sensores (DB Ranges)",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    OutlinedTextField(
-                        value = uiState.baseT1Input,
+                // T1 Slider (0 - 40 °C)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Temperatura 1 (T1)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "%.1f °C".format(uiState.baseT1), color = Color(0xFF64B5F6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = uiState.baseT1,
                         onValueChange = { viewModel.onBaseT1Change(it) },
-                        label = { Text("T1 (°C)") },
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFF38BDF8),
-                            unfocusedBorderColor = Color(0xFF475569),
-                        ),
+                        valueRange = 0f..40f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF64B5F6),
+                            activeTrackColor = Color(0xFF005AC1),
+                            inactiveTrackColor = Color(0xFF2C2C2C)
+                        )
                     )
-                    OutlinedTextField(
-                        value = uiState.baseT2Input,
-                        onValueChange = { viewModel.onBaseT2Change(it) },
-                        label = { Text("T2 (°C)") },
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFF38BDF8),
-                            unfocusedBorderColor = Color(0xFF475569),
-                        ),
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "0 °C", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                        Text(text = "40 °C", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    OutlinedTextField(
-                        value = uiState.baseHumInput,
+                // T2 Slider (0 - 40 °C)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Temperatura 2 (T2)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "%.1f °C".format(uiState.baseT2), color = Color(0xFF64B5F6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = uiState.baseT2,
+                        onValueChange = { viewModel.onBaseT2Change(it) },
+                        valueRange = 0f..40f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF64B5F6),
+                            activeTrackColor = Color(0xFF005AC1),
+                            inactiveTrackColor = Color(0xFF2C2C2C)
+                        )
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "0 °C", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                        Text(text = "40 °C", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Humedad Slider (0 - 100 %)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Humedad (%)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "%.1f %%".format(uiState.baseHum), color = Color(0xFF64B5F6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = uiState.baseHum,
                         onValueChange = { viewModel.onBaseHumChange(it) },
-                        label = { Text("Humedad (%)") },
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFF38BDF8),
-                            unfocusedBorderColor = Color(0xFF475569),
-                        ),
+                        valueRange = 0f..100f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF64B5F6),
+                            activeTrackColor = Color(0xFF005AC1),
+                            inactiveTrackColor = Color(0xFF2C2C2C)
+                        )
                     )
-                    OutlinedTextField(
-                        value = uiState.baseVoltInput,
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "0%", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                        Text(text = "100%", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Tensión Slider (0 - 30 V)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Tensión (V)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "%.1f V".format(uiState.baseVolt), color = Color(0xFF64B5F6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = uiState.baseVolt,
                         onValueChange = { viewModel.onBaseVoltChange(it) },
-                        label = { Text("Tensión (V)") },
-                        modifier = Modifier.weight(1f),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFF38BDF8),
-                            unfocusedBorderColor = Color(0xFF475569),
-                        ),
+                        valueRange = 0f..30f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF64B5F6),
+                            activeTrackColor = Color(0xFF005AC1),
+                            inactiveTrackColor = Color(0xFF2C2C2C)
+                        )
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "0 V", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                        Text(text = "30 V", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -270,8 +362,8 @@ fun SimulationScreen(
                             checked = uiState.isGateOpen,
                             onCheckedChange = { viewModel.toggleGate(it) },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF38BDF8),
-                                checkedTrackColor = Color(0xFF0284C7),
+                                checkedThumbColor = Color(0xFF64B5F6),
+                                checkedTrackColor = Color(0xFF005AC1),
                             ),
                         )
                         Spacer(modifier = Modifier.width(10.dp))
@@ -284,7 +376,7 @@ fun SimulationScreen(
 
                     Button(
                         onClick = { viewModel.applyParameters() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF005AC1)),
                         shape = RoundedCornerShape(8.dp),
                     ) {
                         Text("APLICAR", fontWeight = FontWeight.Bold)
@@ -295,7 +387,7 @@ fun SimulationScreen(
 
         // Card 3: Fault & Alarm Injection
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -308,7 +400,7 @@ fun SimulationScreen(
                 )
                 Text(
                     text = "Activa bits en el Holding Register 40001 (ALARMAS) para probar la reacción del HMI y MQTT",
-                    color = Color(0xFF94A3B8),
+                    color = Color.White.copy(alpha = 0.7f),
                     fontSize = 12.sp,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -344,10 +436,10 @@ fun SimulationScreen(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFFEF4444),
+                                selectedContainerColor = Color(0xFFEF5350),
                                 selectedLabelColor = Color.White,
-                                containerColor = Color(0xFF334155),
-                                labelColor = Color(0xFFCBD5E1),
+                                containerColor = Color(0xFF2C2C2C),
+                                labelColor = Color.White.copy(alpha = 0.8f),
                             ),
                         )
                     }

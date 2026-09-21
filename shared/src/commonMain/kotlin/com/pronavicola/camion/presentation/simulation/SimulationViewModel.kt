@@ -16,10 +16,10 @@ import kotlinx.coroutines.launch
 
 data class SimulationUiState(
     val simulationState: SimulationState = SimulationState(),
-    val baseT1Input: String = "22.0",
-    val baseT2Input: String = "22.5",
-    val baseHumInput: String = "65.0",
-    val baseVoltInput: String = "24.0",
+    val baseT1: Float = 22.0f,
+    val baseT2: Float = 22.5f,
+    val baseHum: Float = 65.0f,
+    val baseVolt: Float = 24.0f,
     val isGateOpen: Boolean = false,
     val activeAlarmBits: Set<Int> = emptySet(),
     val message: String? = null,
@@ -41,6 +41,10 @@ class SimulationViewModel(
                 _uiState.update {
                     it.copy(
                         simulationState = simState,
+                        baseT1 = simState.config.baselineTemperature1.toFloat(),
+                        baseT2 = simState.config.baselineTemperature2.toFloat(),
+                        baseHum = simState.config.baselineHumidity.toFloat(),
+                        baseVolt = simState.config.baselineVoltage.toFloat(),
                         isGateOpen = simState.config.gateOpen,
                     )
                 }
@@ -58,22 +62,18 @@ class SimulationViewModel(
         }
     }
 
-    fun onBaseT1Change(value: String) = _uiState.update { it.copy(baseT1Input = value) }
-    fun onBaseT2Change(value: String) = _uiState.update { it.copy(baseT2Input = value) }
-    fun onBaseHumChange(value: String) = _uiState.update { it.copy(baseHumInput = value) }
-    fun onBaseVoltChange(value: String) = _uiState.update { it.copy(baseVoltInput = value) }
+    fun onBaseT1Change(value: Float) = _uiState.update { it.copy(baseT1 = value) }
+    fun onBaseT2Change(value: Float) = _uiState.update { it.copy(baseT2 = value) }
+    fun onBaseHumChange(value: Float) = _uiState.update { it.copy(baseHum = value) }
+    fun onBaseVoltChange(value: Float) = _uiState.update { it.copy(baseVolt = value) }
 
     fun applyParameters() {
-        val t1 = _uiState.value.baseT1Input.toDoubleOrNull() ?: 22.0
-        val t2 = _uiState.value.baseT2Input.toDoubleOrNull() ?: 22.5
-        val hum = _uiState.value.baseHumInput.toDoubleOrNull() ?: 65.0
-        val volt = _uiState.value.baseVoltInput.toDoubleOrNull() ?: 24.0
-
-        val newConfig = _uiState.value.simulationState.config.copy(
-            baselineTemperature1 = t1,
-            baselineTemperature2 = t2,
-            baselineHumidity = hum,
-            baselineVoltage = volt,
+        val stateVal = _uiState.value
+        val newConfig = stateVal.simulationState.config.copy(
+            baselineTemperature1 = stateVal.baseT1.toDouble(),
+            baselineTemperature2 = stateVal.baseT2.toDouble(),
+            baselineHumidity = stateVal.baseHum.toDouble(),
+            baselineVoltage = stateVal.baseVolt.toDouble(),
         )
         updateSimulationParamsUseCase(newConfig)
         _uiState.update { it.copy(message = "Parámetros de simulación aplicados en caliente") }
@@ -94,16 +94,13 @@ class SimulationViewModel(
     }
 
     private fun getCurrentConfig(): SimulationConfig {
-        val t1 = _uiState.value.baseT1Input.toDoubleOrNull() ?: 22.0
-        val t2 = _uiState.value.baseT2Input.toDoubleOrNull() ?: 22.5
-        val hum = _uiState.value.baseHumInput.toDoubleOrNull() ?: 65.0
-        val volt = _uiState.value.baseVoltInput.toDoubleOrNull() ?: 24.0
+        val stateVal = _uiState.value
         return SimulationConfig(
-            baselineTemperature1 = t1,
-            baselineTemperature2 = t2,
-            baselineHumidity = hum,
-            baselineVoltage = volt,
-            gateOpen = _uiState.value.isGateOpen,
+            baselineTemperature1 = stateVal.baseT1.toDouble(),
+            baselineTemperature2 = stateVal.baseT2.toDouble(),
+            baselineHumidity = stateVal.baseHum.toDouble(),
+            baselineVoltage = stateVal.baseVolt.toDouble(),
+            gateOpen = stateVal.isGateOpen,
         )
     }
 

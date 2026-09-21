@@ -84,15 +84,20 @@ fun CamionApp(
         }
     }
 
-    // Dynamic visible destinations based on role
+    // Dynamic visible destinations based on role (hide CONFIG only for 'Desarrollador')
     val visibleDestinations = remember(authState.currentUser) {
         val user = authState.currentUser
         if (user == null) {
             listOf(AppDestination.HMI)
         } else {
-            AppDestination.entries.filter { dest ->
-                authViewModel.canAccessScreen(dest.accessLevel)
-            }
+            AppDestination.entries
+                .filter { dest ->
+                    if (dest == AppDestination.CONFIG) {
+                        user.idUsuario.lowercase() != "desarrollador"
+                    } else {
+                        authViewModel.canAccessScreen(dest.accessLevel)
+                    }
+                }
         }
     }
 
@@ -233,6 +238,7 @@ fun CamionApp(
                         AppDestination.SIMULACION.route -> {
                             SimulationScreen(
                                 viewModel = simulationViewModel,
+                                onNavigateToConfig = { currentRoute = AppDestination.CONFIG.route },
                             )
                         }
                     }
@@ -250,10 +256,13 @@ fun CamionApp(
                 users = authState.activeUsers,
                 selectedUserId = selectedUser,
                 loginPassword = authState.loginPasswordInput,
+                currentPassword = authState.currentPasswordInput,
                 newPassword = authState.newPasswordInput,
                 showChangePassword = authState.isChangePasswordMode,
+                errorMessage = authState.errorMessage,
                 onUserSelected = { selectedUser = it },
                 onLoginPasswordChange = authViewModel::onLoginPasswordChange,
+                onCurrentPasswordChange = authViewModel::onCurrentPasswordChange,
                 onNewPasswordChange = authViewModel::onNewPasswordChange,
                 onToggleChangePassword = { authViewModel.setPasswordMode(!authState.isChangePasswordMode) },
                 onConfirm = {
