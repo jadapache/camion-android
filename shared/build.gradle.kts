@@ -40,6 +40,7 @@ kotlin {
                 implementation(compose.material3)
                 implementation(compose.ui)
                 implementation(compose.components.resources)
+                implementation(compose.components.uiToolingPreview)
                 implementation(compose.materialIconsExtended)
 
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
@@ -69,6 +70,8 @@ kotlin {
         val androidMain by getting {
             dependencies {
                 implementation("androidx.core:core-ktx:1.15.0")
+                implementation("androidx.compose.ui:ui-tooling-preview:1.7.8")
+                implementation("androidx.compose.ui:ui-tooling:1.7.8")
             }
         }
         val desktopMain by getting {
