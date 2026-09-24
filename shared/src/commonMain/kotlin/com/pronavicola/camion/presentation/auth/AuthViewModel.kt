@@ -99,10 +99,6 @@ class AuthViewModel(
         _uiState.update { it.copy(newPasswordInput = value, errorMessage = null) }
     }
 
-    fun onConfirmPasswordChange(value: String) {
-        _uiState.update { it.copy(confirmPasswordInput = value, errorMessage = null) }
-    }
-
     fun switchUser(targetUserId: String) {
         val current = _uiState.value.currentUser ?: return
         val password = _uiState.value.loginPasswordInput
@@ -162,10 +158,5 @@ class AuthViewModel(
     fun canAccessScreen(requiredAccessLevel: Int): Boolean {
         val user = _uiState.value.currentUser ?: return false
         return checkAccessPermissionUseCase(user, requiredAccessLevel)
-    }
-
-    fun isDeveloper(): Boolean {
-        val user = _uiState.value.currentUser ?: return false
-        return checkAccessPermissionUseCase.isDeveloper(user)
     }
 }
