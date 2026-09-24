@@ -15,8 +15,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+val DEFAULT_SESSION_USER = SessionUser(
+    idUsuario = "OPERARIO",
+    usuario = "Operario",
+    idPerfil = 4,
+    idVehiculo = 1,
+)
+
 data class AuthUiState(
-    val currentUser: SessionUser? = null,
+    val currentUser: SessionUser? = DEFAULT_SESSION_USER,
     val activeUsers: List<UsuarioEntity> = emptyList(),
     val showUserDialog: Boolean = false,
     val isChangePasswordMode: Boolean = false,

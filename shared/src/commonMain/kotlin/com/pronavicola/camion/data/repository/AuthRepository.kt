@@ -16,8 +16,13 @@ class AuthRepositoryImpl(
         ensureDesarrolladorExists()
         val user = usuarioDao.getDefaultUser()
             ?: usuarioDao.getById("OPERARIO")
-            ?: error("Usuario OPERARIO no encontrado en Furgones.db")
-        return user.toSession()
+            ?: usuarioDao.getById("DESARROLLADOR")
+        return user?.toSession() ?: SessionUser(
+            idUsuario = "OPERARIO",
+            usuario = "Operario",
+            idPerfil = 4,
+            idVehiculo = 1,
+        )
     }
 
     private suspend fun ensureDesarrolladorExists() {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalShipping
@@ -46,7 +47,7 @@ fun CustomNavBar(
             .background(Color.Black)
             .padding(vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         destinations.forEach { destination ->
             val isSelected = currentRoute == destination.route
@@ -56,26 +57,24 @@ fun CustomNavBar(
                 icon = icon,
                 label = destination.label,
                 isSelected = isSelected,
-                onClick = { onNavigate(destination.route) }
+                onClick = { onNavigate(destination.route) },
             )
         }
 
-        if (currentUser != null) {
-            Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.weight(1f))
 
-            UserItem(
-                user = currentUser,
-                onClick = onUserClick
-            )
-        }
+        UserItem(
+            user = currentUser,
+            onClick = onUserClick,
+        )
     }
 }
 
 @Composable
 private fun UserItem(
-    user: SessionUser,
+    user: SessionUser?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
@@ -83,22 +82,31 @@ private fun UserItem(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onClick
+                onClick = onClick,
             ),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(Color(0xFF005AC1), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            val initials = user.usuario.take(2).uppercase()
-            Text(
-                text = initials,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+        if (user != null) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Color(0xFF005AC1), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                val initials = user.usuario.take(2).uppercase()
+                Text(
+                    text = initials,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        } else {
+            Icon(
+                imageVector = Icons.Default.AccountCircle,
+                contentDescription = "Iniciar Sesión",
+                tint = Color(0xFF9E9E9E),
+                modifier = Modifier.size(36.dp),
             )
         }
     }
@@ -110,11 +118,11 @@ private fun NavBarItem(
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val contentColor by animateColorAsState(
         targetValue = if (isSelected) Color.White else Color(0xFF9E9E9E),
-        animationSpec = spring(stiffness = Spring.StiffnessLow)
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
     )
 
     Box(
@@ -123,15 +131,15 @@ private fun NavBarItem(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onClick
+                onClick = onClick,
             ),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = contentColor,
-            modifier = Modifier.size(28.dp)
+            modifier = Modifier.size(28.dp),
         )
 
         if (isSelected) {
@@ -142,7 +150,7 @@ private fun NavBarItem(
                     .width(4.dp)
                     .background(Color(0xFF005AC1), RoundedCornerShape(2.dp))
                     .align(Alignment.CenterEnd)
-                    .offset(x = (-2).dp)
+                    .offset(x = (-2).dp),
             )
         }
     }

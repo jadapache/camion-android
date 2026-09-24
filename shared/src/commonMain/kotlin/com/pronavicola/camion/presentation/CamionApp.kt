@@ -84,19 +84,20 @@ fun CamionApp(
         }
     }
 
-    // Dynamic visible destinations based on role (hide CONFIG only for 'Desarrollador')
+    // Dynamic visible destinations based on role
     val visibleDestinations = remember(authState.currentUser) {
         val user = authState.currentUser
         if (user == null) {
-            listOf(AppDestination.HMI)
+            listOf(
+                AppDestination.HMI,
+                AppDestination.REGISTROS,
+                AppDestination.PARAMETROS,
+                AppDestination.CONFIG,
+            )
         } else {
             AppDestination.entries
                 .filter { dest ->
-                    if (dest == AppDestination.CONFIG) {
-                        user.idUsuario.lowercase() != "desarrollador"
-                    } else {
-                        authViewModel.canAccessScreen(dest.accessLevel)
-                    }
+                    authViewModel.canAccessScreen(dest.accessLevel)
                 }
         }
     }
@@ -178,62 +179,60 @@ fun CamionApp(
                             )
                         }
                         AppDestination.CONFIG.route -> {
-                            val user = authState.currentUser
-                            if (user != null) {
-                                ConfigScreen(
-                                    currentUser = user,
-                                    deviceId = configState.deviceId,
-                                    furgonPlate = configState.furgonPlate,
-                                    mqttBrokerUrl = configState.brokerUrl,
-                                    mqttTopicRoot = "furgones",
-                                    mqttUsername = configState.brokerUsername,
-                                    mqttPassword = configState.brokerPassword,
-                                    modbusHost = configState.modbusHost,
-                                    modbusPort = configState.modbusPort,
-                                    publishIntervalS = configState.publishInterval,
-                                    mqttConnected = mqttConnected,
-                                    modbusConnected = modbusConnected,
-                                    outboxPendingCount = outboxPendingCount,
-                                    serverBaseUrl = configState.serverBaseUrl,
-                                    pairingCode = configState.pairingCode,
-                                    licenseStatus = configState.licenseStatus,
-                                    licenseKeyInput = "",
-                                    isPollingPairing = configState.isPairing,
-                                    availableFurgones = emptyList(),
-                                    modbusSimulationEnabled = false,
-                                    mqttTransmittedPacketsCount = 0,
-                                    mqttTestSuccessMessage = configState.testMqttResult,
-                                    mqttTestPayloadJson = null,
-                                    mqttTestIsSuccess = configState.testMqttSuccess ?: false,
-                                    mqttEventLogs = emptyList<MqttLogEvent>(),
-                                    isTestingMqttConnection = configState.isTestingMqtt,
-                                    onDeviceIdChange = configViewModel::onDeviceIdChange,
-                                    onFurgonPlateChange = configViewModel::onFurgonPlateChange,
-                                    onMqttBrokerUrlChange = configViewModel::onBrokerUrlChange,
-                                    onMqttTopicRootChange = {},
-                                    onMqttUsernameChange = configViewModel::onBrokerUsernameChange,
-                                    onMqttPasswordChange = configViewModel::onBrokerPasswordChange,
-                                    onModbusHostChange = configViewModel::onModbusHostChange,
-                                    onModbusPortChange = configViewModel::onModbusPortChange,
-                                    onPublishIntervalChange = configViewModel::onPublishIntervalChange,
-                                    onModbusSimulationToggle = {},
-                                    onServerBaseUrlChange = {},
-                                    onLicenseKeyInputChange = {},
-                                    onRequestPairingCode = configViewModel::requestPairingCode,
-                                    onCheckPairingStatus = configViewModel::checkPairingStatus,
-                                    onActivateLicenseKey = {},
-                                    onFetchFurgones = {},
-                                    onSelectFurgon = {},
-                                    onUnlinkDevice = {},
-                                    onTestMqttConnection = configViewModel::testMqttConnection,
-                                    onSaveSystemSettings = {
-                                        configViewModel.saveMqttConfig()
-                                        configViewModel.saveModbusConfig()
-                                        configViewModel.saveSystemSettings()
-                                    },
-                                    onSyncAllRegistros = {},
-                                )
-                            }
+                            val user = authState.currentUser ?: com.pronavicola.camion.presentation.auth.DEFAULT_SESSION_USER
+                            ConfigScreen(
+                                currentUser = user,
+                                deviceId = configState.deviceId,
+                                furgonPlate = configState.furgonPlate,
+                                mqttBrokerUrl = configState.brokerUrl,
+                                mqttTopicRoot = "furgones",
+                                mqttUsername = configState.brokerUsername,
+                                mqttPassword = configState.brokerPassword,
+                                modbusHost = configState.modbusHost,
+                                modbusPort = configState.modbusPort,
+                                publishIntervalS = configState.publishInterval,
+                                mqttConnected = mqttConnected,
+                                modbusConnected = modbusConnected,
+                                outboxPendingCount = outboxPendingCount,
+                                serverBaseUrl = configState.serverBaseUrl,
+                                pairingCode = configState.pairingCode,
+                                licenseStatus = configState.licenseStatus,
+                                licenseKeyInput = "",
+                                isPollingPairing = configState.isPairing,
+                                availableFurgones = emptyList(),
+                                modbusSimulationEnabled = false,
+                                mqttTransmittedPacketsCount = 0,
+                                mqttTestSuccessMessage = configState.testMqttResult,
+                                mqttTestPayloadJson = null,
+                                mqttTestIsSuccess = configState.testMqttSuccess ?: false,
+                                mqttEventLogs = emptyList<MqttLogEvent>(),
+                                isTestingMqttConnection = configState.isTestingMqtt,
+                                onDeviceIdChange = configViewModel::onDeviceIdChange,
+                                onFurgonPlateChange = configViewModel::onFurgonPlateChange,
+                                onMqttBrokerUrlChange = configViewModel::onBrokerUrlChange,
+                                onMqttTopicRootChange = {},
+                                onMqttUsernameChange = configViewModel::onBrokerUsernameChange,
+                                onMqttPasswordChange = configViewModel::onBrokerPasswordChange,
+                                onModbusHostChange = configViewModel::onModbusHostChange,
+                                onModbusPortChange = configViewModel::onModbusPortChange,
+                                onPublishIntervalChange = configViewModel::onPublishIntervalChange,
+                                onModbusSimulationToggle = {},
+                                onServerBaseUrlChange = {},
+                                onLicenseKeyInputChange = {},
+                                onRequestPairingCode = configViewModel::requestPairingCode,
+                                onCheckPairingStatus = configViewModel::checkPairingStatus,
+                                onActivateLicenseKey = {},
+                                onFetchFurgones = {},
+                                onSelectFurgon = {},
+                                onUnlinkDevice = {},
+                                onTestMqttConnection = configViewModel::testMqttConnection,
+                                onSaveSystemSettings = {
+                                    configViewModel.saveMqttConfig()
+                                    configViewModel.saveModbusConfig()
+                                    configViewModel.saveSystemSettings()
+                                },
+                                onSyncAllRegistros = {},
+                            )
                         }
                         AppDestination.SIMULACION.route -> {
                             SimulationScreen(
@@ -248,32 +247,30 @@ fun CamionApp(
     }
 
     if (authState.showUserDialog) {
-        val user = authState.currentUser
-        if (user != null) {
-            var selectedUser by remember { mutableStateOf(user.idUsuario) }
-            UserSessionDialog(
-                currentUser = user,
-                users = authState.activeUsers,
-                selectedUserId = selectedUser,
-                loginPassword = authState.loginPasswordInput,
-                currentPassword = authState.currentPasswordInput,
-                newPassword = authState.newPasswordInput,
-                showChangePassword = authState.isChangePasswordMode,
-                errorMessage = authState.errorMessage,
-                onUserSelected = { selectedUser = it },
-                onLoginPasswordChange = authViewModel::onLoginPasswordChange,
-                onCurrentPasswordChange = authViewModel::onCurrentPasswordChange,
-                onNewPasswordChange = authViewModel::onNewPasswordChange,
-                onToggleChangePassword = { authViewModel.setPasswordMode(!authState.isChangePasswordMode) },
-                onConfirm = {
-                    if (authState.isChangePasswordMode) {
-                        authViewModel.changePassword()
-                    } else {
-                        authViewModel.switchUser(selectedUser)
-                    }
-                },
-                onDismiss = { authViewModel.closeUserDialog() },
-            )
-        }
+        val user = authState.currentUser ?: com.pronavicola.camion.presentation.auth.DEFAULT_SESSION_USER
+        var selectedUser by remember(user) { mutableStateOf(user.idUsuario) }
+        UserSessionDialog(
+            currentUser = user,
+            users = authState.activeUsers,
+            selectedUserId = selectedUser,
+            loginPassword = authState.loginPasswordInput,
+            currentPassword = authState.currentPasswordInput,
+            newPassword = authState.newPasswordInput,
+            showChangePassword = authState.isChangePasswordMode,
+            errorMessage = authState.errorMessage,
+            onUserSelected = { selectedUser = it },
+            onLoginPasswordChange = authViewModel::onLoginPasswordChange,
+            onCurrentPasswordChange = authViewModel::onCurrentPasswordChange,
+            onNewPasswordChange = authViewModel::onNewPasswordChange,
+            onToggleChangePassword = { authViewModel.setPasswordMode(!authState.isChangePasswordMode) },
+            onConfirm = {
+                if (authState.isChangePasswordMode) {
+                    authViewModel.changePassword()
+                } else {
+                    authViewModel.switchUser(selectedUser)
+                }
+            },
+            onDismiss = { authViewModel.closeUserDialog() },
+        )
     }
 }
