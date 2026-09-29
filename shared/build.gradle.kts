@@ -35,30 +35,30 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation(compose.runtime)
-                implementation(compose.foundation)
-                implementation(compose.material3)
-                implementation(compose.ui)
-                implementation(compose.components.resources)
-                implementation(compose.components.uiToolingPreview)
-                implementation(compose.materialIconsExtended)
+                implementation("org.jetbrains.compose.runtime:runtime:1.12.1")
+                implementation("org.jetbrains.compose.foundation:foundation:1.12.1")
+                implementation("org.jetbrains.compose.material3:material3:1.9.0")
+                implementation("org.jetbrains.compose.ui:ui:1.12.1")
+                implementation("org.jetbrains.compose.components:components-resources:1.12.1")
+                implementation("org.jetbrains.compose.ui:ui-tooling-preview:1.12.1")
+                implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
 
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
                 // Lifecycle & ViewModel Multiplatform
-                implementation("androidx.lifecycle:lifecycle-viewmodel:2.8.4")
-                implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
-                implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+                implementation("androidx.lifecycle:lifecycle-viewmodel:2.11.0")
+                implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+                implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
                 // Room Multiplatform
-                implementation("androidx.room:room-runtime:2.8.4")
-                implementation("androidx.sqlite:sqlite-bundled:2.5.0-beta01")
+                implementation("androidx.room:room-runtime:2.8.5")
+                implementation("androidx.sqlite:sqlite-bundled:2.7.1")
 
                 // MQTT Client (Pure Java SE, runs on Android and JVM Desktop)
                 implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 
                 // JSON
-                implementation("org.json:json:20240303")
+                implementation("org.json:json:20260814")
             }
         }
         val commonTest by getting {
@@ -69,15 +69,15 @@ kotlin {
         }
         val androidMain by getting {
             dependencies {
-                implementation("androidx.core:core-ktx:1.15.0")
-                implementation("androidx.compose.ui:ui-tooling-preview:1.7.8")
-                implementation("androidx.compose.ui:ui-tooling:1.7.8")
+                implementation("androidx.core:core-ktx:1.19.1")
+                implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
+                implementation("androidx.compose.ui:ui-tooling:1.12.1")
             }
         }
         val desktopMain by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
             }
         }
     }
@@ -92,6 +92,6 @@ room {
 }
 
 dependencies {
-    add("kspAndroid", "androidx.room:room-compiler:2.8.4")
-    add("kspDesktop", "androidx.room:room-compiler:2.8.4")
+    add("kspAndroid", "androidx.room:room-compiler:2.8.5")
+    add("kspDesktop", "androidx.room:room-compiler:2.8.5")
 }

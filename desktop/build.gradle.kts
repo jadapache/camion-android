@@ -9,7 +9,7 @@ plugins {
 dependencies {
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
 }
 
 java {
