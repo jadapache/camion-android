@@ -110,7 +110,10 @@ class AppContainer(
 
     // 2. Repositories
     val authRepository: AuthRepository by lazy {
-        AuthRepositoryImpl(database.usuarioDao())
+        AuthRepositoryImpl(
+            usuarioDao = database.usuarioDao(),
+            perfilDao = database.perfilDao(),
+        )
     }
 
     val appConfigRepository: AppConfigRepository by lazy {

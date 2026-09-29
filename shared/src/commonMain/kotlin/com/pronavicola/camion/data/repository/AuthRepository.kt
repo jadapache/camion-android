@@ -1,6 +1,8 @@
 package com.pronavicola.camion.data.repository
 
+import com.pronavicola.camion.data.local.dao.PerfilDao
 import com.pronavicola.camion.data.local.dao.UsuarioDao
+import com.pronavicola.camion.data.local.entity.PerfilEntity
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.repository.AuthRepository
@@ -9,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 
 class AuthRepositoryImpl(
     private val usuarioDao: UsuarioDao,
+    private val perfilDao: PerfilDao,
 ) : AuthRepository {
     override val activeUsers: Flow<List<UsuarioEntity>> = usuarioDao.observeActiveUsers()
 
@@ -26,6 +29,17 @@ class AuthRepositoryImpl(
     }
 
     private suspend fun ensureDesarrolladorExists() {
+        val defaultProfiles = listOf(
+            PerfilEntity(0, "Desarrollador"),
+            PerfilEntity(1, "Administrador"),
+            PerfilEntity(2, "Supervisor"),
+            PerfilEntity(3, "Técnico"),
+            PerfilEntity(4, "Operario"),
+        )
+        for (perfil in defaultProfiles) {
+            perfilDao.insert(perfil)
+        }
+
         val dev = usuarioDao.getById("DESARROLLADOR")
         if (dev == null) {
             usuarioDao.insert(
