@@ -18,7 +18,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
 import java.net.Socket
-import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Robust Modbus TCP Client communicating directly with Allen-Bradley Micro820 PLC
@@ -29,7 +29,6 @@ import kotlin.random.Random
 class ModbusTcpClient(
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val enableSimulationFallback: Boolean = true,
 ) : ModbusClient {
 
     private val tag = "ModbusTcpClient"
@@ -179,7 +178,7 @@ class ModbusTcpClient(
             2 -> 2000L
             else -> 4000L
         }
-        delay(delayMs)
+        delay(delayMs.milliseconds)
     }
 
     /**

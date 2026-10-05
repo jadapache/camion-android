@@ -76,7 +76,7 @@ class ModbusPlcServer(
                                 handleClient(clientSocket)
                             }
                         }
-                    } catch (e: SocketTimeoutException) {
+                    } catch (_: SocketTimeoutException) {
                         // Just loop, allows cancellation check via isActive
                     } catch (e: Exception) {
                         if (isActive) Log.e(tag, "Server accept error", e)
@@ -95,7 +95,7 @@ class ModbusPlcServer(
         ladderJob?.cancel()
         try {
             serverSocket?.close()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Ignore
         }
         serverSocket = null
@@ -141,7 +141,7 @@ class ModbusPlcServer(
                             output.flush()
                         }
                     }
-                } catch (e: SocketTimeoutException) {
+                } catch (_: SocketTimeoutException) {
                     // Timeout is fine, just continue
                 }
             }

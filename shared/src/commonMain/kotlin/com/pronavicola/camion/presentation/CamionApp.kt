@@ -92,12 +92,11 @@ fun CamionApp(
                 AppDestination.HMI,
                 AppDestination.REGISTROS,
                 AppDestination.PARAMETROS,
-                AppDestination.CONFIG,
             )
         } else {
             AppDestination.entries
                 .filter { dest ->
-                    authViewModel.canAccessScreen(dest.accessLevel)
+                    dest.showInNavBar && authViewModel.canAccessScreen(dest.accessLevel)
                 }
         }
     }
@@ -226,6 +225,7 @@ fun CamionApp(
                                 onSelectFurgon = {},
                                 onUnlinkDevice = {},
                                 onTestMqttConnection = configViewModel::testMqttConnection,
+                                onNavigateToSimulation = { currentRoute = AppDestination.SIMULACION.route },
                                 onSaveSystemSettings = {
                                     configViewModel.saveMqttConfig()
                                     configViewModel.saveModbusConfig()

@@ -106,12 +106,12 @@ data class HmiHistoryPoint(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-enum class AppDestination(val route: String, val label: String, val accessLevel: Int) {
-    HMI("hmi", "CAMION", 4),
-    REGISTROS("registros", "REGISTROS", 4),
-    PARAMETROS("parametros", "PARAM", 4),
-    CONFIG("config", "CONFIG", 4),
-    SIMULACION("simulacion", "SIMULADOR", 0),
+enum class AppDestination(val route: String, val label: String, val accessLevel: Int, val showInNavBar: Boolean = true) {
+    HMI("hmi", "CAMION", 4, showInNavBar = true),
+    REGISTROS("registros", "REGISTROS", 4, showInNavBar = true),
+    PARAMETROS("parametros", "PARAM", 4, showInNavBar = true),
+    CONFIG("config", "CONFIG", 0, showInNavBar = true),
+    SIMULACION("simulacion", "SIMULADOR", 0, showInNavBar = false),
 }
 
 data class MqttLogEvent(

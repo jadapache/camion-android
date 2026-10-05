@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Code
@@ -126,6 +127,7 @@ fun ConfigScreen(
     onSelectFurgon: (String) -> Unit,
     onUnlinkDevice: () -> Unit,
     onTestMqttConnection: () -> Unit = {},
+    onNavigateToSimulation: () -> Unit = {},
     onSaveSystemSettings: () -> Unit,
     onSyncAllRegistros: () -> Unit,
     modifier: Modifier = Modifier,
@@ -890,33 +892,15 @@ fun ConfigScreen(
                     )
                 }
 
-                Row(
+                OutlinedButton(
+                    onClick = onNavigateToSimulation,
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF64B5F6))
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            onModbusHostChange("127.0.0.1")
-                            onModbusPortChange("1502")
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF64B5F6))
-                    ) {
-                        Text("Simulador Local (127.0.0.1:1502)", fontSize = 11.sp)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            onModbusHostChange("192.168.1.10")
-                            onModbusPortChange("502")
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF81C784))
-                    ) {
-                        Text("PLC Físico (192.168.1.10:502)", fontSize = 11.sp)
-                    }
+                    Icon(imageVector = Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("ABRIR SIMULADOR MODBUS PLC", fontWeight = FontWeight.Bold)
                 }
 
                 Button(
