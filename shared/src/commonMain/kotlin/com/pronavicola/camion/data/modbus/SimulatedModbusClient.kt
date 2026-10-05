@@ -66,8 +66,14 @@ class SimulatedModbusClient(
     private var damperTimer = 0
     private var damperIsOn = false
 
+    private var currentHost: String = ModbusClient.DEFAULT_HOST
+    private var currentPort: Int = ModbusClient.DEFAULT_PORT
+
     override suspend fun connect(host: String, port: Int) {
         disconnect()
+        this.currentHost = host
+        // Modbus TCP industry standard port is always 502
+        this.currentPort = ModbusClient.DEFAULT_PORT
         delay(350)
         _connected.value = true
         pollJob = scope.launch(Dispatchers.Default) {

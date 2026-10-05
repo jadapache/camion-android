@@ -75,14 +75,30 @@ class ModbusPlcServer(
 
     fun start() {
         if (serverJob?.isActive == true) return
-        val currentPort = _state.value.config.port
+        val requestedPort = _state.value.config.port
 
         serverJob = scope.launch(Dispatchers.IO) {
             try {
-                serverSocket = ServerSocket(currentPort)
-                serverSocket?.soTimeout = 1000
-                Log.i(tag, "Modbus Simulator Server started on port $currentPort")
-                _state.update { it.copy(isRunning = true, port = currentPort) }
+                var actualPort = requestedPort
+                val socket = try {
+                    ServerSocket(requestedPort)
+                } catch (e: Exception) {
+                    if (requestedPort < 1024) {
+                        actualPort = 1502
+                        Log.w(
+                            tag,
+                            "Binding to privileged port $requestedPort failed on Android (${e.message}). " +
+                                "Falling back to non-privileged port $actualPort for Modbus Simulator Server."
+                        )
+                        ServerSocket(actualPort)
+                    } else {
+                        throw e
+                    }
+                }
+                serverSocket = socket
+                socket.soTimeout = 1000
+                Log.i(tag, "Modbus Simulator Server started on port $actualPort")
+                _state.update { it.copy(isRunning = true, port = actualPort) }
 
                 // Start Ladder Logic Engine
                 startLadderLogic()
@@ -108,7 +124,7 @@ class ModbusPlcServer(
                     }
                 }
             } catch (e: Exception) {
-                Log.e(tag, "Failed to start server on port $currentPort", e)
+                Log.e(tag, "Failed to start server on port $requestedPort", e)
             } finally {
                 stop()
             }

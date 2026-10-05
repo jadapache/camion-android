@@ -44,9 +44,25 @@ class ModbusPlcServer(
 
         serverJob = scope.launch(Dispatchers.IO) {
             try {
-                serverSocket = ServerSocket(port)
-                serverSocket?.soTimeout = 1000
-                Log.i(tag, "Modbus Simulator Server started on port $port")
+                var actualPort = port
+                val socket = try {
+                    ServerSocket(port)
+                } catch (e: Exception) {
+                    if (port < 1024) {
+                        actualPort = 1502
+                        Log.w(
+                            tag,
+                            "Binding to privileged port $port failed on Android (${e.message}). " +
+                                "Falling back to non-privileged port $actualPort for Modbus Simulator Server."
+                        )
+                        ServerSocket(actualPort)
+                    } else {
+                        throw e
+                    }
+                }
+                serverSocket = socket
+                socket.soTimeout = 1000
+                Log.i(tag, "Modbus Simulator Server started on port $actualPort")
                 
                 // Start Ladder Logic Engine
                 startLadderLogic()

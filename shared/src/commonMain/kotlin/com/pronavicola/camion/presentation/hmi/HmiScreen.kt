@@ -598,7 +598,7 @@ private fun WaterSprayDispersion(modifier: Modifier = Modifier) {
             val maxSpreadY = colFraction * h * 0.46f
 
             for (d in 0 until dropletCount) {
-                val dFraction = if (dropletCount == 1) 0f else (d.toFloat() / (dropletCount - 1) * 2f - 1f)
+                val dFraction = d.toFloat() / (dropletCount - 1) * 2f - 1f
                 val dropletY = centerY + (dFraction * maxSpreadY)
 
                 val angleRad = kotlin.math.atan2(dropletY - centerY, colX)

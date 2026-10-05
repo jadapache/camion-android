@@ -40,7 +40,7 @@ class GetAppConfigUseCase(
             brokerPassword = appConfigRepository.getBrokerPassword() ?: "",
             modbusHost = appConfigRepository.getModbusHost() ?: "127.0.0.1",
             modbusPort = appConfigRepository.getModbusPort() ?: "502",
-            publishInterval = appConfigRepository.getPublishInterval() ?: "5",
+            publishInterval = appConfigRepository.getPublishInterval() ?: "30",
             serverBaseUrl = appConfigRepository.getServerBaseUrl() ?: "https://screens-api.pronavicola.com",
             deviceToken = appConfigRepository.getDeviceToken(),
             pairingCode = appConfigRepository.getPairingCode(),

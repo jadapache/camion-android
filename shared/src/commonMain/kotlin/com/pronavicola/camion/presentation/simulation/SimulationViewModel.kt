@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pronavicola.camion.domain.model.SimulationConfig
 import com.pronavicola.camion.domain.model.SimulationState
+import com.pronavicola.camion.domain.repository.AppConfigRepository
+import com.pronavicola.camion.domain.usecase.hmi.ConnectModbusUseCase
 import com.pronavicola.camion.domain.usecase.simulation.GetSimulationStateUseCase
 import com.pronavicola.camion.domain.usecase.simulation.InjectSimulatedFaultUseCase
 import com.pronavicola.camion.domain.usecase.simulation.ToggleSimulationUseCase
@@ -30,6 +32,8 @@ class SimulationViewModel(
     private val toggleSimulationUseCase: ToggleSimulationUseCase,
     private val updateSimulationParamsUseCase: UpdateSimulationParamsUseCase,
     private val injectSimulatedFaultUseCase: InjectSimulatedFaultUseCase,
+    private val connectModbusUseCase: ConnectModbusUseCase,
+    private val appConfigRepository: AppConfigRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SimulationUiState())
@@ -55,9 +59,20 @@ class SimulationViewModel(
     fun toggleServer(enable: Boolean) {
         val cfg = getCurrentConfig()
         toggleSimulationUseCase(enable, cfg)
+        if (enable) {
+            viewModelScope.launch {
+                appConfigRepository.saveModbusHost("127.0.0.1")
+                appConfigRepository.saveModbusPort(cfg.port.toString())
+                connectModbusUseCase("127.0.0.1", cfg.port)
+            }
+        }
         _uiState.update {
             it.copy(
-                message = if (enable) "Servidor simulado iniciado en puerto ${cfg.port}" else "Servidor simulado detenido"
+                message = if (enable) {
+                    "Servidor simulado activo en puerto ${cfg.port}. Cliente Modbus conectado a 127.0.0.1:${cfg.port}"
+                } else {
+                    "Servidor simulado detenido"
+                }
             )
         }
     }

@@ -48,6 +48,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -88,8 +89,8 @@ fun ConfigScreen(
     mqttUsername: String,
     mqttPassword: String,
     modbusHost: String,
-    modbusPort: String,
-    publishIntervalS: String,
+    modbusPort: String = "502",
+    publishIntervalS: String = "5",
     mqttConnected: Boolean,
     modbusConnected: Boolean,
     outboxPendingCount: Int,
@@ -106,15 +107,15 @@ fun ConfigScreen(
     mqttTestIsSuccess: Boolean = false,
     mqttEventLogs: List<MqttLogEvent> = emptyList(),
     isTestingMqttConnection: Boolean = false,
-    onDeviceIdChange: (String) -> Unit,
+    onDeviceIdChange: (String) -> Unit = {},
     onFurgonPlateChange: (String) -> Unit = {},
     onMqttBrokerUrlChange: (String) -> Unit,
     onMqttTopicRootChange: (String) -> Unit = {},
     onMqttUsernameChange: (String) -> Unit,
     onMqttPasswordChange: (String) -> Unit,
     onModbusHostChange: (String) -> Unit,
-    onModbusPortChange: (String) -> Unit,
-    onPublishIntervalChange: (String) -> Unit,
+    onModbusPortChange: (String) -> Unit = {},
+    onPublishIntervalChange: (String) -> Unit = {},
     onModbusSimulationToggle: (Boolean) -> Unit = {},
     onServerBaseUrlChange: (String) -> Unit,
     onLicenseKeyInputChange: (String) -> Unit,
@@ -875,6 +876,7 @@ fun ConfigScreen(
                         placeholder = { Text("192.168.1.10") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(2f),
+                        singleLine = true
                     )
 
                     OutlinedTextField(
@@ -884,58 +886,37 @@ fun ConfigScreen(
                         placeholder = { Text("502") },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1f),
+                        singleLine = true
                     )
                 }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = deviceId,
-                        onValueChange = onDeviceIdChange,
-                        label = { Text("PLACA DE FURGÓN (TRUCK PLATE)") },
-                        placeholder = { Text("ABC123") },
-                        colors = outlinedTextFieldColors(),
-                        modifier = Modifier.weight(1.5f),
-                    )
-
-                    OutlinedTextField(
-                        value = publishIntervalS,
-                        onValueChange = onPublishIntervalChange,
-                        label = { Text("INTERVALO (s)") },
-                        placeholder = { Text("5") },
-                        colors = outlinedTextFieldColors(),
+                    OutlinedButton(
+                        onClick = {
+                            onModbusHostChange("127.0.0.1")
+                            onModbusPortChange("1502")
+                        },
                         modifier = Modifier.weight(1f),
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Simulación Modbus PLC",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "Generar datos simulados sin PLC físico",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF64B5F6))
+                    ) {
+                        Text("Simulador Local (127.0.0.1:1502)", fontSize = 11.sp)
                     }
-                    Switch(
-                        checked = modbusSimulationEnabled,
-                        onCheckedChange = onModbusSimulationToggle,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Color(0xFF2E7D32)
-                        )
-                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            onModbusHostChange("192.168.1.10")
+                            onModbusPortChange("502")
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF81C784))
+                    ) {
+                        Text("PLC Físico (192.168.1.10:502)", fontSize = 11.sp)
+                    }
                 }
 
                 Button(

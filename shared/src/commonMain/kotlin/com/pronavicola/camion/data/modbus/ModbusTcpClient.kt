@@ -77,7 +77,7 @@ class ModbusTcpClient(
 
     companion object {
         const val SOCKET_TIMEOUT_MS = 5000
-        const val POLLING_INTERVAL_MS = 1500L
+        const val POLLING_INTERVAL_MS = 500L
         const val UNIT_ID = 1
     }
 

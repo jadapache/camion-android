@@ -64,6 +64,8 @@ class CamionViewModelFactory(
                 toggleSimulationUseCase = appContainer.toggleSimulationUseCase,
                 updateSimulationParamsUseCase = appContainer.updateSimulationParamsUseCase,
                 injectSimulatedFaultUseCase = appContainer.injectSimulatedFaultUseCase,
+                connectModbusUseCase = appContainer.connectModbusUseCase,
+                appConfigRepository = appContainer.appConfigRepository,
             ) as T
 
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.simpleName}")

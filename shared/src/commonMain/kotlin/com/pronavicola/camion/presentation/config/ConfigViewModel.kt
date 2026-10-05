@@ -23,7 +23,7 @@ data class ConfigUiState(
     val isCredentialsExpanded: Boolean = false,
     val modbusHost: String = "127.0.0.1",
     val modbusPort: String = "502",
-    val publishInterval: String = "5",
+    val publishInterval: String = "30",
     val deviceId: String = "ABC123",
     val furgonPlate: String = "ABC123",
     val serverBaseUrl: String = "https://screens-api.pronavicola.com",
@@ -90,11 +90,20 @@ class ConfigViewModel(
         viewModelScope.launch {
             val plateToSave = _uiState.value.deviceId.ifBlank { _uiState.value.furgonPlate }.trim()
             val interval = _uiState.value.publishInterval
+            val host = _uiState.value.modbusHost
+            val portStr = _uiState.value.modbusPort
+
             saveAppConfigUseCase(
                 publishInterval = interval,
                 deviceId = plateToSave,
                 furgonPlate = plateToSave,
+                modbusHost = host,
+                modbusPort = portStr,
             )
+
+            portStr.toIntOrNull()?.let { p ->
+                connectModbusUseCase(host, p)
+            }
 
             val result = updateTruckPlateUseCase(plateToSave)
             if (result.isSuccess) {
@@ -103,7 +112,7 @@ class ConfigViewModel(
                     it.copy(
                         deviceId = vehiculo.placa,
                         furgonPlate = vehiculo.placa,
-                        saveMessage = "Ajustes guardados. Placa '${vehiculo.placa}' (Vehículo #${vehiculo.idVehiculo}) configurada con sus parámetros.",
+                        saveMessage = "Ajustes guardados. Placa '${vehiculo.placa}' configurada. Conexión Modbus solicitada a $host:$portStr.",
                     )
                 }
             } else {
