@@ -19,10 +19,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pronavicola.camion.CamionAppContext
 import com.pronavicola.camion.di.CamionViewModelFactory
 import com.pronavicola.camion.domain.model.AppDestination
 import com.pronavicola.camion.domain.model.MqttLogEvent
+import com.pronavicola.camion.presentation.alarmas.AlarmasRegistrosScreen
 import com.pronavicola.camion.presentation.auth.AuthViewModel
 import com.pronavicola.camion.presentation.config.ConfigViewModel
 import com.pronavicola.camion.presentation.hmi.HmiViewModel
@@ -176,6 +178,13 @@ fun CamionApp(
                                         parametrosViewModel.saveParameter(user)
                                     }
                                 },
+                            )
+                        }
+                        AppDestination.ALARMAS_REGISTROS.route -> {
+                            AlarmasRegistrosScreen(
+                                viewModel = viewModel(
+                                    factory = CamionViewModelFactory(appContext),
+                                )
                             )
                         }
                         AppDestination.CONFIG.route -> {

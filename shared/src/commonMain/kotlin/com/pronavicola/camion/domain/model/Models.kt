@@ -110,6 +110,7 @@ enum class AppDestination(val route: String, val label: String, val accessLevel:
     HMI("hmi", "CAMION", 4, showInNavBar = true),
     REGISTROS("registros", "REGISTROS", 4, showInNavBar = true),
     PARAMETROS("parametros", "PARAM", 4, showInNavBar = true),
+    ALARMAS_REGISTROS("alarmas_registros", "ALARMAS", 4, showInNavBar = true),
     CONFIG("config", "CONFIG", 0, showInNavBar = true),
     SIMULACION("simulacion", "SIMULADOR", 0, showInNavBar = false),
 }

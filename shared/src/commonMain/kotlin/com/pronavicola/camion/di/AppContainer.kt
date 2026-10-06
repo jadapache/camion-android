@@ -161,6 +161,8 @@ class AppContainer(
             appConfigRepository = appConfigRepository,
             telemetryMqttCoordinator = telemetryMqttCoordinator,
             mqttClientManager = mqttClientManager,
+            alarmaDao = database.alarmaDao(),
+            alarmaRegistroDao = database.alarmaRegistroDao(),
             scope = appScope,
         )
     }

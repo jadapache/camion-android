@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -160,6 +161,7 @@ private fun getIconForDestination(destination: AppDestination): ImageVector {
     return when (destination) {
         AppDestination.HMI -> Icons.Default.LocalShipping
         AppDestination.REGISTROS -> Icons.Default.History
+        AppDestination.ALARMAS_REGISTROS -> Icons.Default.Warning
         AppDestination.PARAMETROS -> Icons.Default.Tune
         AppDestination.CONFIG -> Icons.Default.Settings
         AppDestination.SIMULACION -> Icons.Default.Build

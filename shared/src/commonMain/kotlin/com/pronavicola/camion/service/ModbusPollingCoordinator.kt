@@ -6,6 +6,11 @@ import com.pronavicola.camion.data.mqtt.MqttClientManager
 import com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator
 import com.pronavicola.camion.domain.repository.AppConfigRepository
 import com.pronavicola.camion.domain.repository.RegistrosRepository
+import com.pronavicola.camion.data.local.dao.AlarmaDao
+import com.pronavicola.camion.data.local.dao.AlarmaRegistroDao
+import com.pronavicola.camion.data.local.entity.AlarmaEntity
+import com.pronavicola.camion.data.local.entity.AlarmaRegistroEntity
+import com.pronavicola.camion.domain.model.modbus.VariablesPLC
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +37,8 @@ class ModbusPollingCoordinator(
     private val appConfigRepository: AppConfigRepository,
     private val telemetryMqttCoordinator: TelemetryMqttCoordinator,
     private val mqttClientManager: MqttClientManager,
+    private val alarmaDao: AlarmaDao,
+    private val alarmaRegistroDao: AlarmaRegistroDao,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -85,12 +92,75 @@ class ModbusPollingCoordinator(
                     Log.w(tag, "Error during Modbus polling/persistence tick: ${e.message}")
                 }
 
+                if (modbusClient.isConnected.value) {
+                    evaluateAlarms(dateFormat.format(Date()))
+                }
+
                 // DB persistence & telemetry enqueue interval from app config (default 30 seconds)
                 val configInterval = appConfigRepository.getPublishInterval()?.toLongOrNull()
                 val intervalSeconds = if (configInterval != null && configInterval >= 10L) configInterval else 30L
                 val delayMs = intervalSeconds * 1000L
                 delay(delayMs)
             }
+        }
+    }
+
+    private suspend fun evaluateAlarms(currentTimestamp: String) {
+        try {
+            // 1. Ensure Catalog Exists
+            if (alarmaDao.getCount() == 0) {
+                val catalog = VariablesPLC.Alarms.all.map {
+                    AlarmaEntity(idAlarma = it.id, alarma = it.name, tag = it.tag)
+                }
+                alarmaDao.insertAll(catalog)
+            }
+
+            // 2. Fetch Active Alarms from PLC (List of string names)
+            val activeNames = modbusClient.alarmasActivas.value
+            val idVehiculo = 1
+            val idViaje = 1
+
+            // 3. Map names to AlarmaEntity to get IDs
+            val dbAlarmas = alarmaDao.getAll()
+            val activeAlarmIds = dbAlarmas.filter { activeNames.contains(it.alarma) }.map { it.idAlarma }.toSet()
+
+            // 4. Fetch currently open alarms from DB (Estado = 'Activa')
+            val historicalAlarmas = alarmaRegistroDao.getByVehiculoAndViaje(idVehiculo, idViaje)
+            val openAlarmRecords = historicalAlarmas.filter { it.estado == "Activa" }.associateBy { it.idAlarma }
+
+            // 5. Close alarms that are no longer active
+            for (openRecord in openAlarmRecords.values) {
+                if (!activeAlarmIds.contains(openRecord.idAlarma)) {
+                    val closedRecord = openRecord.copy(
+                        horaFin = currentTimestamp,
+                        estado = "Inactiva"
+                    )
+                    alarmaRegistroDao.update(closedRecord)
+                    Log.d(tag, "Alarma ${openRecord.idAlarma} desactivada en DB")
+                }
+            }
+
+            // 6. Open new alarms
+            for (alarmId in activeAlarmIds) {
+                if (!openAlarmRecords.containsKey(alarmId)) {
+                    val newRecord = AlarmaRegistroEntity(
+                        idVehiculo = idVehiculo,
+                        idAlarma = alarmId,
+                        idViaje = idViaje,
+                        horaInicio = currentTimestamp,
+                        horaFin = "",
+                        estado = "Activa",
+                        alarmasIdAlarma = alarmId,
+                        vehiculosIdVehiculo = idVehiculo
+                    )
+                    // If a record for this combination already exists (from a previous activation in the same trip), 
+                    // OnConflictStrategy.REPLACE will overwrite it. This is fine per the legacy structure which keeps 1 record per trip per alarm type.
+                    alarmaRegistroDao.insert(newRecord)
+                    Log.d(tag, "Alarma $alarmId activada en DB")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Error evaluando alarmas: ${e.message}", e)
         }
     }
 

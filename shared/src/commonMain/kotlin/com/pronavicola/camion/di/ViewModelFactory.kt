@@ -2,6 +2,9 @@ package com.pronavicola.camion.di
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.pronavicola.camion.data.repository.AlarmaRegistroRepositoryImpl
+import com.pronavicola.camion.domain.usecase.alarmas.ObserveAlarmasRegistrosUseCase
+import com.pronavicola.camion.presentation.alarmas.AlarmasRegistrosViewModel
 import com.pronavicola.camion.presentation.auth.AuthViewModel
 import com.pronavicola.camion.presentation.config.ConfigViewModel
 import com.pronavicola.camion.presentation.hmi.HmiViewModel
@@ -48,6 +51,16 @@ class CamionViewModelFactory(
                 exportRegistrosCsvUseCase = appContainer.exportRegistrosCsvUseCase,
                 buildTelemetryPayloadUseCase = appContainer.buildTelemetryPayloadUseCase,
                 appConfigRepository = appContainer.appConfigRepository,
+            ) as T
+
+            AlarmasRegistrosViewModel::class -> AlarmasRegistrosViewModel(
+                observeAlarmasRegistrosUseCase = ObserveAlarmasRegistrosUseCase(
+                    alarmaRegistroRepository = AlarmaRegistroRepositoryImpl(
+                        appContainer.database.alarmaRegistroDao(),
+                        appContainer.database.alarmaDao()
+                    )
+                ),
+                deviceIdStr = "" // Could fetch from config repo later
             ) as T
 
             ConfigViewModel::class -> ConfigViewModel(
