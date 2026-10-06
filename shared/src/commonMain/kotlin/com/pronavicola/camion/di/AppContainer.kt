@@ -31,6 +31,7 @@ import com.pronavicola.camion.domain.usecase.auth.GetActiveUsersUseCase
 import com.pronavicola.camion.domain.usecase.auth.LoginUseCase
 import com.pronavicola.camion.domain.usecase.config.GetAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.PairDeviceUseCase
+import com.pronavicola.camion.domain.usecase.config.RestartMqttClientUseCase
 import com.pronavicola.camion.domain.usecase.config.SaveAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.TestMqttConnectionUseCase
 import com.pronavicola.camion.domain.usecase.config.UpdateTruckPlateUseCase
@@ -192,7 +193,10 @@ class AppContainer(
     // 8. Use Cases - Config
     val getAppConfigUseCase: GetAppConfigUseCase by lazy { GetAppConfigUseCase(appConfigRepository) }
     val saveAppConfigUseCase: SaveAppConfigUseCase by lazy { SaveAppConfigUseCase(appConfigRepository) }
-    val testMqttConnectionUseCase: TestMqttConnectionUseCase by lazy { TestMqttConnectionUseCase(mqttRepository, appConfigRepository) }
+    val restartMqttClientUseCase: RestartMqttClientUseCase by lazy {
+        RestartMqttClientUseCase(appConfigRepository, mqttRepository)
+    }
+    val testMqttConnectionUseCase: TestMqttConnectionUseCase by lazy { TestMqttConnectionUseCase(appConfigRepository) }
     val pairDeviceUseCase: PairDeviceUseCase by lazy { PairDeviceUseCase(devicePairingRepository) }
     val updateTruckPlateUseCase: UpdateTruckPlateUseCase by lazy {
         UpdateTruckPlateUseCase(database.vehiculoDao(), database.parametroDao(), appConfigRepository)
@@ -209,19 +213,23 @@ class AppContainer(
      */
     fun startBackgroundServices() {
         appScope.launch {
-            val brokerUrl = appConfigRepository.getBrokerUrl() ?: "tcp://broker.emqx.io:1883"
+            val brokerUrl = appConfigRepository.getBrokerUrl()?.trim() ?: ""
             val deviceId = appConfigRepository.getDeviceId() ?: "ABC123"
             val username = appConfigRepository.getBrokerUsername() ?: ""
             val password = appConfigRepository.getBrokerPassword() ?: ""
-            val host = appConfigRepository.getModbusHost() ?: "127.0.0.1"
+            val host = appConfigRepository.getModbusHost()?.trim() ?: ""
             val port = appConfigRepository.getModbusPort()?.toIntOrNull() ?: 502
 
-            // Start MQTT
-            mqttClientManager.start(brokerUrl, "camion_$deviceId", username, password)
+            // Start MQTT only if a broker URL is configured
+            if (brokerUrl.isNotBlank()) {
+                mqttClientManager.start(brokerUrl, "camion_$deviceId", username, password)
+            }
             telemetryMqttCoordinator.start(deviceId)
 
-            // Connect Modbus TCP
-            modbusRepository.connect(host, port)
+            // Connect Modbus TCP only if host is configured
+            if (host.isNotBlank()) {
+                modbusRepository.connect(host, port)
+            }
 
             // Start continuous sampling and SQLite persistence coordinator
             modbusPollingCoordinator.start()

@@ -118,13 +118,14 @@ fun CamionApp(
     LaunchedEffect(configState.saveMessage) {
         configState.saveMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
-            configViewModel.clearMessages()
+            configViewModel.clearSaveMessage()
         }
     }
     LaunchedEffect(configState.testMqttResult) {
         configState.testMqttResult?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
-            configViewModel.clearMessages()
+            if (configState.testMqttSuccess != true) {
+                snackbarHostState.showSnackbar(msg)
+            }
         }
     }
 
@@ -202,7 +203,7 @@ fun CamionApp(
                                 modbusSimulationEnabled = false,
                                 mqttTransmittedPacketsCount = 0,
                                 mqttTestSuccessMessage = configState.testMqttResult,
-                                mqttTestPayloadJson = null,
+                                mqttTestPayloadJson = configState.testMqttPayloadJson,
                                 mqttTestIsSuccess = configState.testMqttSuccess ?: false,
                                 mqttEventLogs = emptyList<MqttLogEvent>(),
                                 isTestingMqttConnection = configState.isTestingMqtt,

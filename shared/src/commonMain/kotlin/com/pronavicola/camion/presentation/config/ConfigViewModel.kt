@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.pronavicola.camion.domain.usecase.config.AppConfigData
 import com.pronavicola.camion.domain.usecase.config.GetAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.PairDeviceUseCase
+import com.pronavicola.camion.domain.usecase.config.RestartMqttClientUseCase
 import com.pronavicola.camion.domain.usecase.config.SaveAppConfigUseCase
 import com.pronavicola.camion.domain.usecase.config.TestMqttConnectionUseCase
 import com.pronavicola.camion.domain.usecase.config.UpdateTruckPlateUseCase
@@ -17,20 +18,21 @@ import kotlinx.coroutines.launch
 
 data class ConfigUiState(
     val configData: AppConfigData? = null,
-    val brokerUrl: String = "tcp://broker.emqx.io:1883",
+    val brokerUrl: String = "",
     val brokerUsername: String = "",
     val brokerPassword: String = "",
     val isCredentialsExpanded: Boolean = false,
-    val modbusHost: String = "127.0.0.1",
-    val modbusPort: String = "502",
+    val modbusHost: String = "",
+    val modbusPort: String = "",
     val publishInterval: String = "30",
     val deviceId: String = "ABC123",
     val furgonPlate: String = "ABC123",
-    val serverBaseUrl: String = "https://screens-api.pronavicola.com",
+    val serverBaseUrl: String = "",
     val pairingCode: String = "",
     val licenseStatus: String = "UNPAIRED",
     val isTestingMqtt: Boolean = false,
     val testMqttResult: String? = null,
+    val testMqttPayloadJson: String? = null,
     val testMqttSuccess: Boolean? = null,
     val isPairing: Boolean = false,
     val pairingError: String? = null,
@@ -42,6 +44,7 @@ class ConfigViewModel(
     private val getAppConfigUseCase: GetAppConfigUseCase,
     private val saveAppConfigUseCase: SaveAppConfigUseCase,
     private val testMqttConnectionUseCase: TestMqttConnectionUseCase,
+    private val restartMqttClientUseCase: RestartMqttClientUseCase,
     private val pairDeviceUseCase: PairDeviceUseCase,
     private val connectModbusUseCase: ConnectModbusUseCase,
     private val updateTruckPlateUseCase: UpdateTruckPlateUseCase,
@@ -132,7 +135,8 @@ class ConfigViewModel(
                 brokerPassword = _uiState.value.brokerPassword,
                 publishInterval = _uiState.value.publishInterval,
             )
-            _uiState.update { it.copy(saveMessage = "Configuración MQTT guardada exitosamente") }
+            restartMqttClientUseCase()
+            _uiState.update { it.copy(saveMessage = "Configuración MQTT guardada y conexión reiniciada") }
         }
     }
 
@@ -153,21 +157,31 @@ class ConfigViewModel(
 
     fun testMqttConnection() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isTestingMqtt = true, testMqttResult = null, testMqttSuccess = null) }
-            val result = testMqttConnectionUseCase()
+            _uiState.update { it.copy(isTestingMqtt = true, testMqttResult = null, testMqttPayloadJson = null, testMqttSuccess = null) }
+            val current = _uiState.value
+            val result = testMqttConnectionUseCase(
+                brokerUrl = current.brokerUrl,
+                username = current.brokerUsername,
+                password = current.brokerPassword,
+                deviceId = current.deviceId.ifBlank { current.furgonPlate }.ifBlank { "ABC123" }
+            )
             if (result.isSuccess) {
+                val data = result.getOrThrow()
                 _uiState.update {
                     it.copy(
                         isTestingMqtt = false,
-                        testMqttResult = result.getOrNull(),
+                        testMqttResult = data.message,
+                        testMqttPayloadJson = data.payloadJson,
                         testMqttSuccess = true,
                     )
                 }
             } else {
+                val errorMsg = result.exceptionOrNull()?.message ?: "Error al conectar con el broker"
                 _uiState.update {
                     it.copy(
                         isTestingMqtt = false,
-                        testMqttResult = result.exceptionOrNull()?.message ?: "Error al conectar con el broker",
+                        testMqttResult = errorMsg,
+                        testMqttPayloadJson = null,
                         testMqttSuccess = false,
                     )
                 }
@@ -230,11 +244,16 @@ class ConfigViewModel(
         }
     }
 
+    fun clearSaveMessage() {
+        _uiState.update { it.copy(saveMessage = null) }
+    }
+
     fun clearMessages() {
         _uiState.update {
             it.copy(
                 saveMessage = null,
                 testMqttResult = null,
+                testMqttPayloadJson = null,
                 testMqttSuccess = null,
                 pairingError = null,
                 pairingSuccess = null,

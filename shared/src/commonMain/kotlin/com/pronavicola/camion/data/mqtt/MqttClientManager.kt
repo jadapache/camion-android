@@ -34,7 +34,7 @@ import kotlin.coroutines.resume
 class MqttClientManager(
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val defaultBrokerUrl: String = DEFAULT_BROKER_URL,
+    private val defaultBrokerUrl: String = "",
 ) {
     private val tag = "MqttClientManager"
 
@@ -52,7 +52,7 @@ class MqttClientManager(
     private var onConnectedListener: (() -> Unit)? = null
 
     companion object {
-        const val DEFAULT_BROKER_URL = "tcp://broker.emqx.io:1883"
+        const val DEFAULT_BROKER_URL = ""
         const val DEFAULT_QOS = 1
         const val MAX_BACKOFF_MS = 60000L
 
@@ -76,7 +76,7 @@ class MqttClientManager(
         username: String? = null,
         password: String? = null,
     ) {
-        currentBrokerUrl = brokerUrl
+        currentBrokerUrl = brokerUrl.trim()
         if (clientId != null) {
             currentClientId = clientId
         }
@@ -84,6 +84,11 @@ class MqttClientManager(
         currentPassword = password?.takeIf { it.isNotBlank() }
 
         stop()
+
+        if (currentBrokerUrl.isBlank()) {
+            _isConnected.value = false
+            return
+        }
 
         connectionJob = scope.launch(ioDispatcher) {
             var attempt = 0
@@ -93,8 +98,12 @@ class MqttClientManager(
                     attempt = 0
                     _isConnected.value = true
                     onConnectedListener?.invoke()
-                    // Wait while connected
+                    // Wait while connected and continuously verify connection health
                     while (isActive && _isConnected.value) {
+                        if (mqttClient?.isConnected != true) {
+                            _isConnected.value = false
+                            break
+                        }
                         delay(1000L)
                     }
                 } else {
@@ -111,8 +120,11 @@ class MqttClientManager(
     fun stop() {
         connectionJob?.cancel()
         connectionJob = null
+        _isConnected.value = false
         scope.launch(ioDispatcher) {
-            disconnectInternal()
+            clientMutex.withLock {
+                disconnectInternal()
+            }
         }
     }
 

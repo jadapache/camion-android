@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
@@ -223,7 +224,7 @@ fun ConfigScreen(
                     value = serverBaseUrl,
                     onValueChange = onServerBaseUrlChange,
                     label = { Text("URL SERVIDOR BACKEND REST") },
-                    placeholder = { Text("http://192.168.1.50:3000") },
+                    placeholder = { Text("https://api.furgones.com", color = Color.Gray) },
                     colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -554,7 +555,7 @@ fun ConfigScreen(
                     value = mqttBrokerUrl,
                     onValueChange = onMqttBrokerUrlChange,
                     label = { Text("Broker URL") },
-                    placeholder = { Text("tcp://broker.emqx.io:1883") },
+                    placeholder = { Text("furgones.emqx.io:1883", color = Color.Gray) },
                     colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -909,7 +910,7 @@ fun ConfigScreen(
                         value = modbusHost,
                         onValueChange = onModbusHostChange,
                         label = { Text("IP / HOST PLC") },
-                        placeholder = { Text("192.168.1.10") },
+                        placeholder = { Text("192.168.1.110", color = Color.Gray) },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(2f),
                         singleLine = true
@@ -919,7 +920,7 @@ fun ConfigScreen(
                         value = modbusPort,
                         onValueChange = onModbusPortChange,
                         label = { Text("PUERTO") },
-                        placeholder = { Text("502") },
+                        placeholder = { Text("502", color = Color.Gray) },
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.weight(1f),
                         singleLine = true
@@ -930,7 +931,7 @@ fun ConfigScreen(
                     value = publishIntervalS,
                     onValueChange = onPublishIntervalChange,
                     label = { Text("INTERVALO DE REGISTRO TELEMETRÍA EN BD (SEGUNDOS)") },
-                    placeholder = { Text("30") },
+                    placeholder = { Text("30", color = Color.Gray) },
                     colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true

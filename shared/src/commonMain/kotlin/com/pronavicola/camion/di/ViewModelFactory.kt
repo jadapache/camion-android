@@ -54,6 +54,7 @@ class CamionViewModelFactory(
                 getAppConfigUseCase = appContainer.getAppConfigUseCase,
                 saveAppConfigUseCase = appContainer.saveAppConfigUseCase,
                 testMqttConnectionUseCase = appContainer.testMqttConnectionUseCase,
+                restartMqttClientUseCase = appContainer.restartMqttClientUseCase,
                 pairDeviceUseCase = appContainer.pairDeviceUseCase,
                 connectModbusUseCase = appContainer.connectModbusUseCase,
                 updateTruckPlateUseCase = appContainer.updateTruckPlateUseCase,
