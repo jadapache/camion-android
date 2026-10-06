@@ -91,7 +91,7 @@ fun ConfigScreen(
     mqttPassword: String,
     modbusHost: String,
     modbusPort: String = "502",
-    publishIntervalS: String = "5",
+    publishIntervalS: String = "30",
     mqttConnected: Boolean,
     modbusConnected: Boolean,
     outboxPendingCount: Int,
@@ -258,13 +258,17 @@ fun ConfigScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 OutlinedTextField(
-                                    value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" } ?: furgonPlate.ifBlank { "Sin Furgón Asignado" },
+                                    value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" }
+                                        ?: furgonPlate.ifBlank { "Sin Furgón Asignado" },
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("Furgón Asignado en Web") },
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = furgonExpanded) },
                                     colors = outlinedTextFieldColors(),
-                                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(),
+                                    modifier = Modifier.menuAnchor(
+                                        ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                        true
+                                    ).fillMaxWidth(),
                                 )
                                 ExposedDropdownMenu(
                                     expanded = furgonExpanded,
@@ -272,11 +276,21 @@ fun ConfigScreen(
                                     modifier = Modifier.background(Color(0xFF2C2C2C))
                                 ) {
                                     if (availableFurgones.isEmpty()) {
-                                        DropdownMenuItem(text = { Text("Cargando o sin furgones...", color = Color.Gray) }, onClick = { furgonExpanded = false })
+                                        DropdownMenuItem(text = {
+                                            Text(
+                                                "Cargando o sin furgones...",
+                                                color = Color.Gray
+                                            )
+                                        }, onClick = { furgonExpanded = false })
                                     } else {
                                         availableFurgones.forEach { furgon ->
                                             DropdownMenuItem(
-                                                text = { Text("${furgon.plate} - ${furgon.brand ?: "Furgón"}", color = Color.White) },
+                                                text = {
+                                                    Text(
+                                                        "${furgon.plate} - ${furgon.brand ?: "Furgón"}",
+                                                        color = Color.White
+                                                    )
+                                                },
                                                 onClick = {
                                                     onSelectFurgon(furgon.id)
                                                     furgonExpanded = false
@@ -307,7 +321,11 @@ fun ConfigScreen(
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
                     ) {
-                        Icon(imageVector = Icons.Default.Security, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("DESVINCULAR DISPOSITIVO", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
@@ -358,7 +376,11 @@ fun ConfigScreen(
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF005AC1))
                         ) {
-                            Icon(imageVector = Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("SOLICITAR PIN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
@@ -369,9 +391,17 @@ fun ConfigScreen(
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
                         ) {
-                            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isPollingPairing) "SONDEANDO..." else "VERIFICAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(
+                                if (isPollingPairing) "SONDEANDO..." else "VERIFICAR",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
                         }
                     }
 
@@ -396,7 +426,11 @@ fun ConfigScreen(
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
                         ) {
-                            Icon(imageVector = Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("ACTIVAR", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
@@ -891,6 +925,16 @@ fun ConfigScreen(
                         singleLine = true
                     )
                 }
+
+                OutlinedTextField(
+                    value = publishIntervalS,
+                    onValueChange = onPublishIntervalChange,
+                    label = { Text("INTERVALO DE REGISTRO TELEMETRÍA EN BD (SEGUNDOS)") },
+                    placeholder = { Text("30") },
+                    colors = outlinedTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
 
                 OutlinedButton(
                     onClick = onNavigateToSimulation,

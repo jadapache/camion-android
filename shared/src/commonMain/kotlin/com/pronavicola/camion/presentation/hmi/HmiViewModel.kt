@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class HmiUiState(
@@ -45,21 +46,36 @@ class HmiViewModel(
 
             observeHmiStateUseCase(devId).collect { rawState ->
                 _uiState.update { current ->
-                    // Accumulate up to 50 history points for UI graph
-                    val newHistory = if (rawState.temperatura1 != null && rawState.temperatura2 != null && rawState.humedad != null) {
-                        (current.historyPoints + HmiHistoryPoint(
-                            t1 = rawState.temperatura1,
-                            t2 = rawState.temperatura2,
-                            hum = rawState.humedad,
-                        )).takeLast(50)
-                    } else {
-                        current.historyPoints
-                    }
-
                     current.copy(
-                        hmiState = rawState.copy(idVehiculo = plate.ifBlank { devId }, history = newHistory),
-                        historyPoints = newHistory,
+                        hmiState = rawState.copy(
+                            idVehiculo = plate.ifBlank { devId },
+                            history = current.historyPoints
+                        )
                     )
+                }
+            }
+        }
+
+        // Live Real-Time ECG Strip Chart sampling loop (continuous 500ms scrolling)
+        viewModelScope.launch {
+            while (true) {
+                delay(500L)
+                val current = _uiState.value
+                val raw = current.hmiState
+                if (raw.conectado && raw.temperatura1 != null && raw.temperatura2 != null && raw.humedad != null) {
+                    val point = HmiHistoryPoint(
+                        t1 = raw.temperatura1,
+                        t2 = raw.temperatura2,
+                        hum = raw.humedad,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    _uiState.update { state ->
+                        val updatedList = (state.historyPoints + point).takeLast(50)
+                        state.copy(
+                            historyPoints = updatedList,
+                            hmiState = state.hmiState.copy(history = updatedList)
+                        )
+                    }
                 }
             }
         }

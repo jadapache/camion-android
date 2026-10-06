@@ -760,7 +760,7 @@ private fun RegistroRow(
 
             // T1
             Text(
-                text = "${registro.temperatura1}°C",
+                text = "${String.format(Locale.US, "%.1f", registro.temperatura1)} °C",
                 modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
@@ -769,7 +769,7 @@ private fun RegistroRow(
 
             // T2
             Text(
-                text = "${registro.temperatura2}°C",
+                text = "${String.format(Locale.US, "%.1f", registro.temperatura2)} °C",
                 modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
@@ -778,7 +778,7 @@ private fun RegistroRow(
 
             // Hum
             Text(
-                text = "${registro.humedad}%",
+                text = "${String.format(Locale.US, "%.1f", registro.humedad)} %",
                 modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
@@ -787,7 +787,7 @@ private fun RegistroRow(
 
             // Tensión
             Text(
-                text = "${registro.tension}V",
+                text = "${String.format(Locale.US, "%.1f", registro.tension)} V",
                 modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),

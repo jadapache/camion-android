@@ -112,7 +112,7 @@ class ConfigViewModel(
                     it.copy(
                         deviceId = vehiculo.placa,
                         furgonPlate = vehiculo.placa,
-                        saveMessage = "Ajustes guardados. Placa '${vehiculo.placa}' configurada. Conexión Modbus solicitada a $host:$portStr.",
+                        saveMessage = "Ajustes guardados.",
                     )
                 }
             } else {

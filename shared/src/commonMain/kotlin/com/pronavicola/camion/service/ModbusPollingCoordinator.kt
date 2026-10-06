@@ -85,9 +85,10 @@ class ModbusPollingCoordinator(
                     Log.w(tag, "Error during Modbus polling/persistence tick: ${e.message}")
                 }
 
-                // DB persistence & telemetry enqueue interval from app config or default 30 seconds
-                val intervalSeconds = appConfigRepository.getPublishInterval()?.toLongOrNull() ?: 30L
-                val delayMs = (intervalSeconds * 1000L).coerceIn(2000L, 60000L)
+                // DB persistence & telemetry enqueue interval from app config (default 30 seconds)
+                val configInterval = appConfigRepository.getPublishInterval()?.toLongOrNull()
+                val intervalSeconds = if (configInterval != null && configInterval >= 10L) configInterval else 30L
+                val delayMs = intervalSeconds * 1000L
                 delay(delayMs)
             }
         }

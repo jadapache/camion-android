@@ -36,7 +36,7 @@ class TelemetryMqttCoordinator(
     private var heartbeatJob: Job? = null
 
     companion object {
-        const val TELEMETRY_INTERVAL_MS = 5000L
+        const val TELEMETRY_INTERVAL_MS = 30000L
         const val HEARTBEAT_INTERVAL_MS = 30000L
 
         // Thresholds for local alarm evaluation

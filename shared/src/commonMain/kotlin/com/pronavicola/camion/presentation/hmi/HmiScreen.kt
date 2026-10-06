@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -219,7 +220,7 @@ private fun TruckHmiLayout(state: HmiState) {
                 ) {
                     Row(modifier = Modifier.fillMaxSize()) {
                         // Chart Lines
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
                             HmiLinesChart(state.history)
                         }
 
