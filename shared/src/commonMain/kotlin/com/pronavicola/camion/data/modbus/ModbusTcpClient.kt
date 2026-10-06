@@ -335,7 +335,8 @@ class ModbusTcpClient(
 
     override suspend fun writeParameter(tag: String, value: Double): Unit = withContext(ioDispatcher) {
         parameterCache[tag] = value
-        val registerAddress = resolveRegisterAddress(tag)
+        val variable = com.pronavicola.camion.domain.model.modbus.VariablesPLC.findParameterByTag(tag)
+        val registerAddress = variable?.pduOffset ?: resolveRegisterAddressFallback(tag)
 
         socketMutex.withLock {
             val current = socket
@@ -348,13 +349,22 @@ class ModbusTcpClient(
                 val inStream = current.getInputStream()
                 val outStream = current.getOutputStream()
 
-                // Encode as REAL IEEE-754 float (2 words)
-                val words = IEEE754Decoder.encodeIEEE754BigEndian(value.toFloat())
-                val writeReq = ModbusProtocol.buildWriteMultipleRegistersRequest(
-                    unitId = UNIT_ID,
-                    startAddress = registerAddress,
-                    values = listOf(words.first, words.second),
-                )
+                val writeReq = if (variable?.dataType == com.pronavicola.camion.domain.model.modbus.ModbusDataType.INT_16) {
+                    ModbusProtocol.buildWriteSingleRegisterRequest(
+                        unitId = UNIT_ID,
+                        registerAddress = registerAddress,
+                        value = value.toInt() and 0xFFFF,
+                    )
+                } else {
+                    // Default to REAL IEEE-754 float (2 words)
+                    val words = IEEE754Decoder.encodeIEEE754BigEndian(value.toFloat())
+                    ModbusProtocol.buildWriteMultipleRegistersRequest(
+                        unitId = UNIT_ID,
+                        startAddress = registerAddress,
+                        values = listOf(words.first, words.second),
+                    )
+                }
+
                 outStream.write(writeReq)
                 outStream.flush()
 
@@ -362,18 +372,23 @@ class ModbusTcpClient(
                 ModbusProtocol.checkErrorResponse(writeResp)
 
                 // Echo-Read: read back holding registers to verify acceptance
+                val echoQuantity = if (variable?.dataType == com.pronavicola.camion.domain.model.modbus.ModbusDataType.INT_16) 1 else 2
                 val echoReq = ModbusProtocol.buildReadHoldingRegistersRequest(
                     unitId = UNIT_ID,
                     startAddress = registerAddress,
-                    quantity = 2,
+                    quantity = echoQuantity,
                 )
                 outStream.write(echoReq)
                 outStream.flush()
 
                 val echoResp = ModbusProtocol.readResponseFrame(inStream)
                 val readWords = ModbusProtocol.parseReadRegistersResponse(echoResp, 0x03)
-                if (readWords.size >= 2) {
-                    val confirmed = IEEE754Decoder.decodeIEEE754BigEndian(readWords[0], readWords[1])
+                if (readWords.size >= echoQuantity) {
+                    val confirmed = if (echoQuantity == 1) {
+                        readWords[0].toDouble()
+                    } else {
+                        IEEE754Decoder.decodeIEEE754BigEndian(readWords[0], readWords[1]).toDouble()
+                    }
                     Log.i(this@ModbusTcpClient.tag, "Echo-Read confirmed parameter $tag = $confirmed (wrote $value)")
                 }
             } catch (e: Exception) {
@@ -383,27 +398,15 @@ class ModbusTcpClient(
     }
 
     /**
-     * Maps tag names or IDs to PLC holding register addresses (40001 + offset).
+     * Fallback mapping when variable is not registered in VariablesPLC.
      */
-    private fun resolveRegisterAddress(tag: String): Int {
+    private fun resolveRegisterAddressFallback(tag: String): Int {
         val cleanTag = tag.trim().uppercase()
-        return when (cleanTag) {
-            "TEMPMIN", "1" -> Micro820ModbusConstants.REG_PARAM_TEMP_MIN
-            "TEMPMAX", "2" -> Micro820ModbusConstants.REG_PARAM_TEMP_MAX
-            "HUMMIN", "3" -> Micro820ModbusConstants.REG_PARAM_HUM_MIN
-            "HUMMAX", "4" -> Micro820ModbusConstants.REG_PARAM_HUM_MAX
-            "DAMPERTIEMPOOFF", "5" -> Micro820ModbusConstants.REG_PARAM_DAMPER_TIEMPO_OFF
-            "DAMPERTIEMPOON", "6" -> Micro820ModbusConstants.REG_PARAM_DAMPER_TIEMPO_ON
-            "PULVERIZADORTIEMPOOFF", "7" -> Micro820ModbusConstants.REG_PARAM_PULV_TIEMPO_OFF
-            "PULVERIZADORTIEMPOON", "8" -> Micro820ModbusConstants.REG_PARAM_PULV_TIEMPO_ON
-            else -> {
-                val numericPart = cleanTag.filter { it.isDigit() }.toIntOrNull()
-                if (numericPart != null && numericPart > 0) {
-                    (numericPart - 1) * 2 + Micro820ModbusConstants.REG_PARAM_TEMP_MIN
-                } else {
-                    Micro820ModbusConstants.REG_PARAM_TEMP_MIN
-                }
-            }
+        val numericPart = cleanTag.filter { it.isDigit() }.toIntOrNull()
+        return if (numericPart != null && numericPart > 0) {
+            (numericPart - 1) * 2 + Micro820ModbusConstants.REG_PARAM_TEMP_MIN
+        } else {
+            Micro820ModbusConstants.REG_PARAM_TEMP_MIN
         }
     }
 }
