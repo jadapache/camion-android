@@ -2,6 +2,8 @@
 
 Kotlin mobile app migrated from the legacy WPF Camion2023 HMI.
 
+Consulte el documento completo de arquitectura y especificaciones técnicas en [`docs/ARCHITECTURE.md`](file:///c:/Dev/camion-android/docs/ARCHITECTURE.md).
+
 ## Features
 
 - **HMI screen**: real-time temperature, humidity, voltage, process state, start/stop controls

@@ -1,15 +1,30 @@
 package com.pronavicola.camion.presentation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -17,7 +32,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pronavicola.camion.CamionAppContext
@@ -38,6 +63,8 @@ import com.pronavicola.camion.presentation.config.ConfigScreen
 import com.pronavicola.camion.presentation.hmi.HmiScreen
 import com.pronavicola.camion.presentation.parametros.ParametrosScreen
 import com.pronavicola.camion.presentation.registros.RegistrosScreen
+import com.pronavicola.camion.presentation.theme.CamionColors
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun CamionApp(
@@ -131,30 +158,69 @@ fun CamionApp(
         }
     }
 
+    var isNightModeEnabled by remember { mutableStateOf(false) }
+    var currentTimeString by remember { mutableStateOf("") }
+    
+    LaunchedEffect(Unit) {
+        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        while (isActive) {
+            currentTimeString = formatter.format(Date())
+            delay(1000L.milliseconds)
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         modifier = modifier,
     ) { padding ->
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            CustomNavBar(
-                destinations = visibleDestinations,
-                currentRoute = currentRoute,
-                onNavigate = { route -> currentRoute = route },
-                currentUser = authState.currentUser,
-                onUserClick = { authViewModel.openUserDialog() },
-            )
-
-            Column(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    when (currentRoute) {
-                        AppDestination.HMI.route -> {
+                CustomNavBar(
+                    destinations = visibleDestinations,
+                    currentRoute = currentRoute,
+                    onNavigate = { route -> currentRoute = route },
+                    currentUser = authState.currentUser,
+                    onUserClick = { authViewModel.openUserDialog() },
+                )
+
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                ) {
+                    // Toolbar Global
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .background(CamionColors.headerBackground)
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = currentTimeString,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        IconButton(
+                            onClick = { isNightModeEnabled = !isNightModeEnabled },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isNightModeEnabled) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = "Alternar Modo Nocturno",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        when (currentRoute) {
+                            AppDestination.HMI.route -> {
                             HmiScreen(
                                 state = hmiState.hmiState,
                             )
@@ -214,7 +280,7 @@ fun CamionApp(
                                 mqttTestSuccessMessage = configState.testMqttResult,
                                 mqttTestPayloadJson = configState.testMqttPayloadJson,
                                 mqttTestIsSuccess = configState.testMqttSuccess ?: false,
-                                mqttEventLogs = emptyList<MqttLogEvent>(),
+                                mqttEventLogs = emptyList(),
                                 isTestingMqttConnection = configState.isTestingMqtt,
                                 onDeviceIdChange = configViewModel::onDeviceIdChange,
                                 onFurgonPlateChange = configViewModel::onFurgonPlateChange,
@@ -254,6 +320,68 @@ fun CamionApp(
                 }
             }
         }
+
+        // Modo Nocturno Overlay
+        if (isNightModeEnabled) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.95f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { }
+            ) {
+                // Toolbar transparente encima del overlay para apagarlo
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = currentTimeString,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    IconButton(
+                        onClick = { isNightModeEnabled = false },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LightMode,
+                            contentDescription = "Desactivar Modo Nocturno",
+                            tint = Color.White.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+
+                // Métricas minimalistas en texto esquina inferior derecha
+                val t1 = hmiState.hmiState.temperatura1 ?: 0.0
+                val t2 = hmiState.hmiState.temperatura2 ?: 0.0
+                val hum = hmiState.hmiState.humedad ?: 0.0
+                val tension = hmiState.hmiState.tension ?: 0.0
+                
+                val t1Str = "%.1f".format(t1)
+                val t2Str = "%.1f".format(t2)
+                val humStr = "%.1f".format(hum)
+                val tenStr = "%.1f".format(tension)
+
+                Text(
+                    text = "T1: $t1Str°C / T2: $t2Str°C / H: $humStr % / Tensión: $tenStr VDC",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(14.dp)
+                )
+            }
+        }
     }
 
     if (authState.showUserDialog) {
@@ -283,4 +411,5 @@ fun CamionApp(
             onDismiss = { authViewModel.closeUserDialog() },
         )
     }
+}
 }
