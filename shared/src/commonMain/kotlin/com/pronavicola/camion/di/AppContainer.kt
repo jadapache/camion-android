@@ -105,8 +105,41 @@ class AppContainer(
         MqttClientManager(appScope)
     }
 
+    val trazasUbicacionDao by lazy {
+        database.trazasUbicacionDao()
+    }
+
+    val bandejaSalidaMqttDao by lazy {
+        database.bandejaSalidaMqttDao()
+    }
+
     val outboxQueueManager: OutboxQueueManager by lazy {
-        OutboxQueueManager(mqttClientManager, appScope)
+        OutboxQueueManager(database.bandejaSalidaMqttDao(), mqttClientManager, appScope)
+    }
+
+    val devicePairingService: com.pronavicola.camion.service.DevicePairingService by lazy {
+        com.pronavicola.camion.service.DevicePairingService(platformInfoProvider, screensApiService, appConfigRepository, appScope)
+    }
+
+    val enhancedTelemetryMqttCoordinator: com.pronavicola.camion.data.mqtt.EnhancedTelemetryMqttCoordinator by lazy {
+        com.pronavicola.camion.data.mqtt.EnhancedTelemetryMqttCoordinator(
+            modbusClient = modbusClient,
+            mqttClientManager = mqttClientManager,
+            outboxManager = outboxQueueManager,
+            trazasUbicacionDao = database.trazasUbicacionDao(),
+            variableRegistroDao = database.variableRegistroDao(),
+            appConfigRepository = appConfigRepository,
+            scope = appScope
+        )
+    }
+
+    val gpsLocationTracker: com.pronavicola.camion.service.GpsLocationTracker by lazy {
+        com.pronavicola.camion.service.createGpsLocationTracker(
+            platformContext = platformContext,
+            trazasUbicacionDao = database.trazasUbicacionDao(),
+            appConfigRepository = appConfigRepository,
+            scope = appScope
+        )
     }
 
     // 2. Repositories
@@ -235,12 +268,20 @@ class AppContainer(
 
             // Start continuous sampling and SQLite persistence coordinator
             modbusPollingCoordinator.start()
+
+            // Start GPS tracking and enhanced MQTT coordinator
+            gpsLocationTracker.startTracking()
+            enhancedTelemetryMqttCoordinator.start()
         }
     }
 
     fun stopBackgroundServices() {
         modbusPollingCoordinator.stop()
         telemetryMqttCoordinator.stop()
+        enhancedTelemetryMqttCoordinator.stop()
+        appScope.launch {
+            gpsLocationTracker.stopTracking()
+        }
         mqttClientManager.stop()
         appScope.launch {
             modbusRepository.disconnect()

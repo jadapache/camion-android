@@ -113,6 +113,10 @@ fun CamionApp(
         }
     }
 
+    LaunchedEffect(Unit) {
+        configViewModel.fetchAvailableFurgones()
+    }
+
     // Dynamic visible destinations based on role
     val visibleDestinations = remember(authState.currentUser) {
         val user = authState.currentUser
@@ -221,19 +225,28 @@ fun CamionApp(
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         when (currentRoute) {
                             AppDestination.HMI.route -> {
-                            HmiScreen(
-                                state = hmiState.hmiState,
-                            )
-                        }
-                        AppDestination.REGISTROS.route -> {
-                            RegistrosScreen(
-                                currentUser = authState.currentUser,
-                                registros = registrosState.registros,
-                                deviceId = registrosState.deviceId,
-                                onResendRegistro = { registro -> registrosViewModel.resendRegistro(registro) },
-                                onClearAllRegistros = { authState.currentUser?.let { registrosViewModel.clearAllRegistros(it) } },
-                            )
-                        }
+                                HmiScreen(
+                                    state = hmiState.hmiState,
+                                    availableFurgones = configState.availableFurgones,
+                                    onSelectPlate = { furgon ->
+                                        configViewModel.updateAssociatedFurgon(furgon)
+                                        hmiViewModel.refreshPlate()
+                                    },
+                                    userProfileLevel = authState.currentUser?.idPerfil ?: 4,
+                                )
+                            }
+                            AppDestination.REGISTROS.route -> {
+                                RegistrosScreen(
+                                    currentUser = authState.currentUser,
+                                    registros = registrosState.registros,
+                                    deviceId = registrosState.deviceId,
+                                    onResendRegistro = { registro -> registrosViewModel.resendRegistro(registro) },
+                                    onClearAllRegistros = { authState.currentUser?.let { registrosViewModel.clearAllRegistros(it) } },
+                                    isLoadingMore = registrosState.isLoadingMore,
+                                    canLoadMore = registrosState.canLoadMore,
+                                    onLoadMore = { registrosViewModel.loadNextPage() },
+                                )
+                            }
                         AppDestination.PARAMETROS.route -> {
                             ParametrosScreen(
                                 parametros = parametrosState.parametros,
@@ -274,7 +287,6 @@ fun CamionApp(
                                 licenseStatus = configState.licenseStatus,
                                 licenseKeyInput = "",
                                 isPollingPairing = configState.isPairing,
-                                availableFurgones = emptyList(),
                                 modbusSimulationEnabled = false,
                                 mqttTransmittedPacketsCount = 0,
                                 mqttTestSuccessMessage = configState.testMqttResult,
@@ -282,6 +294,7 @@ fun CamionApp(
                                 mqttTestIsSuccess = configState.testMqttSuccess ?: false,
                                 mqttEventLogs = emptyList(),
                                 isTestingMqttConnection = configState.isTestingMqtt,
+                                availableFurgones = configState.availableFurgones,
                                 onDeviceIdChange = configViewModel::onDeviceIdChange,
                                 onFurgonPlateChange = configViewModel::onFurgonPlateChange,
                                 onMqttBrokerUrlChange = configViewModel::onBrokerUrlChange,
@@ -297,8 +310,8 @@ fun CamionApp(
                                 onRequestPairingCode = configViewModel::requestPairingCode,
                                 onCheckPairingStatus = configViewModel::checkPairingStatus,
                                 onActivateLicenseKey = {},
-                                onFetchFurgones = {},
-                                onSelectFurgon = {},
+                                onFetchFurgones = configViewModel::fetchAvailableFurgones,
+                                onSelectFurgon = configViewModel::updateAssociatedFurgon,
                                 onUnlinkDevice = {},
                                 onTestMqttConnection = configViewModel::testMqttConnection,
                                 onNavigateToSimulation = { currentRoute = AppDestination.SIMULACION.route },

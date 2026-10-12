@@ -14,20 +14,25 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.pronavicola.camion.CamionApplication
 import com.pronavicola.camion.MainActivity
-import com.pronavicola.camion.R
+import com.pronavicola.camion.domain.model.MqttConnectionStatus
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Enterprise Android Foreground Service ensuring continuous 24/7 background telemetry:
- * 1. Holds a partial WakeLock to prevent CPU sleep when screen is OFF.
- * 2. Continuously samples Modbus PLC data and records VariableRegistroEntity in SQLite.
- * 3. Transmits telemetry to EMQX MQTT broker and synchronizes offline Outbox buffer.
+ * 1. Holds a partial WakeLock during MQTT & telemetry operations.
+ * 2. Runs GPS tracking and Modbus PLC data collection.
+ * 3. Transmits telemetry & GPS to EMQX MQTT broker and synchronizes offline Outbox buffer.
+ * 4. Adapts frequency dynamically according to network connectivity (WiFi vs Cellular).
  */
 class MqttForegroundService : Service() {
 
@@ -58,6 +63,7 @@ class MqttForegroundService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var wakeLock: PowerManager.WakeLock? = null
     private var statusCollectorJob: Job? = null
+    private var networkMonitor: NetworkConnectivityMonitor? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -92,22 +98,85 @@ class MqttForegroundService : Service() {
         val app = application as? CamionApplication ?: return
         val appContainer = app.appContext
 
-        // Ensure background services (Modbus polling coordinator + MQTT) are active
+        // Ensure background services (Modbus, GPS, MQTT Coordinator) are active
         appContainer.startBackgroundServices()
 
-        // Dynamically update foreground notification based on connection state
+        // Set up NetworkConnectivityMonitor
+        if (networkMonitor == null) {
+            networkMonitor = NetworkConnectivityMonitor(applicationContext) { networkType ->
+                onNetworkConnectivityChanged(networkType)
+            }.apply {
+                startMonitoring()
+            }
+        }
+
+        // Dynamically update foreground notification based on connection state and last publish timestamp
         statusCollectorJob?.cancel()
         statusCollectorJob = serviceScope.launch {
-            appContainer.mqttRepository.isConnected.collect { connected ->
-                val modbusConnected = appContainer.modbusRepository.isConnected.value
-                val pending = appContainer.mqttRepository.outboxPendingCount.value
-                val statusText = buildString {
-                    append(if (connected) "MQTT: Conectado" else "MQTT: Reconectando")
-                    append(" | ")
-                    append(if (modbusConnected) "PLC: OK" else "PLC: Desconectado")
-                    if (pending > 0) append(" | Pendientes: $pending")
+            combine(
+                appContainer.enhancedTelemetryMqttCoordinator.connectionStatus,
+                appContainer.enhancedTelemetryMqttCoordinator.lastTelemetryPublish,
+                appContainer.outboxQueueManager.pendingCount,
+            ) { status, lastPublish, pendingCount ->
+                val timeStr = if (lastPublish != null && lastPublish > 0) {
+                    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                    sdf.format(Date(lastPublish))
+                } else {
+                    "--:--:--"
                 }
-                updateNotification(statusText)
+
+                val statusText = when (status) {
+                    MqttConnectionStatus.CONNECTED -> "Conectado | Último envío: $timeStr"
+                    MqttConnectionStatus.CONNECTING -> "Conectando..."
+                    MqttConnectionStatus.DISCONNECTED -> "Desconectado"
+                    MqttConnectionStatus.ERROR -> "Error de conexión"
+                }
+
+                val fullText = if (pendingCount > 0) {
+                    "$statusText | Cola: $pendingCount"
+                } else {
+                    statusText
+                }
+
+                updateNotification(fullText)
+            }.collect {}
+        }
+    }
+
+    private fun onNetworkConnectivityChanged(networkType: NetworkType) {
+        val app = application as? CamionApplication ?: return
+        val appContainer = app.appContext
+
+        Log.i(TAG, "Network changed to: $networkType")
+
+        when (networkType) {
+            NetworkType.NONE -> {
+                Log.w(TAG, "No connectivity: telemetry will queue to offline Outbox table")
+            }
+            NetworkType.CELLULAR -> {
+                // Reduce publication frequency by 50% (telemetry from 30s to 60s, GPS from 120s to 240s)
+                serviceScope.launch {
+                    appContainer.appConfigRepository.putLong("telemetry_publish_interval_sec", 60L)
+                    appContainer.appConfigRepository.putLong("gps_publish_interval_sec", 240L)
+                    appContainer.appConfigRepository.savePublishInterval("60")
+                    appContainer.outboxQueueManager.startDraining()
+                }
+                Log.i(TAG, "Cellular connection detected: reduced publish frequency by 50%")
+            }
+            NetworkType.WIFI, NetworkType.ETHERNET -> {
+                // Restore standard frequencies (30s / 120s) and drain outbox queue
+                serviceScope.launch {
+                    appContainer.appConfigRepository.putLong("telemetry_publish_interval_sec", 30L)
+                    appContainer.appConfigRepository.putLong("gps_publish_interval_sec", 120L)
+                    appContainer.appConfigRepository.savePublishInterval("30")
+                    appContainer.outboxQueueManager.startDraining()
+                }
+                Log.i(TAG, "WiFi/Ethernet connection detected: normal publish frequency restored, draining queue")
+            }
+            NetworkType.OTHER -> {
+                serviceScope.launch {
+                    appContainer.outboxQueueManager.startDraining()
+                }
             }
         }
     }
@@ -167,7 +236,8 @@ class MqttForegroundService : Service() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        networkMonitor?.stopMonitoring()
+        networkMonitor = null
         statusCollectorJob?.cancel()
         serviceScope.cancel()
 
@@ -180,6 +250,7 @@ class MqttForegroundService : Service() {
         }
 
         Log.i(TAG, "MqttForegroundService destroyed")
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

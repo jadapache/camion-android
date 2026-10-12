@@ -38,6 +38,7 @@ data class ConfigUiState(
     val pairingError: String? = null,
     val pairingSuccess: String? = null,
     val saveMessage: String? = null,
+    val availableFurgones: List<com.pronavicola.camion.data.remote.FurgonInfo> = emptyList(),
 )
 
 class ConfigViewModel(
@@ -240,6 +241,33 @@ class ConfigViewModel(
                         pairingError = result.exceptionOrNull()?.message ?: "Error al verificar estado",
                     )
                 }
+            }
+        }
+    }
+
+    fun fetchAvailableFurgones() {
+        viewModelScope.launch {
+            val serverUrl = _uiState.value.serverBaseUrl
+            val token = _uiState.value.configData?.deviceToken
+            val result = pairDeviceUseCase.getAvailableFurgones(serverUrl, token)
+            if (result.isSuccess) {
+                val list = result.getOrThrow()
+                _uiState.update { it.copy(availableFurgones = list) }
+            }
+        }
+    }
+
+    fun updateAssociatedFurgon(furgon: com.pronavicola.camion.data.remote.FurgonInfo) {
+        viewModelScope.launch {
+            val serverUrl = _uiState.value.serverBaseUrl
+            val token = _uiState.value.configData?.deviceToken
+            val result = pairDeviceUseCase.updateAssociatedFurgon(serverUrl, token, furgon.id)
+            if (result.isSuccess) {
+                val plate = result.getOrThrow()
+                _uiState.update { it.copy(furgonPlate = plate, saveMessage = "Furgón asignado: $plate") }
+                loadConfig()
+            } else {
+                _uiState.update { it.copy(pairingError = "Error asignando furgón: ${result.exceptionOrNull()?.message}") }
             }
         }
     }

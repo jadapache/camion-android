@@ -51,6 +51,7 @@ class CamionViewModelFactory(
                 exportRegistrosCsvUseCase = appContainer.exportRegistrosCsvUseCase,
                 buildTelemetryPayloadUseCase = appContainer.buildTelemetryPayloadUseCase,
                 appConfigRepository = appContainer.appConfigRepository,
+                variableRegistroDao = appContainer.database.variableRegistroDao(),
             ) as T
 
             AlarmasRegistrosViewModel::class -> AlarmasRegistrosViewModel(
@@ -80,6 +81,11 @@ class CamionViewModelFactory(
                 injectSimulatedFaultUseCase = appContainer.injectSimulatedFaultUseCase,
                 connectModbusUseCase = appContainer.connectModbusUseCase,
                 appConfigRepository = appContainer.appConfigRepository,
+            ) as T
+
+            com.pronavicola.camion.presentation.config.TruckAssignmentViewModel::class -> com.pronavicola.camion.presentation.config.TruckAssignmentViewModel(
+                screensApiService = appContainer.screensApiService,
+                appConfigRepository = appContainer.appConfigRepository
             ) as T
 
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.simpleName}")

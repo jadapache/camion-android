@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Doorbell
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalShipping

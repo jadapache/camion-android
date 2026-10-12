@@ -27,6 +27,15 @@ import com.pronavicola.camion.domain.model.HmiHistoryPoint
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ZoneStatus
 import com.pronavicola.camion.presentation.theme.CamionColors
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.pronavicola.camion.data.remote.FurgonInfo
+import com.pronavicola.camion.presentation.config.TruckAssignmentDialog
 import com.pronavicola.camion.resources.*
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,6 +44,9 @@ import java.util.Locale
 @Composable
 fun HmiScreen(
     state: HmiState,
+    availableFurgones: List<FurgonInfo> = emptyList(),
+    onSelectPlate: (FurgonInfo) -> Unit = {},
+    userProfileLevel: Int = 4,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -51,6 +63,9 @@ fun HmiScreen(
         ) {
             TruckHmiLayout(
                 state = state,
+                availableFurgones = availableFurgones,
+                onSelectPlate = onSelectPlate,
+                userProfileLevel = userProfileLevel,
                 modifier = Modifier
                     .fillMaxHeight(0.96f)
                     .aspectRatio(730f / 420f)
@@ -77,6 +92,9 @@ fun HmiScreen(
 @Composable
 private fun TruckHmiLayout(
     state: HmiState,
+    availableFurgones: List<FurgonInfo> = emptyList(),
+    onSelectPlate: (FurgonInfo) -> Unit = {},
+    userProfileLevel: Int = 4,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
@@ -94,22 +112,68 @@ private fun TruckHmiLayout(
                 contentScale = ContentScale.FillBounds
             )
 
-            // License Plate ("AAA000") on door
+            val displayPlate = state.idVehiculo.ifBlank { "AAA123" }
+            var showSelectDialog by remember { mutableStateOf(false) }
+
+            // Campo para seleccionar la placa encima del recuadro
+            Box(
+                modifier = Modifier
+                    .offset(x = w * 0.134f, y = h * 0.518f)
+                    .width(w * 0.098f)
+                    .height(h * 0.052f)
+                    .background(Color(0xFF003B73), RoundedCornerShape(2.dp))
+                    .clickable { showSelectDialog = true }
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "PLACA",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Seleccionar placa",
+                        tint = Color.White,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+
+            // Recuadro donde se visualiza la placa ("AAA123") en la puerta
             Box(
                 modifier = Modifier
                     .offset(x = w * 0.134f, y = h * 0.576f)
                     .width(w * 0.098f)
                     .height(h * 0.068f)
                     .background(Color(0xFFECECEC), RoundedCornerShape(1.dp))
-                    .border(1.dp, Color(0xFF888888), RoundedCornerShape(1.dp)),
+                    .border(1.dp, Color(0xFF888888), RoundedCornerShape(1.dp))
+                    .clickable { showSelectDialog = true },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = state.idVehiculo,
+                    text = displayPlate,
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
                     letterSpacing = 0.5.sp
+                )
+            }
+
+            if (showSelectDialog) {
+                TruckAssignmentDialog(
+                    availableFurgones = availableFurgones,
+                    onDismiss = { showSelectDialog = false },
+                    onSelectFurgon = { selectedFurgon ->
+                        onSelectPlate(selectedFurgon)
+                        showSelectDialog = false
+                    }
                 )
             }
 

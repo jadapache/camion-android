@@ -150,6 +150,15 @@ class UpdateTruckPlateUseCaseTest {
         override suspend fun saveLicenseStatus(status: String) {}
         override suspend fun getModbusSimulationEnabled(): Boolean = false
         override suspend fun saveModbusSimulationEnabled(enabled: Boolean) {}
+        override suspend fun getFurgonId(): String? = null
+        override suspend fun saveFurgonId(id: String) {}
+        override suspend fun getTokenExpiry(): Long? = null
+        override suspend fun saveTokenExpiry(expiry: Long) {}
+        override suspend fun getString(key: String): String? = null
+        override suspend fun putString(key: String, value: String) {}
+        override suspend fun getLong(key: String): Long? = null
+        override suspend fun putLong(key: String, value: Long) {}
+        override suspend fun remove(key: String) {}
     }
 
     @Test

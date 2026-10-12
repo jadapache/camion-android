@@ -2,6 +2,7 @@ package com.pronavicola.camion.presentation.registros
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pronavicola.camion.data.local.dao.VariableRegistroDao
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.repository.AppConfigRepository
@@ -32,6 +33,8 @@ data class RegistrosUiState(
     val payloadJsonPreview: String? = null,
     val statusMessage: String? = null,
     val isSending: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val canLoadMore: Boolean = true,
     val deviceId: String = "ABC123",
 ) {
     val filteredRegistros: List<VariableRegistroEntity>
@@ -112,10 +115,15 @@ class RegistrosViewModel(
     private val exportRegistrosCsvUseCase: ExportRegistrosCsvUseCase,
     private val buildTelemetryPayloadUseCase: BuildTelemetryPayloadUseCase,
     private val appConfigRepository: AppConfigRepository,
+    private val variableRegistroDao: VariableRegistroDao? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegistrosUiState())
     val uiState: StateFlow<RegistrosUiState> = _uiState.asStateFlow()
+
+    private var currentPage = 0
+    private val pageSize = 50
+    private var isLastPageReached = false
 
     init {
         viewModelScope.launch {
@@ -128,6 +136,40 @@ class RegistrosViewModel(
         viewModelScope.launch {
             observeRegistrosUseCase(user).collect { list ->
                 _uiState.update { it.copy(registros = list) }
+            }
+        }
+    }
+
+    fun loadNextPage() {
+        val dao = variableRegistroDao ?: return
+        if (_uiState.value.isLoadingMore || isLastPageReached) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingMore = true) }
+            val nextPage = currentPage + 1
+            val items = dao.getPagedRecords(
+                limit = pageSize,
+                offset = nextPage * pageSize,
+                startDate = _uiState.value.filterFechaDesde.ifBlank { null },
+                endDate = _uiState.value.filterFechaHasta.ifBlank { null },
+                plate = _uiState.value.filterPlaca.ifBlank { null },
+                status = if (_uiState.value.filterEstado == "TODOS") null else _uiState.value.filterEstado
+            )
+            if (items.isEmpty()) {
+                isLastPageReached = true
+            } else {
+                currentPage = nextPage
+                if (items.size < pageSize) {
+                    isLastPageReached = true
+                }
+            }
+            _uiState.update { current ->
+                val combined = (current.registros + items).distinctBy { it.idRegistro }
+                current.copy(
+                    registros = combined,
+                    isLoadingMore = false,
+                    canLoadMore = !isLastPageReached
+                )
             }
         }
     }

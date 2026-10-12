@@ -25,8 +25,36 @@ interface VariableRegistroDao {
     @Query("UPDATE VariablesRegistros SET Estado = :estado WHERE FechaHora = (SELECT Fecha FROM V_VariablesRegistro WHERE IdRegistro = :idRegistro LIMIT 1)")
     suspend fun updateEstadoEnvio(idRegistro: Int, estado: String)
 
+    @Query("UPDATE VariablesRegistros SET Estado = :status WHERE FechaHora = (SELECT Fecha FROM V_VariablesRegistro WHERE IdRegistro = :recordId LIMIT 1)")
+    suspend fun updateEstado(recordId: Long, status: String)
+
     @Query("UPDATE VariablesRegistros SET Estado = :estado WHERE FechaHora = :fecha")
     suspend fun updateEstadoEnvioByFecha(fecha: String, estado: String)
+
+    @Query("DELETE FROM VariablesRegistros WHERE rowid IN (SELECT rowid FROM VariablesRegistros WHERE FechaHora < :cutoffTime LIMIT :limit)")
+    suspend fun deleteOlderThanBatch(cutoffTime: String, limit: Int): Int
+
+    @Query("SELECT COUNT(*) FROM V_VariablesRegistro WHERE UPPER(EstadoEnvio) = UPPER(:status)")
+    suspend fun countByStatus(status: String): Int
+
+    @Query("""
+        SELECT v.* FROM V_VariablesRegistro v
+        LEFT JOIN Vehiculos veh ON v.IdVehiculo = veh.IdVehiculo
+        WHERE (:startDate IS NULL OR v.Fecha >= :startDate)
+          AND (:endDate IS NULL OR v.Fecha <= :endDate)
+          AND (:plate IS NULL OR veh.Placa LIKE '%' || :plate || '%')
+          AND (:status IS NULL OR UPPER(v.EstadoEnvio) = UPPER(:status))
+        ORDER BY v.Fecha DESC
+        LIMIT :limit OFFSET :offset
+    """)
+    suspend fun getPagedRecords(
+        limit: Int,
+        offset: Int,
+        startDate: String? = null,
+        endDate: String? = null,
+        plate: String? = null,
+        status: String? = null,
+    ): List<VariableRegistroEntity>
 
     @Query("DELETE FROM VariablesRegistros")
     suspend fun deleteAll()

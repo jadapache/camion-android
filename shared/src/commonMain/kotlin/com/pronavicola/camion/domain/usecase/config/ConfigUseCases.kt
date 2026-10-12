@@ -237,4 +237,10 @@ class PairDeviceUseCase(
 
     suspend fun unpairDevice(serverUrl: String, deviceToken: String?): Result<Unit> =
         devicePairingRepository.unpairDevice(serverUrl, deviceToken)
+
+    suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?): Result<List<com.pronavicola.camion.data.remote.FurgonInfo>> =
+        devicePairingRepository.getAvailableFurgones(serverUrl, deviceToken)
+
+    suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String): Result<String> =
+        devicePairingRepository.updateAssociatedFurgon(serverUrl, deviceToken, furgonId)
 }

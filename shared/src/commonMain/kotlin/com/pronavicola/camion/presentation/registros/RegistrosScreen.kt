@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -40,6 +41,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +58,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,6 +93,9 @@ fun RegistrosScreen(
     deviceId: String = "ABC123",
     onResendRegistro: (VariableRegistroEntity) -> Unit = {},
     onClearAllRegistros: () -> Unit = {},
+    isLoadingMore: Boolean = false,
+    canLoadMore: Boolean = false,
+    onLoadMore: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -162,6 +169,37 @@ fun RegistrosScreen(
         }
     }
 
+    var visibleItemCount by remember { mutableStateOf(50) }
+    val listState = rememberLazyListState()
+
+    // Reset visible item count when filtering or sorting changes
+    LaunchedEffect(filterFechaDesde, filterFechaHasta, filterPlaca, filterEstado, sortColumn, sortDirection) {
+        visibleItemCount = 50
+    }
+
+    val visibleRegistros = remember(filteredRegistros, visibleItemCount) {
+        filteredRegistros.take(visibleItemCount)
+    }
+
+    val hasMoreItems = visibleItemCount < filteredRegistros.size || canLoadMore
+
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val total = listState.layoutInfo.totalItemsCount
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total > 0 && lastVisible >= total - 3
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore.value) {
+        if (shouldLoadMore.value && hasMoreItems && !isLoadingMore) {
+            if (visibleItemCount < filteredRegistros.size) {
+                visibleItemCount = (visibleItemCount + 50).coerceAtMost(filteredRegistros.size)
+            }
+            onLoadMore()
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -183,7 +221,11 @@ fun RegistrosScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${filteredRegistros.size} de ${registros.size} registros encontrados",
+                    text = if (visibleRegistros.size < filteredRegistros.size) {
+                        "${visibleRegistros.size} de ${filteredRegistros.size} registros mostrados (${registros.size} total)"
+                    } else {
+                        "${filteredRegistros.size} de ${registros.size} registros encontrados"
+                    },
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal
@@ -505,17 +547,34 @@ fun RegistrosScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(filteredRegistros, key = { it.idRegistro }) { registro ->
+                items(visibleRegistros, key = { it.idRegistro }) { registro ->
                     RegistroRow(
                         registro = registro,
                         onViewPayload = { selectedRegistroForPayload = registro },
                         onResend = { onResendRegistro(registro) }
                     )
+                }
+                if (isLoadingMore) {
+                    item(key = "loading_more_indicator") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = CamionColors.headerBackground,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
                 }
             }
         }
