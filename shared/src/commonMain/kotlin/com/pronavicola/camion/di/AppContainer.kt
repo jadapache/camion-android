@@ -9,6 +9,7 @@ import com.pronavicola.camion.data.mqtt.MqttClientManager
 import com.pronavicola.camion.data.mqtt.OutboxQueueManager
 import com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator
 import com.pronavicola.camion.data.remote.ScreensApiService
+import com.pronavicola.camion.data.repository.AlarmaRegistroRepositoryImpl
 import com.pronavicola.camion.data.repository.AppConfigRepositoryImpl
 import com.pronavicola.camion.data.repository.AuthRepositoryImpl
 import com.pronavicola.camion.data.repository.DevicePairingRepositoryImpl
@@ -17,6 +18,7 @@ import com.pronavicola.camion.data.repository.MqttRepositoryImpl
 import com.pronavicola.camion.data.repository.ParametrosRepositoryImpl
 import com.pronavicola.camion.data.repository.RegistrosRepositoryImpl
 import com.pronavicola.camion.data.repository.SimulationRepositoryImpl
+import com.pronavicola.camion.domain.repository.AlarmaRegistroRepository
 import com.pronavicola.camion.domain.repository.AppConfigRepository
 import com.pronavicola.camion.domain.repository.AuthRepository
 import com.pronavicola.camion.domain.repository.DevicePairingRepository
@@ -25,6 +27,9 @@ import com.pronavicola.camion.domain.repository.MqttRepository
 import com.pronavicola.camion.domain.repository.ParametrosRepository
 import com.pronavicola.camion.domain.repository.RegistrosRepository
 import com.pronavicola.camion.domain.repository.SimulationRepository
+import com.pronavicola.camion.domain.usecase.alarmas.ClearAllAlarmasRegistrosUseCase
+import com.pronavicola.camion.domain.usecase.alarmas.ExportAlarmasCsvUseCase
+import com.pronavicola.camion.domain.usecase.alarmas.ObserveAlarmasRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.auth.ChangePasswordUseCase
 import com.pronavicola.camion.domain.usecase.auth.CheckAccessPermissionUseCase
 import com.pronavicola.camion.domain.usecase.auth.GetActiveUsersUseCase
@@ -45,6 +50,7 @@ import com.pronavicola.camion.domain.usecase.parametros.UpdateParametroUseCase
 import com.pronavicola.camion.domain.usecase.registros.BuildTelemetryPayloadUseCase
 import com.pronavicola.camion.domain.usecase.registros.ClearAllRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.registros.ExportRegistrosCsvUseCase
+import com.pronavicola.camion.domain.usecase.registros.GetRegistrosPagedUseCase
 import com.pronavicola.camion.domain.usecase.registros.ObserveRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.registros.ResendRegistroUseCase
 import com.pronavicola.camion.domain.usecase.registros.SaveTelemetryRegistroUseCase
@@ -130,6 +136,7 @@ class AppContainer(
         OutboxQueueManager(
             mqttManager = mqttClientManager,
             buzonMqttDao = buzonMqttDao,
+            variableRegistroDao = database.variableRegistroDao(),
             scope = appScope
         )
     }
@@ -156,6 +163,10 @@ class AppContainer(
 
     val registrosRepository: RegistrosRepository by lazy {
         RegistrosRepositoryImpl(database.variableRegistroDao(), database.vehiculoDao())
+    }
+
+    val alarmaRegistroRepository: AlarmaRegistroRepository by lazy {
+        AlarmaRegistroRepositoryImpl(database.alarmaRegistroDao(), database.alarmaDao())
     }
 
     val mqttRepository: MqttRepository by lazy {
@@ -211,11 +222,17 @@ class AppContainer(
 
     // 7. Use Cases - Registros
     val observeRegistrosUseCase: ObserveRegistrosUseCase by lazy { ObserveRegistrosUseCase(registrosRepository) }
+    val getRegistrosPagedUseCase: GetRegistrosPagedUseCase by lazy { GetRegistrosPagedUseCase(registrosRepository) }
     val saveTelemetryRegistroUseCase: SaveTelemetryRegistroUseCase by lazy { SaveTelemetryRegistroUseCase(registrosRepository) }
     val resendRegistroUseCase: ResendRegistroUseCase by lazy { ResendRegistroUseCase(registrosRepository, mqttRepository) }
     val clearAllRegistrosUseCase: ClearAllRegistrosUseCase by lazy { ClearAllRegistrosUseCase(registrosRepository) }
     val buildTelemetryPayloadUseCase: BuildTelemetryPayloadUseCase by lazy { BuildTelemetryPayloadUseCase() }
     val exportRegistrosCsvUseCase: ExportRegistrosCsvUseCase by lazy { ExportRegistrosCsvUseCase() }
+
+    // 7b. Use Cases - Alarmas
+    val observeAlarmasRegistrosUseCase: ObserveAlarmasRegistrosUseCase by lazy { ObserveAlarmasRegistrosUseCase(alarmaRegistroRepository) }
+    val clearAllAlarmasRegistrosUseCase: ClearAllAlarmasRegistrosUseCase by lazy { ClearAllAlarmasRegistrosUseCase(alarmaRegistroRepository) }
+    val exportAlarmasCsvUseCase: ExportAlarmasCsvUseCase by lazy { ExportAlarmasCsvUseCase() }
 
     // 8. Use Cases - Config
     val getAppConfigUseCase: GetAppConfigUseCase by lazy { GetAppConfigUseCase(appConfigRepository) }
@@ -239,6 +256,7 @@ class AppContainer(
     val injectSimulatedFaultUseCase: InjectSimulatedFaultUseCase by lazy { InjectSimulatedFaultUseCase(simulationRepository) }
 
     private var periodicPairingSyncJob: Job? = null
+    private var gpsForwardingJob: Job? = null
 
     /**
      * Valida periódicamente el estado de emparejamiento y vinculación con la API web.
@@ -335,6 +353,21 @@ class AppContainer(
             // Start GPS tracking
             gpsLocationTracker.startTracking()
 
+            // Forward GPS updates to MQTT location topic so backend can correlate with telemetry
+            gpsForwardingJob?.cancel()
+            gpsForwardingJob = appScope.launch {
+                gpsLocationTracker.currentLocation.collect { loc ->
+                    if (loc != null) {
+                        telemetryMqttCoordinator.enqueueLocation(
+                            latitude = loc.latitud,
+                            longitude = loc.longitud,
+                            speedKmh = loc.velocidad?.toDouble(),
+                            altitudeM = loc.altitud
+                        )
+                    }
+                }
+            }
+
             // Start continuous sampling and SQLite persistence coordinator
             modbusPollingCoordinator.start()
         }
@@ -343,6 +376,8 @@ class AppContainer(
     fun stopBackgroundServices() {
         periodicPairingSyncJob?.cancel()
         periodicPairingSyncJob = null
+        gpsForwardingJob?.cancel()
+        gpsForwardingJob = null
         appScope.launch {
             gpsLocationTracker.stopTracking()
         }

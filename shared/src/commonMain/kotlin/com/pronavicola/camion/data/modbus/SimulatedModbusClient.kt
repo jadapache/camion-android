@@ -56,6 +56,64 @@ class SimulatedModbusClient(
     private val _alarmasActivas = MutableStateFlow<List<String>>(emptyList())
     override val alarmasActivas: StateFlow<List<String>> = _alarmasActivas.asStateFlow()
 
+    private val _activeAlarmIds = mutableSetOf<Int>()
+
+    fun activarAlarma(idAlarma: Int) {
+        if (ALARMAS_DEFINIDAS.containsKey(idAlarma)) {
+            _activeAlarmIds.add(idAlarma)
+            syncAlarmasActivas()
+        }
+    }
+
+    fun desactivarAlarma(idAlarma: Int) {
+        if (_activeAlarmIds.remove(idAlarma)) {
+            syncAlarmasActivas()
+        }
+    }
+
+    fun setAlarmaActiva(idAlarma: Int, activa: Boolean) {
+        if (activa) activarAlarma(idAlarma) else desactivarAlarma(idAlarma)
+    }
+
+    fun toggleAlarma(idAlarma: Int) {
+        if (_activeAlarmIds.contains(idAlarma)) {
+            desactivarAlarma(idAlarma)
+        } else {
+            activarAlarma(idAlarma)
+        }
+    }
+
+    fun setAlarmasActivas(ids: Collection<Int>) {
+        _activeAlarmIds.clear()
+        _activeAlarmIds.addAll(ids.filter { ALARMAS_DEFINIDAS.containsKey(it) })
+        syncAlarmasActivas()
+    }
+
+    fun limpiarAlarmas() {
+        _activeAlarmIds.clear()
+        syncAlarmasActivas()
+    }
+
+    private fun syncAlarmasActivas() {
+        _alarmasActivas.value = _activeAlarmIds.sorted().mapNotNull { ALARMAS_DEFINIDAS[it] }
+    }
+
+    companion object {
+        val ALARMAS_DEFINIDAS: Map<Int, String> = mapOf(
+            1 to "falla de energia",
+            2 to "zona 1 no enciende",
+            3 to "zona 2 no enciende",
+            4 to "zona 3 no enciende",
+            5 to "zona 4 no enciende",
+            6 to "zona 5 no enciende",
+            7 to "zona 6 no enciende",
+            8 to "no humifica",
+            9 to "damper no abre",
+            10 to "calefaccion no enciende",
+            11 to "nivel de agua bajo",
+        )
+    }
+
     private var pollJob: Job? = null
     private val parameterValues = mutableMapOf<String, Double>()
 
@@ -165,7 +223,7 @@ class SimulatedModbusClient(
                         damperIsOn = false
                     }
 
-                    _alarmasActivas.value = emptyList()
+                    syncAlarmasActivas()
                 } else {
                     resetProcessState()
                 }
@@ -198,7 +256,7 @@ class SimulatedModbusClient(
         _estadoIrrigador.value = ZoneStatus.OFF
         _damperActivo.value = false
         _calefaccionActiva.value = false
-        _alarmasActivas.value = emptyList()
+        syncAlarmasActivas()
     }
 
     override suspend fun detenerProceso() {
@@ -220,6 +278,7 @@ class SimulatedModbusClient(
         _estadoIrrigador.value = ZoneStatus.OFF
         _damperActivo.value = false
         _calefaccionActiva.value = false
+        _activeAlarmIds.clear()
         _alarmasActivas.value = emptyList()
     }
 

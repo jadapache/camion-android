@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Visibility
@@ -97,6 +98,7 @@ fun RegistrosScreen(
     val clipboardManager = LocalClipboardManager.current
     var selectedRegistroForPayload by remember { mutableStateOf<VariableRegistroEntity?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
     var exportStatusMessage by remember { mutableStateOf<String?>(null) }
 
     // Filtering State
@@ -250,11 +252,7 @@ fun RegistrosScreen(
 
                 // Export CSV Button
                 Button(
-                    onClick = {
-                        val csv = generateCsv(filteredRegistros)
-                        clipboardManager.setText(AnnotatedString(csv))
-                        exportStatusMessage = "CSV con ${filteredRegistros.size} registros copiado al portapapeles."
-                    },
+                    onClick = { showExportDialog = true },
                     shape = RoundedCornerShape(4.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
                 ) {
@@ -671,6 +669,18 @@ fun RegistrosScreen(
             onResend = {
                 onResendRegistro(reg)
                 selectedRegistroForPayload = null
+            }
+        )
+    }
+
+    // --- MODAL: EXPORT CSV FILE DIALOG ---
+    if (showExportDialog) {
+        ExportCsvDialog(
+            registros = filteredRegistros,
+            onDismiss = { showExportDialog = false },
+            onExportSuccess = { savedPath ->
+                exportStatusMessage = "Archivo CSV guardado exitosamente en: $savedPath"
+                showExportDialog = false
             }
         )
     }
@@ -1302,5 +1312,358 @@ private fun PaginationBar(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ExportCsvDialog(
+    registros: List<VariableRegistroEntity>,
+    onDismiss: () -> Unit,
+    onExportSuccess: (String) -> Unit,
+) {
+    val clipboardManager = LocalClipboardManager.current
+    val defaultTimestamp = remember {
+        SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    }
+    var fileName by remember {
+        mutableStateOf("registros_camion_$defaultTimestamp.csv")
+    }
+    var folderPath by remember {
+        mutableStateOf(getDefaultExportDirectory())
+    }
+    var saveError by remember { mutableStateOf<String?>(null) }
+    var saveSuccessMessage by remember { mutableStateOf<String?>(null) }
+
+    val csvContent = remember(registros) { generateCsv(registros) }
+    val previewLines = remember(csvContent) {
+        csvContent.lines().take(5).joinToString("\n")
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .width(540.dp)
+                .padding(16.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFF0A1220),
+            border = BorderStroke(1.dp, Color(0xFF1E3A5F)),
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = null,
+                            tint = Color(0xFF00E676),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "EXPORTAR HISTÓRICO A CSV",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+
+                // Summary banner
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF0F223D), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Registros a exportar: ${registros.size}",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Formato: CSV (UTF-8)",
+                        color = Color(0xFF64B5F6),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // File Name Input
+                OutlinedTextField(
+                    value = fileName,
+                    onValueChange = {
+                        fileName = it
+                        saveError = null
+                        saveSuccessMessage = null
+                    },
+                    label = { Text("Nombre del Archivo", fontSize = 12.sp, color = Color(0xFF90CAF9)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF64B5F6),
+                        unfocusedBorderColor = Color(0xFF1E3A5F),
+                        focusedContainerColor = Color(0xFF040811),
+                        unfocusedContainerColor = Color(0xFF040811),
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Folder Path Input
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    OutlinedTextField(
+                        value = folderPath,
+                        onValueChange = {
+                            folderPath = it
+                            saveError = null
+                            saveSuccessMessage = null
+                        },
+                        label = { Text("Ruta / Carpeta de Destino", fontSize = 12.sp, color = Color(0xFF90CAF9)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFF64B5F6),
+                            unfocusedBorderColor = Color(0xFF1E3A5F),
+                            focusedContainerColor = Color(0xFF040811),
+                            unfocusedContainerColor = Color(0xFF040811),
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Quick directory buttons
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Rutas sugeridas:", color = Color.Gray, fontSize = 11.sp)
+                        val quickPaths = getQuickDirectoryOptions()
+                        quickPaths.forEach { (label, path) ->
+                            Text(
+                                text = "[$label]",
+                                color = Color(0xFF64B5F6),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { folderPath = path }
+                                    .padding(vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                // CSV Preview
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Vista previa del encabezado y primeras filas:",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp
+                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF040811),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Text(
+                            text = previewLines + if (registros.size > 4) "\n..." else "",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = Color(0xFF00E676),
+                            modifier = Modifier.padding(10.dp),
+                            maxLines = 6
+                        )
+                    }
+                }
+
+                // Error Message if failed
+                if (saveError != null) {
+                    Text(
+                        text = "Error al guardar: $saveError",
+                        color = Color(0xFFEF5350),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Success Message
+                if (saveSuccessMessage != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF00E676),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = saveSuccessMessage ?: "",
+                            color = Color(0xFF00E676),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+
+                // Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Copy to clipboard fallback button
+                    OutlinedButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(csvContent))
+                            saveSuccessMessage = "CSV copiado al portapapeles"
+                            saveError = null
+                        },
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1E3A5F))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Copiar Texto", color = Color.White, fontSize = 12.sp)
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B))
+                        ) {
+                            Text("Cancelar", color = Color.White, fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                val cleanFileName = if (fileName.endsWith(".csv", ignoreCase = true)) fileName else "$fileName.csv"
+                                val result = saveCsvToFile(folderPath.trim(), cleanFileName.trim(), csvContent)
+                                if (result.isSuccess) {
+                                    val savedPath = result.getOrNull() ?: "$folderPath/$cleanFileName"
+                                    saveSuccessMessage = "Guardado con éxito en: $savedPath"
+                                    saveError = null
+                                    onExportSuccess(savedPath)
+                                } else {
+                                    saveError = result.exceptionOrNull()?.message ?: "No se pudo escribir en el directorio seleccionado"
+                                }
+                            },
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Guardar Archivo", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun getDefaultExportDirectory(): String {
+    val candidates = listOf(
+        "/sdcard/Download",
+        "/storage/emulated/0/Download",
+        System.getProperty("user.home")?.let { "$it/Downloads" },
+        System.getProperty("user.home")?.let { "$it/Documents" },
+        "."
+    ).filterNotNull()
+
+    for (path in candidates) {
+        val f = java.io.File(path)
+        if (f.exists() && f.canWrite()) {
+            return f.absolutePath
+        }
+    }
+    return candidates.firstOrNull() ?: "/sdcard/Download"
+}
+
+private fun getQuickDirectoryOptions(): List<Pair<String, String>> {
+    val options = mutableListOf<Pair<String, String>>()
+    val sdDownload = java.io.File("/sdcard/Download")
+    if (sdDownload.exists()) {
+        options.add("Descargas" to "/sdcard/Download")
+    }
+    val emulated = java.io.File("/storage/emulated/0/Download")
+    if (emulated.exists() && !options.any { it.second == emulated.absolutePath }) {
+        options.add("Descargas" to "/storage/emulated/0/Download")
+    }
+    val home = System.getProperty("user.home")
+    if (!home.isNullOrBlank()) {
+        val dl = java.io.File(home, "Downloads")
+        if (dl.exists() || options.isEmpty()) {
+            options.add("Descargas" to dl.absolutePath)
+        }
+        val docs = java.io.File(home, "Documentos")
+        val docsEn = java.io.File(home, "Documents")
+        if (docs.exists()) {
+            options.add("Documentos" to docs.absolutePath)
+        } else if (docsEn.exists()) {
+            options.add("Documentos" to docsEn.absolutePath)
+        }
+    }
+    if (options.isEmpty()) {
+        options.add("Descargas" to "/sdcard/Download")
+        options.add("Almacenamiento" to "/sdcard")
+    }
+    return options.distinctBy { it.second }
+}
+
+private fun saveCsvToFile(directoryPath: String, fileName: String, csvContent: String): Result<String> {
+    return try {
+        val dir = java.io.File(directoryPath)
+        if (!dir.exists()) {
+            val created = dir.mkdirs()
+            if (!created && !dir.exists()) {
+                return Result.failure(Exception("No se pudo crear la carpeta: $directoryPath"))
+            }
+        }
+        val file = java.io.File(dir, fileName)
+        file.writeText(csvContent, Charsets.UTF_8)
+        Result.success(file.absolutePath)
+    } catch (e: Exception) {
+        Result.failure(e)
     }
 }

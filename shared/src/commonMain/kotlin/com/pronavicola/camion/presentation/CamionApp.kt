@@ -280,7 +280,8 @@ fun CamionApp(
                             AlarmasRegistrosScreen(
                                 viewModel = viewModel(
                                     factory = CamionViewModelFactory(appContext),
-                                )
+                                ),
+                                currentUser = authState.currentUser,
                             )
                         }
                         AppDestination.CONFIG.route -> {

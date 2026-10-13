@@ -6,6 +6,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Looper
 import com.pronavicola.camion.data.local.dao.TrazasUbicacionDao
 import com.pronavicola.camion.domain.model.GpsLocation
 import com.pronavicola.camion.util.Log
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AndroidGpsLocationTracker(
     private val context: Context,
@@ -48,22 +50,22 @@ class AndroidGpsLocationTracker(
     }
 
     companion object {
-        const val MIN_UPDATE_INTERVAL_MS = 120_000L // 2 minutes
-        const val MIN_DISPLACEMENT_METERS = 100f // 100 meters
+        const val MIN_UPDATE_INTERVAL_MS = 15_000L // 15 seconds
+        const val MIN_DISPLACEMENT_METERS = 5f // 5 meters
     }
 
     @SuppressLint("MissingPermission")
-    override suspend fun startTracking() {
-        if (_isTracking.value) return
+    override suspend fun startTracking() = withContext(Dispatchers.Main) {
+        if (_isTracking.value) return@withContext
 
         if (locationManager == null) {
             Log.e(tag, "LocationManager not available")
-            return
+            return@withContext
         }
 
         try {
-            val hasGps = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-            val hasNetwork = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            val hasGps = try { locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) } catch (_: Exception) { false }
+            val hasNetwork = try { locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) } catch (_: Exception) { false }
 
             if (!hasGps && !hasNetwork) {
                 Log.w(tag, "No location providers enabled")
@@ -74,7 +76,8 @@ class AndroidGpsLocationTracker(
                     LocationManager.GPS_PROVIDER,
                     MIN_UPDATE_INTERVAL_MS,
                     MIN_DISPLACEMENT_METERS,
-                    locationListener
+                    locationListener,
+                    Looper.getMainLooper()
                 )
             }
 
@@ -83,7 +86,8 @@ class AndroidGpsLocationTracker(
                     LocationManager.NETWORK_PROVIDER,
                     MIN_UPDATE_INTERVAL_MS,
                     MIN_DISPLACEMENT_METERS,
-                    locationListener
+                    locationListener,
+                    Looper.getMainLooper()
                 )
             }
 
@@ -102,8 +106,8 @@ class AndroidGpsLocationTracker(
         }
     }
 
-    override suspend fun stopTracking() {
-        if (!_isTracking.value) return
+    override suspend fun stopTracking() = withContext(Dispatchers.Main) {
+        if (!_isTracking.value) return@withContext
         try {
             locationManager?.removeUpdates(locationListener)
             _isTracking.value = false

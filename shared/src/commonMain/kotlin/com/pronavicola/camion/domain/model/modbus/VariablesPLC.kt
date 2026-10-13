@@ -347,19 +347,19 @@ object VariablesPLC {
     // Matches `VariablesPLC.Alarms` in legacy system
     // =========================================================================
     object Alarms {
-        val FallaEnergia = ModbusVariable(id = 1, tag = "Alarma_FallaEnergia", name = "Falla de energía", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 0)
-        val Zona1 = ModbusVariable(id = 2, tag = "Alarma_Zona1", name = "Falla Zona 1", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 1)
-        val Zona2 = ModbusVariable(id = 3, tag = "Alarma_Zona2", name = "Falla Zona 2", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 2)
-        val Zona3 = ModbusVariable(id = 4, tag = "Alarma_Zona3", name = "Falla Zona 3", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 3)
-        val Zona4 = ModbusVariable(id = 5, tag = "Alarma_Zona4", name = "Falla Zona 4", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 4)
-        val Zona5 = ModbusVariable(id = 6, tag = "Alarma_Zona5", name = "Falla Zona 5", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 5)
-        val Zona6 = ModbusVariable(id = 7, tag = "Alarma_Zona6", name = "Falla Zona 6", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 6)
-        val Pulverizador = ModbusVariable(id = 8, tag = "Alarma_Pulverizador", name = "Falla Pulverizador", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 7)
-        val Damper = ModbusVariable(id = 9, tag = "Alarma_Damper", name = "Falla Damper", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 8)
-        val Calefaccion = ModbusVariable(id = 10, tag = "Alarma_Calefaccion", name = "Falla Calefacción", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 9)
-        val BajaTension = ModbusVariable(id = 12, tag = "Alarma_BajaTension", name = "Baja Tensión (< 22V)", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 10)
+        val FallaEnergia = ModbusVariable(id = 1, tag = "Alarma_FallaEnergia", name = "falla de energia", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 0)
+        val Zona1 = ModbusVariable(id = 2, tag = "Alarma_Zona1", name = "zona 1 no enciende", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 1)
+        val Zona2 = ModbusVariable(id = 3, tag = "Alarma_Zona2", name = "zona 2 no enciende", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 2)
+        val Zona3 = ModbusVariable(id = 4, tag = "Alarma_Zona3", name = "zona 3 no enciende", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 3)
+        val Zona4 = ModbusVariable(id = 5, tag = "Alarma_Zona4", name = "zona 4 no enciende", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 4)
+        val Zona5 = ModbusVariable(id = 6, tag = "Alarma_Zona5", name = "zona 5 no enciende", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 5)
+        val Zona6 = ModbusVariable(id = 7, tag = "Alarma_Zona6", name = "zona 6 no enciende", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 6)
+        val Pulverizador = ModbusVariable(id = 8, tag = "Alarma_Pulverizador", name = "no humifica", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 7)
+        val Damper = ModbusVariable(id = 9, tag = "Alarma_Damper", name = "damper no abre", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 8)
+        val Calefaccion = ModbusVariable(id = 10, tag = "Alarma_Calefaccion", name = "calefaccion no enciende", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 9)
+        val NivelAguaBajo = ModbusVariable(id = 11, tag = "Alarma_NivelAguaBajo", name = "nivel de agua bajo", address = 1, dataType = ModbusDataType.BITMASK_16, bitIndex = 10)
 
-        val all = listOf(FallaEnergia, Zona1, Zona2, Zona3, Zona4, Zona5, Zona6, Pulverizador, Damper, Calefaccion, BajaTension)
+        val all = listOf(FallaEnergia, Zona1, Zona2, Zona3, Zona4, Zona5, Zona6, Pulverizador, Damper, Calefaccion, NivelAguaBajo)
     }
 
     // =========================================================================

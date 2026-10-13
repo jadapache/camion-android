@@ -58,13 +58,10 @@ class CamionViewModelFactory(
             ) as T
 
             AlarmasRegistrosViewModel::class -> AlarmasRegistrosViewModel(
-                observeAlarmasRegistrosUseCase = ObserveAlarmasRegistrosUseCase(
-                    alarmaRegistroRepository = AlarmaRegistroRepositoryImpl(
-                        appContainer.database.alarmaRegistroDao(),
-                        appContainer.database.alarmaDao()
-                    )
-                ),
-                deviceIdStr = "" // Could fetch from config repo later
+                observeAlarmasRegistrosUseCase = appContainer.observeAlarmasRegistrosUseCase,
+                clearAllAlarmasRegistrosUseCase = appContainer.clearAllAlarmasRegistrosUseCase,
+                exportAlarmasCsvUseCase = appContainer.exportAlarmasCsvUseCase,
+                deviceIdStr = ""
             ) as T
 
             ConfigViewModel::class -> ConfigViewModel(

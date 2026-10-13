@@ -232,19 +232,19 @@ class ModbusTcpClient(
                 _humedad.value = if (hum in 0.0..100.0) hum else _humedad.value
                 _tension.value = if (vlt in 0.0..500.0) vlt else _tension.value
 
-                // Decode Alarmas list from ALARMA word (40001)
+                // Decode Alarmas list from ALARMA word (40001) - exact names from Alarmas table
                 val alarmsList = mutableListOf<String>()
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_FALLA_ENERGIA)) != 0) alarmsList.add("Falla de energía")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_1)) != 0) alarmsList.add("Falla Zona 1")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_2)) != 0) alarmsList.add("Falla Zona 2")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_3)) != 0) alarmsList.add("Falla Zona 3")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_4)) != 0) alarmsList.add("Falla Zona 4")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_5)) != 0) alarmsList.add("Falla Zona 5")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_6)) != 0) alarmsList.add("Falla Zona 6")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_PULVERIZADOR)) != 0) alarmsList.add("Falla Pulverizador")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_DAMPER)) != 0) alarmsList.add("Falla Damper")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_CALEFACCION)) != 0) alarmsList.add("Falla Calefacción")
-                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_BAJA_TENSION)) != 0) alarmsList.add("Baja Tensión (< 22V)")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_FALLA_ENERGIA)) != 0) alarmsList.add("falla de energia")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_1)) != 0) alarmsList.add("zona 1 no enciende")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_2)) != 0) alarmsList.add("zona 2 no enciende")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_3)) != 0) alarmsList.add("zona 3 no enciende")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_4)) != 0) alarmsList.add("zona 4 no enciende")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_5)) != 0) alarmsList.add("zona 5 no enciende")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_ZONA_6)) != 0) alarmsList.add("zona 6 no enciende")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_PULVERIZADOR)) != 0) alarmsList.add("no humifica")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_DAMPER)) != 0) alarmsList.add("damper no abre")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_CALEFACCION)) != 0) alarmsList.add("calefaccion no enciende")
+                if ((alarmaWord and (1 shl Micro820ModbusConstants.BIT_ALARM_NIVEL_AGUA_BAJO)) != 0) alarmsList.add("nivel de agua bajo")
                 _alarmasActivas.value = alarmsList
 
                 // Decode Zones 1..6 status (Bit 1..6 in CONFIRMAR / ALARMA)

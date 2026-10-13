@@ -15,7 +15,15 @@ class AlarmaRegistroRepositoryImpl(
         return alarmaRegistroDao.observeByVehiculo(idVehiculo)
     }
 
+    override fun observeAllAlarmasRegistros(): Flow<List<AlarmaRegistroEntity>> {
+        return alarmaRegistroDao.observeAll()
+    }
+
     override suspend fun getAlarmas(): List<AlarmaEntity> {
         return alarmaDao.getAll()
+    }
+
+    override suspend fun clearAllAlarmasRegistros() {
+        alarmaRegistroDao.deleteAll()
     }
 }

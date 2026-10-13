@@ -410,17 +410,17 @@ fun SimulationScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     val alarms = listOf(
-                        "Falla Energía" to Micro820ModbusConstants.BIT_ALARM_FALLA_ENERGIA,
-                        "Zona 1" to Micro820ModbusConstants.BIT_ALARM_ZONA_1,
-                        "Zona 2" to Micro820ModbusConstants.BIT_ALARM_ZONA_2,
-                        "Zona 3" to Micro820ModbusConstants.BIT_ALARM_ZONA_3,
-                        "Zona 4" to Micro820ModbusConstants.BIT_ALARM_ZONA_4,
-                        "Zona 5" to Micro820ModbusConstants.BIT_ALARM_ZONA_5,
-                        "Zona 6" to Micro820ModbusConstants.BIT_ALARM_ZONA_6,
-                        "Pulverizador" to Micro820ModbusConstants.BIT_ALARM_PULVERIZADOR,
-                        "Damper" to Micro820ModbusConstants.BIT_ALARM_DAMPER,
-                        "Calefacción" to Micro820ModbusConstants.BIT_ALARM_CALEFACCION,
-                        "Baja Tensión" to Micro820ModbusConstants.BIT_ALARM_BAJA_TENSION,
+                        "falla de energia" to Micro820ModbusConstants.BIT_ALARM_FALLA_ENERGIA,
+                        "zona 1 no enciende" to Micro820ModbusConstants.BIT_ALARM_ZONA_1,
+                        "zona 2 no enciende" to Micro820ModbusConstants.BIT_ALARM_ZONA_2,
+                        "zona 3 no enciende" to Micro820ModbusConstants.BIT_ALARM_ZONA_3,
+                        "zona 4 no enciende" to Micro820ModbusConstants.BIT_ALARM_ZONA_4,
+                        "zona 5 no enciende" to Micro820ModbusConstants.BIT_ALARM_ZONA_5,
+                        "zona 6 no enciende" to Micro820ModbusConstants.BIT_ALARM_ZONA_6,
+                        "no humifica" to Micro820ModbusConstants.BIT_ALARM_PULVERIZADOR,
+                        "damper no abre" to Micro820ModbusConstants.BIT_ALARM_DAMPER,
+                        "calefaccion no enciende" to Micro820ModbusConstants.BIT_ALARM_CALEFACCION,
+                        "nivel de agua bajo" to Micro820ModbusConstants.BIT_ALARM_NIVEL_AGUA_BAJO,
                     )
 
                     alarms.forEach { (name, bit) ->

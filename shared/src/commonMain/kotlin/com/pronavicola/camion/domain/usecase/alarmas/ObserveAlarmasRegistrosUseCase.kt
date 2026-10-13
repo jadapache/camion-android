@@ -19,9 +19,14 @@ data class AlarmaRegistroUiModel(
 class ObserveAlarmasRegistrosUseCase(
     private val alarmaRegistroRepository: AlarmaRegistroRepository
 ) {
-    suspend operator fun invoke(idVehiculo: Int): Flow<List<AlarmaRegistroUiModel>> {
+    suspend operator fun invoke(idVehiculo: Int? = null): Flow<List<AlarmaRegistroUiModel>> {
         val alarmas = alarmaRegistroRepository.getAlarmas().associateBy { it.idAlarma }
-        return alarmaRegistroRepository.observeAlarmasRegistros(idVehiculo).map { registros ->
+        val flow = if (idVehiculo != null && idVehiculo > 0) {
+            alarmaRegistroRepository.observeAlarmasRegistros(idVehiculo)
+        } else {
+            alarmaRegistroRepository.observeAllAlarmasRegistros()
+        }
+        return flow.map { registros ->
             registros.map { registro ->
                 val alarma = registro.alarmasIdAlarma?.let { alarmas[it] } ?: alarmas[registro.idAlarma]
                 AlarmaRegistroUiModel(

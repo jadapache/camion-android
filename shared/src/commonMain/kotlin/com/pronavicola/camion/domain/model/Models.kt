@@ -85,18 +85,19 @@ object Micro820ModbusConstants {
     const val BIT_CONFIRM_DAMPER = 8
     const val BIT_CONFIRM_CALEFACCION = 9
 
-    // Bit positions in REG_ALARMAS (40001)
-    const val BIT_ALARM_FALLA_ENERGIA = 0
-    const val BIT_ALARM_ZONA_1 = 1
-    const val BIT_ALARM_ZONA_2 = 2
-    const val BIT_ALARM_ZONA_3 = 3
-    const val BIT_ALARM_ZONA_4 = 4
-    const val BIT_ALARM_ZONA_5 = 5
-    const val BIT_ALARM_ZONA_6 = 6
-    const val BIT_ALARM_PULVERIZADOR = 7
-    const val BIT_ALARM_DAMPER = 8
-    const val BIT_ALARM_CALEFACCION = 9
-    const val BIT_ALARM_BAJA_TENSION = 10
+    // Bit positions in REG_ALARMAS (40001) - Matches IDs 1..11 in Alarmas table
+    const val BIT_ALARM_FALLA_ENERGIA = 0      // ID 1: falla de energia
+    const val BIT_ALARM_ZONA_1 = 1             // ID 2: zona 1 no enciende
+    const val BIT_ALARM_ZONA_2 = 2             // ID 3: zona 2 no enciende
+    const val BIT_ALARM_ZONA_3 = 3             // ID 4: zona 3 no enciende
+    const val BIT_ALARM_ZONA_4 = 4             // ID 5: zona 4 no enciende
+    const val BIT_ALARM_ZONA_5 = 5             // ID 6: zona 5 no enciende
+    const val BIT_ALARM_ZONA_6 = 6             // ID 7: zona 6 no enciende
+    const val BIT_ALARM_PULVERIZADOR = 7       // ID 8: no humifica
+    const val BIT_ALARM_DAMPER = 8             // ID 9: damper no abre
+    const val BIT_ALARM_CALEFACCION = 9        // ID 10: calefaccion no enciende
+    const val BIT_ALARM_NIVEL_AGUA_BAJO = 10   // ID 11: nivel de agua bajo
+    const val BIT_ALARM_BAJA_TENSION = 10      // Alias for backwards compatibility
 }
 
 data class HmiHistoryPoint(

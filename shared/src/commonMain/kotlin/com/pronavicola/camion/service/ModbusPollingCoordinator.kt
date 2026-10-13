@@ -55,6 +55,13 @@ class ModbusPollingCoordinator(
             Log.i(tag, "Starting continuous Modbus polling and SQLite persistence loop...")
             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
+            // Reactive collector for instant alarm change detection and SQLite recording
+            launch {
+                modbusClient.alarmasActivas.collect { activeNames ->
+                    evaluateAlarms(dateFormat.format(Date()), activeNames)
+                }
+            }
+
             while (isActive) {
                 try {
                     val isConnected = modbusClient.isConnected.value
@@ -105,7 +112,10 @@ class ModbusPollingCoordinator(
         }
     }
 
-    private suspend fun evaluateAlarms(currentTimestamp: String) {
+    private suspend fun evaluateAlarms(
+        currentTimestamp: String,
+        activeNames: List<String> = modbusClient.alarmasActivas.value
+    ) {
         try {
             // 1. Ensure Catalog Exists
             if (alarmaDao.getCount() == 0) {
@@ -115,14 +125,36 @@ class ModbusPollingCoordinator(
                 alarmaDao.insertAll(catalog)
             }
 
-            // 2. Fetch Active Alarms from PLC (List of string names)
-            val activeNames = modbusClient.alarmasActivas.value
             val idVehiculo = 1
             val idViaje = 1
 
-            // 3. Map names to AlarmaEntity to get IDs
+            // 2. Fetch all defined alarms from DB
             val dbAlarmas = alarmaDao.getAll()
-            val activeAlarmIds = dbAlarmas.filter { activeNames.contains(it.alarma) }.map { it.idAlarma }.toSet()
+
+            // 3. Robust matching between active alarm names and DB Alarmas (IDs 1..11)
+            val activeAlarmIds = mutableSetOf<Int>()
+            for (active in activeNames) {
+                val clean = active.trim().lowercase()
+                val matched = dbAlarmas.find { dbA ->
+                    val dbName = dbA.alarma?.trim()?.lowercase() ?: ""
+                    val dbTag = dbA.tag?.trim()?.lowercase() ?: ""
+                    dbName == clean || dbTag == clean ||
+                    (clean.contains("energia") && dbName.contains("energia")) ||
+                    (clean.contains("zona 1") && dbName.contains("zona 1")) ||
+                    (clean.contains("zona 2") && dbName.contains("zona 2")) ||
+                    (clean.contains("zona 3") && dbName.contains("zona 3")) ||
+                    (clean.contains("zona 4") && dbName.contains("zona 4")) ||
+                    (clean.contains("zona 5") && dbName.contains("zona 5")) ||
+                    (clean.contains("zona 6") && dbName.contains("zona 6")) ||
+                    ((clean.contains("humifica") || clean.contains("pulverizador")) && dbName.contains("humifica")) ||
+                    (clean.contains("damper") && dbName.contains("damper")) ||
+                    ((clean.contains("calefaccion") || clean.contains("calefacción")) && dbName.contains("calefaccion")) ||
+                    ((clean.contains("agua") || clean.contains("tension") || clean.contains("tensión")) && dbName.contains("agua"))
+                }
+                if (matched != null) {
+                    activeAlarmIds.add(matched.idAlarma)
+                }
+            }
 
             // 4. Fetch currently open alarms from DB (Estado = 'Activa')
             val historicalAlarmas = alarmaRegistroDao.getByVehiculoAndViaje(idVehiculo, idViaje)

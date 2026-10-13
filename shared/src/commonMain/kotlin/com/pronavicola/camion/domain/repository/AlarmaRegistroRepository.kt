@@ -6,5 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface AlarmaRegistroRepository {
     fun observeAlarmasRegistros(idVehiculo: Int): Flow<List<AlarmaRegistroEntity>>
+    fun observeAllAlarmasRegistros(): Flow<List<AlarmaRegistroEntity>>
     suspend fun getAlarmas(): List<AlarmaEntity>
+    suspend fun clearAllAlarmasRegistros()
 }
