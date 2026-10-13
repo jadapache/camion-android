@@ -6,12 +6,12 @@ import com.pronavicola.camion.domain.model.ZoneStatus
  * Standard topics designated for traces/telemetry, locations, alarms, and status.
  */
 object MqttTopics {
-    const val TOPIC_ROOT = "furgones"
+    var topicRoot: String = "furgones"
 
-    fun telemetry(deviceId: String): String = "$TOPIC_ROOT/$deviceId/telemetry"
-    fun location(deviceId: String): String = "$TOPIC_ROOT/$deviceId/location"
-    fun alarms(deviceId: String): String = "$TOPIC_ROOT/$deviceId/alarms"
-    fun status(deviceId: String): String = "$TOPIC_ROOT/$deviceId/status"
+    fun telemetry(deviceId: String): String = "$topicRoot/$deviceId/telemetry"
+    fun location(deviceId: String): String = "$topicRoot/$deviceId/location"
+    fun alarms(deviceId: String): String = "$topicRoot/$deviceId/alarms"
+    fun status(deviceId: String): String = "$topicRoot/$deviceId/status"
 }
 
 /**

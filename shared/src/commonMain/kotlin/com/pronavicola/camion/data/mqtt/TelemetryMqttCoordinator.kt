@@ -69,8 +69,10 @@ class TelemetryMqttCoordinator(
         activeDeviceId = deviceId
     }
 
-    fun updateTopicRoot(@Suppress("UNUSED_PARAMETER") root: String) {
-        // Maintained for backward compatibility; standard topics use MqttTopics.TOPIC_ROOT
+    fun updateTopicRoot(root: String) {
+        if (root.isNotBlank()) {
+            MqttTopics.topicRoot = root.trim()
+        }
     }
 
     fun setPublishIntervalSeconds(seconds: Long) {
@@ -98,7 +100,9 @@ class TelemetryMqttCoordinator(
         )
         val topic = MqttTopics.telemetry(activeDeviceId)
         Log.d(tag, "Enqueuing historical VariableRegistro for $activeDeviceId to $topic")
-        outboxManager.enqueue(topic, payload.toJson(), qos = 1)
+        scope.launch(ioDispatcher) {
+            outboxManager.enqueue(topic, payload.toJson(), qos = 1)
+        }
     }
 
     /**
@@ -114,7 +118,9 @@ class TelemetryMqttCoordinator(
         )
         val topic = MqttTopics.location(activeDeviceId)
         Log.d(tag, "Enqueuing Location for $activeDeviceId to $topic")
-        outboxManager.enqueue(topic, payload.toJson(), qos = 1)
+        scope.launch(ioDispatcher) {
+            outboxManager.enqueue(topic, payload.toJson(), qos = 1)
+        }
     }
 
     /**
@@ -205,7 +211,7 @@ class TelemetryMqttCoordinator(
         }
     }
 
-    private fun evaluateLocalAlarms(t1: Double?, t2: Double?, hum: Double?, vlt: Double?) {
+    private suspend fun evaluateLocalAlarms(t1: Double?, t2: Double?, hum: Double?, vlt: Double?) {
         val maxTemp = maxOf(t1 ?: -100.0, t2 ?: -100.0)
         val alarmTopic = MqttTopics.alarms(activeDeviceId)
         if (maxTemp > TEMP_HIGH_THRESHOLD) {
