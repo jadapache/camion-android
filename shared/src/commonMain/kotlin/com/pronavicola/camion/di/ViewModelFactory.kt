@@ -54,6 +54,7 @@ class CamionViewModelFactory(
                 exportRegistrosCsvUseCase = appContainer.exportRegistrosCsvUseCase,
                 buildTelemetryPayloadUseCase = appContainer.buildTelemetryPayloadUseCase,
                 appConfigRepository = appContainer.appConfigRepository,
+                getRegistrosPagedUseCase = appContainer.getRegistrosPagedUseCase,
             ) as T
 
             AlarmasRegistrosViewModel::class -> AlarmasRegistrosViewModel(

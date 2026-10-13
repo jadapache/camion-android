@@ -18,6 +18,12 @@ class RegistrosRepositoryImpl(
     override fun observeRegistros(user: SessionUser): Flow<List<VariableRegistroEntity>> =
         variableRegistroDao.observeAllRegistros()
 
+    override suspend fun getRegistrosPaged(idVehiculo: Int?, limit: Int, offset: Int): List<VariableRegistroEntity> =
+        variableRegistroDao.getRegistrosPaged(idVehiculo, limit, offset)
+
+    override suspend fun getRegistrosCount(idVehiculo: Int?): Int =
+        variableRegistroDao.getCount(idVehiculo)
+
     override suspend fun saveRegistro(registro: VariableRegistroEntity) {
         val vehiculoId = vehiculoDao.getPredeterminado()?.idVehiculo ?: registro.idVehiculo
         val rawEntries = listOf(
@@ -53,8 +59,12 @@ class RegistrosRepositoryImpl(
         variableRegistroDao.insertRawAll(rawEntries)
     }
 
-    override suspend fun updateEstadoEnvio(idRegistro: Int, estado: String) {
-        variableRegistroDao.updateEstadoEnvio(idRegistro, estado)
+    override suspend fun updateEstadoEnvioByFecha(fecha: String, estado: String) {
+        variableRegistroDao.updateEstadoEnvioByFecha(fecha, estado)
+    }
+
+    override suspend fun markAllPendingAsEnviado() {
+        variableRegistroDao.markAllPendingAsEnviado()
     }
 
     override suspend fun clearAllRegistros() {

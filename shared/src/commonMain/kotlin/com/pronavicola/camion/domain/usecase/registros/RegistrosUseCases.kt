@@ -1,6 +1,7 @@
 package com.pronavicola.camion.domain.usecase.registros
 
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
+import com.pronavicola.camion.data.mqtt.TelemetryMqttPayload
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.repository.MqttRepository
 import com.pronavicola.camion.domain.repository.RegistrosRepository
@@ -14,6 +15,16 @@ class ObserveRegistrosUseCase(
 ) {
     operator fun invoke(user: SessionUser): Flow<List<VariableRegistroEntity>> =
         registrosRepository.observeRegistros(user)
+}
+
+class GetRegistrosPagedUseCase(
+    private val registrosRepository: RegistrosRepository,
+) {
+    suspend operator fun invoke(idVehiculo: Int?, limit: Int, offset: Int): List<VariableRegistroEntity> =
+        registrosRepository.getRegistrosPaged(idVehiculo, limit, offset)
+
+    suspend fun getCount(idVehiculo: Int? = null): Int =
+        registrosRepository.getRegistrosCount(idVehiculo)
 }
 
 class SaveTelemetryRegistroUseCase(
@@ -33,7 +44,7 @@ class ResendRegistroUseCase(
         val payload = BuildTelemetryPayloadUseCase()(registro, deviceId)
         val success = mqttRepository.publish(topic, payload, qos = 1)
         if (success) {
-            registrosRepository.updateEstadoEnvio(registro.idRegistro, "Enviado")
+            registrosRepository.updateEstadoEnvioByFecha(registro.fecha, "Enviado")
         } else {
             mqttRepository.enqueueOutbox(topic, payload, qos = 1)
         }
@@ -56,33 +67,13 @@ class ClearAllRegistrosUseCase(
 
 class BuildTelemetryPayloadUseCase {
     operator fun invoke(registro: VariableRegistroEntity, deviceId: String): String {
-        val isoTimestamp = formatIsoTimestamp(registro.fecha)
-        return """
-        {
-          "device_id": "$deviceId",
-          "timestamp": "$isoTimestamp",
-          "temperatura_1": ${registro.temperatura1},
-          "temperatura_2": ${registro.temperatura2},
-          "humedad": ${registro.humedad},
-          "tension": ${registro.tension},
-          "id_registro_local": ${registro.idRegistro}
-        }
-        """.trimIndent()
-    }
-
-    private fun formatIsoTimestamp(fechaStr: String): String {
-        return try {
-            if (fechaStr.contains(" ") && !fechaStr.contains("T")) {
-                val parts = fechaStr.split(" ")
-                "${parts[0]}T${parts[1]}.000Z"
-            } else if (fechaStr.contains("T")) {
-                if (fechaStr.endsWith("Z")) fechaStr else "${fechaStr}Z"
-            } else {
-                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
-            }
-        } catch (_: Exception) {
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
-        }
+        return TelemetryMqttPayload(
+            deviceId = deviceId,
+            temperatureC = registro.temperatura1,
+            temperature2C = registro.temperatura2,
+            humidityPct = registro.humedad,
+            voltageV = registro.tension,
+        ).toJson()
     }
 }
 

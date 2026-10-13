@@ -56,10 +56,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlin.math.ceil
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -89,6 +91,7 @@ fun RegistrosScreen(
     deviceId: String = "ABC123",
     onResendRegistro: (VariableRegistroEntity) -> Unit = {},
     onClearAllRegistros: () -> Unit = {},
+    onLoadPage: ((page: Int, pageSize: Int) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -108,6 +111,16 @@ fun RegistrosScreen(
     // Sorting State
     var sortColumn by remember { mutableStateOf(SortColumn.NONE) }
     var sortDirection by remember { mutableStateOf(SortDirection.NONE) }
+
+    // Pagination & Lazy Loading State
+    var currentPage by remember { mutableStateOf(1) }
+    var pageSize by remember { mutableStateOf(25) }
+    val pageSizeOptions = remember { listOf(15, 25, 50, 100) }
+
+    // Reset page to 1 whenever filters, sorting, or pageSize changes
+    LaunchedEffect(filterFechaDesde, filterFechaHasta, filterPlaca, filterEstado, sortColumn, sortDirection, pageSize) {
+        currentPage = 1
+    }
 
     // Roles with permission to clean records: Desarrollador (0), Administrador (1), Supervisor (2)
     val canClearRecords = currentUser == null || currentUser.idPerfil in listOf(0, 1, 2)
@@ -162,6 +175,28 @@ fun RegistrosScreen(
         }
     }
 
+    val totalRecords = filteredRegistros.size
+    val totalPages = remember(totalRecords, pageSize) {
+        maxOf(1, ceil(totalRecords.toDouble() / pageSize).toInt())
+    }
+
+    LaunchedEffect(totalPages) {
+        if (currentPage > totalPages) {
+            currentPage = totalPages
+        }
+    }
+
+    val validCurrentPage = currentPage.coerceIn(1, totalPages)
+
+    // Paginated / Lazy slice of records for the active page
+    val paginatedRegistros = remember(filteredRegistros, validCurrentPage, pageSize) {
+        val offset = (validCurrentPage - 1) * pageSize
+        filteredRegistros.drop(offset).take(pageSize)
+    }
+
+    val fromRecord = if (totalRecords == 0) 0 else ((validCurrentPage - 1) * pageSize) + 1
+    val toRecord = minOf(validCurrentPage * pageSize, totalRecords)
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -183,7 +218,7 @@ fun RegistrosScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${filteredRegistros.size} de ${registros.size} registros encontrados",
+                    text = "$totalRecords de ${registros.size} registros encontrados • Pág $validCurrentPage de $totalPages",
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal
@@ -510,7 +545,7 @@ fun RegistrosScreen(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(filteredRegistros, key = { it.idRegistro }) { registro ->
+                items(paginatedRegistros, key = { it.idRegistro }) { registro ->
                     RegistroRow(
                         registro = registro,
                         onViewPayload = { selectedRegistroForPayload = registro },
@@ -518,6 +553,25 @@ fun RegistrosScreen(
                     )
                 }
             }
+
+            PaginationBar(
+                currentPage = validCurrentPage,
+                totalPages = totalPages,
+                pageSize = pageSize,
+                totalRecords = totalRecords,
+                fromRecord = fromRecord,
+                toRecord = toRecord,
+                pageSizeOptions = pageSizeOptions,
+                onPageChange = { newPage ->
+                    currentPage = newPage
+                    onLoadPage?.invoke(newPage, pageSize)
+                },
+                onPageSizeChange = { newSize ->
+                    pageSize = newSize
+                    currentPage = 1
+                    onLoadPage?.invoke(1, newSize)
+                }
+            )
         }
     }
 
@@ -1094,5 +1148,159 @@ private fun dateStringToMillis(dateStr: String): Long? {
         sdf.parse(dateStr)?.time
     } catch (_: Exception) {
         null
+    }
+}
+
+@Composable
+private fun PaginationBar(
+    currentPage: Int,
+    totalPages: Int,
+    pageSize: Int,
+    totalRecords: Int,
+    fromRecord: Int,
+    toRecord: Int,
+    pageSizeOptions: List<Int>,
+    onPageChange: (Int) -> Unit,
+    onPageSizeChange: (Int) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(containerColor = CamionColors.headerBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Summary Text
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Mostrando $fromRecord - $toRecord de $totalRecords registros",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            // Center: Page Size Selector
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "Por pág:",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal
+                )
+                pageSizeOptions.forEach { size ->
+                    val isSelected = size == pageSize
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (isSelected) Color(0xFF005AC1) else Color(0xFF1E3A5F),
+                        border = BorderStroke(1.dp, if (isSelected) Color(0xFF64B5F6) else Color.Transparent),
+                        modifier = Modifier.clickable { onPageSizeChange(size) }
+                    ) {
+                        Text(
+                            text = size.toString(),
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            // Right: Navigation Controls
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // First Page (|<)
+                Button(
+                    onClick = { onPageChange(1) },
+                    enabled = currentPage > 1,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("|<", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (currentPage > 1) Color.White else Color.Gray)
+                }
+
+                // Prev Page (<)
+                Button(
+                    onClick = { onPageChange(currentPage - 1) },
+                    enabled = currentPage > 1,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("< Ant", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (currentPage > 1) Color.White else Color.Gray)
+                }
+
+                // Page Indicator Badge
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFF0A1E34),
+                    border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Pág $currentPage / $totalPages",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Next Page (>)
+                Button(
+                    onClick = { onPageChange(currentPage + 1) },
+                    enabled = currentPage < totalPages,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("Sig >", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (currentPage < totalPages) Color.White else Color.Gray)
+                }
+
+                // Last Page (>|)
+                Button(
+                    onClick = { onPageChange(totalPages) },
+                    enabled = currentPage < totalPages,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text(">|", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (currentPage < totalPages) Color.White else Color.Gray)
+                }
+            }
+        }
     }
 }

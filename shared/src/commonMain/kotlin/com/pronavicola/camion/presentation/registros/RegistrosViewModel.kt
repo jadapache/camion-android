@@ -8,6 +8,7 @@ import com.pronavicola.camion.domain.repository.AppConfigRepository
 import com.pronavicola.camion.domain.usecase.registros.BuildTelemetryPayloadUseCase
 import com.pronavicola.camion.domain.usecase.registros.ClearAllRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.registros.ExportRegistrosCsvUseCase
+import com.pronavicola.camion.domain.usecase.registros.GetRegistrosPagedUseCase
 import com.pronavicola.camion.domain.usecase.registros.ObserveRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.registros.ResendRegistroUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.ceil
 
 data class RegistrosUiState(
     val registros: List<VariableRegistroEntity> = emptyList(),
@@ -33,7 +35,20 @@ data class RegistrosUiState(
     val statusMessage: String? = null,
     val isSending: Boolean = false,
     val deviceId: String = "ABC123",
+    val currentPage: Int = 1,
+    val pageSize: Int = 25,
+    val totalCount: Int = 0,
+    val isLoadingPage: Boolean = false,
 ) {
+    val totalPages: Int
+        get() = maxOf(1, ceil(filteredRegistros.size.toDouble() / pageSize).toInt())
+
+    val paginatedRegistros: List<VariableRegistroEntity>
+        get() {
+            val offset = (currentPage - 1) * pageSize
+            return filteredRegistros.drop(offset).take(pageSize)
+        }
+
     val filteredRegistros: List<VariableRegistroEntity>
         get() {
             val desdeMillis = if (filterFechaDesde.isNotBlank()) dateStringToMillis(filterFechaDesde) else null
@@ -112,6 +127,7 @@ class RegistrosViewModel(
     private val exportRegistrosCsvUseCase: ExportRegistrosCsvUseCase,
     private val buildTelemetryPayloadUseCase: BuildTelemetryPayloadUseCase,
     private val appConfigRepository: AppConfigRepository,
+    private val getRegistrosPagedUseCase: GetRegistrosPagedUseCase? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegistrosUiState())
@@ -132,20 +148,58 @@ class RegistrosViewModel(
         }
     }
 
+    fun setPage(page: Int) {
+        _uiState.update { current ->
+            val maxPage = current.totalPages
+            val clamped = page.coerceIn(1, maxPage)
+            current.copy(currentPage = clamped)
+        }
+    }
+
+    fun setPageSize(size: Int) {
+        _uiState.update { current ->
+            current.copy(pageSize = size, currentPage = 1)
+        }
+    }
+
+    fun nextPage() {
+        setPage(_uiState.value.currentPage + 1)
+    }
+
+    fun prevPage() {
+        setPage(_uiState.value.currentPage - 1)
+    }
+
+    fun loadRegistrosPaged(page: Int, pageSize: Int = 25, idVehiculo: Int? = null) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingPage = true, currentPage = page, pageSize = pageSize) }
+            val offset = (page - 1) * pageSize
+            val paged = getRegistrosPagedUseCase?.invoke(idVehiculo, pageSize, offset) ?: emptyList()
+            val total = getRegistrosPagedUseCase?.getCount(idVehiculo) ?: paged.size
+            _uiState.update {
+                it.copy(
+                    registros = paged,
+                    totalCount = total,
+                    isLoadingPage = false,
+                )
+            }
+        }
+    }
+
     fun setFilterFechaDesde(date: String) {
-        _uiState.update { it.copy(filterFechaDesde = date) }
+        _uiState.update { it.copy(filterFechaDesde = date, currentPage = 1) }
     }
 
     fun setFilterFechaHasta(date: String) {
-        _uiState.update { it.copy(filterFechaHasta = date) }
+        _uiState.update { it.copy(filterFechaHasta = date, currentPage = 1) }
     }
 
     fun setFilterPlaca(placa: String) {
-        _uiState.update { it.copy(filterPlaca = placa) }
+        _uiState.update { it.copy(filterPlaca = placa, currentPage = 1) }
     }
 
     fun setFilterEstado(estado: String) {
-        _uiState.update { it.copy(filterEstado = estado) }
+        _uiState.update { it.copy(filterEstado = estado, currentPage = 1) }
     }
 
     fun clearFilters() {
@@ -155,6 +209,7 @@ class RegistrosViewModel(
                 filterFechaHasta = "",
                 filterPlaca = "",
                 filterEstado = "TODOS",
+                currentPage = 1,
             )
         }
     }
@@ -170,11 +225,13 @@ class RegistrosViewModel(
                 current.copy(
                     sortDirection = nextDirection,
                     sortColumn = if (nextDirection == SortDirection.NONE) SortColumn.NONE else column,
+                    currentPage = 1,
                 )
             } else {
                 current.copy(
                     sortColumn = column,
                     sortDirection = SortDirection.ASC,
+                    currentPage = 1,
                 )
             }
         }
