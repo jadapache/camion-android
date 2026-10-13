@@ -13,7 +13,7 @@ actual fun createFurgonesDatabase(platformContext: Any?): FurgonesDatabase {
     }
     val dbFile = File(dataDir, FurgonesDatabase.DB_NAME)
 
-    if (!dbFile.exists() || dbFile.length() == 0L) {
+    if (!dbFile.exists() || dbFile.length() < 100_000L) {
         Log.i("DatabaseFactory", "Extracting initial seed database to ${dbFile.absolutePath}")
         try {
             val classLoader = Thread.currentThread().contextClassLoader
