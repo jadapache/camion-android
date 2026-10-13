@@ -7,19 +7,23 @@ import androidx.room.RoomDatabaseConstructor
 import com.pronavicola.camion.data.local.dao.AlarmaDao
 import com.pronavicola.camion.data.local.dao.AlarmaRegistroDao
 import com.pronavicola.camion.data.local.dao.AppConfigDao
+import com.pronavicola.camion.data.local.dao.BuzonMqttDao
 import com.pronavicola.camion.data.local.dao.DefinicionDao
 import com.pronavicola.camion.data.local.dao.ParametroDao
 import com.pronavicola.camion.data.local.dao.PerfilDao
+import com.pronavicola.camion.data.local.dao.TrazasUbicacionDao
 import com.pronavicola.camion.data.local.dao.UsuarioDao
 import com.pronavicola.camion.data.local.dao.VariableRegistroDao
 import com.pronavicola.camion.data.local.dao.VehiculoDao
 import com.pronavicola.camion.data.local.entity.AlarmaEntity
 import com.pronavicola.camion.data.local.entity.AlarmaRegistroEntity
 import com.pronavicola.camion.data.local.entity.AppConfigEntity
+import com.pronavicola.camion.data.local.entity.BuzonMqttEntity
 import com.pronavicola.camion.data.local.entity.DefinicionEntity
 import com.pronavicola.camion.data.local.entity.ParametroEntity
 import com.pronavicola.camion.data.local.entity.PerfilEntity
 import com.pronavicola.camion.data.local.entity.PerfilParametroEntity
+import com.pronavicola.camion.data.local.entity.TrazasUbicacionEntity
 import com.pronavicola.camion.data.local.entity.UsuarioEntity
 import com.pronavicola.camion.data.local.entity.VariableEntity
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
@@ -39,11 +43,13 @@ import com.pronavicola.camion.data.local.entity.VehiculoEntity
         AlarmaEntity::class,
         AlarmaRegistroEntity::class,
         VehiculoEntity::class,
+        TrazasUbicacionEntity::class,
+        BuzonMqttEntity::class,
     ],
     views = [
         VariableRegistroEntity::class,
     ],
-    version = 17,
+    version = 1,
     exportSchema = false,
 )
 @ConstructedBy(FurgonesDatabaseConstructor::class)
@@ -57,6 +63,8 @@ abstract class FurgonesDatabase : RoomDatabase() {
     abstract fun alarmaRegistroDao(): AlarmaRegistroDao
     abstract fun definicionDao(): DefinicionDao
     abstract fun vehiculoDao(): VehiculoDao
+    abstract fun trazasUbicacionDao(): TrazasUbicacionDao
+    abstract fun buzonMqttDao(): BuzonMqttDao
 
     companion object {
         const val DB_NAME = "Furgones.db"
