@@ -52,6 +52,7 @@ fun TruckAssignmentDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = modifier.widthIn(min = 320.dp, max = 460.dp),
+        containerColor = Color.White,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -65,13 +66,14 @@ fun TruckAssignmentDialog(
                     Icon(
                         imageVector = Icons.Default.DirectionsBus,
                         contentDescription = null,
-                        tint = Color(0xFF64B5F6),
+                        tint = Color(0xFF005AC1),
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
                         text = "SELECCIONAR FURGÓN",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
+                        fontSize = 17.sp,
+                        color = Color(0xFF0F172A)
                     )
                 }
                 if (!isLoading) {
@@ -82,7 +84,7 @@ fun TruckAssignmentDialog(
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refrescar",
-                            tint = Color.Gray,
+                            tint = Color(0xFF475569),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -97,7 +99,7 @@ fun TruckAssignmentDialog(
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage,
-                        color = Color(0xFFEF5350),
+                        color = Color(0xFFDC2626),
                         fontSize = 12.sp
                     )
                 }
@@ -109,15 +111,15 @@ fun TruckAssignmentDialog(
                     ) {
                         CircularProgressIndicator(
                             strokeWidth = 2.dp,
-                            color = Color(0xFF64B5F6)
+                            color = Color(0xFF005AC1)
                         )
                     }
                 } else if (availableFurgones.isNotEmpty()) {
                     Text(
                         text = "Furgones precargados de la API:",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = Color(0xFF334155),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
 
                     val selectedFurgon = availableFurgones.find { it.plate.equals(selectedPlate, ignoreCase = true) }
@@ -143,12 +145,16 @@ fun TruckAssignmentDialog(
                             label = { Text("Placa del Furgón") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFF64B5F6),
-                                unfocusedBorderColor = Color(0xFF4B5563),
-                                focusedLabelColor = Color(0xFF64B5F6),
-                                unfocusedLabelColor = Color(0xFF94A3B8),
+                                focusedTextColor = Color(0xFF0F172A),
+                                unfocusedTextColor = Color(0xFF0F172A),
+                                focusedBorderColor = Color(0xFF005AC1),
+                                unfocusedBorderColor = Color(0xFF64748B),
+                                focusedLabelColor = Color(0xFF005AC1),
+                                unfocusedLabelColor = Color(0xFF334155),
+                                focusedTrailingIconColor = Color(0xFF005AC1),
+                                unfocusedTrailingIconColor = Color(0xFF475569),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
                             ),
                             modifier = Modifier
                                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
@@ -157,7 +163,7 @@ fun TruckAssignmentDialog(
                         ExposedDropdownMenu(
                             expanded = expanded,
                             onDismissRequest = { expanded = false },
-                            modifier = Modifier.background(Color(0xFF1E222B))
+                            modifier = Modifier.background(Color.White)
                         ) {
                             availableFurgones.forEach { furgon ->
                                 val isSelected = furgon.plate.equals(selectedPlate, ignoreCase = true)
@@ -173,13 +179,13 @@ fun TruckAssignmentDialog(
                                                     text = furgon.plate,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 15.sp,
-                                                    color = if (isSelected) Color(0xFF64B5F6) else Color.White
+                                                    color = if (isSelected) Color(0xFF005AC1) else Color(0xFF0F172A)
                                                 )
                                                 furgon.brand?.let { brand ->
                                                     Text(
                                                         text = brand,
                                                         fontSize = 12.sp,
-                                                        color = Color(0xFF94A3B8)
+                                                        color = Color(0xFF64748B)
                                                     )
                                                 }
                                             }
@@ -189,7 +195,7 @@ fun TruckAssignmentDialog(
                                         Icon(
                                             imageVector = Icons.Default.DirectionsBus,
                                             contentDescription = null,
-                                            tint = if (isSelected) Color(0xFF64B5F6) else Color.Gray,
+                                            tint = if (isSelected) Color(0xFF005AC1) else Color(0xFF64748B),
                                             modifier = Modifier.size(20.dp)
                                         )
                                     },
@@ -198,7 +204,7 @@ fun TruckAssignmentDialog(
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = "Seleccionado",
-                                                tint = Color(0xFF64B5F6),
+                                                tint = Color(0xFF005AC1),
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -216,8 +222,9 @@ fun TruckAssignmentDialog(
                     // Fallback input if API returns empty list or offline
                     Text(
                         text = "No se encontraron furgones en la API. Ingrese la placa manualmente:",
-                        color = Color(0xFFFFB74D),
-                        fontSize = 12.sp
+                        color = Color(0xFFB45309),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
                     )
                     OutlinedTextField(
                         value = manualPlateInput,
@@ -229,12 +236,14 @@ fun TruckAssignmentDialog(
                         placeholder = { Text("Ej. ABC123") },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFF64B5F6),
-                            unfocusedBorderColor = Color(0xFF4B5563),
-                            focusedLabelColor = Color(0xFF64B5F6),
-                            unfocusedLabelColor = Color(0xFF94A3B8),
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
+                            focusedBorderColor = Color(0xFF005AC1),
+                            unfocusedBorderColor = Color(0xFF64748B),
+                            focusedLabelColor = Color(0xFF005AC1),
+                            unfocusedLabelColor = Color(0xFF334155),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -246,12 +255,20 @@ fun TruckAssignmentDialog(
                 onClick = { onConfirmPlate(selectedPlate.trim().uppercase()) },
                 enabled = selectedPlate.isNotBlank() && !isLoading
             ) {
-                Text("OK", fontWeight = FontWeight.Bold)
+                Text(
+                    "OK",
+                    fontWeight = FontWeight.Bold,
+                    color = if (selectedPlate.isNotBlank() && !isLoading) Color(0xFF005AC1) else Color(0xFF94A3B8)
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCELAR")
+                Text(
+                    "CANCELAR",
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF475569)
+                )
             }
         }
     )
