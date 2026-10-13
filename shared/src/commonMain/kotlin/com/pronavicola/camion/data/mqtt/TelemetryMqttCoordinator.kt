@@ -3,7 +3,6 @@ package com.pronavicola.camion.data.mqtt
 import com.pronavicola.camion.util.Log
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.data.modbus.ModbusClient
-import com.pronavicola.camion.domain.model.ZoneStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,12 +14,11 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * Coordinates telemetry data gathering from ModbusClient and routes payloads
+ * Coordinates telemetry data gathering and routes payloads
  * through the OutboxQueueManager to EMQX MQTT topics using standard schema:
  * - furgones/{device_id}/telemetry
  * - furgones/{device_id}/location
  * - furgones/{device_id}/alarms
- * - furgones/{device_id}/status
  */
 class TelemetryMqttCoordinator(
     private val modbusClient: ModbusClient,
@@ -48,14 +46,7 @@ class TelemetryMqttCoordinator(
     fun start(deviceId: String = activeDeviceId) {
         activeDeviceId = deviceId
         stop()
-
-        coordinatorJob = scope.launch(ioDispatcher) {
-            startTelemetryPublishingLoop()
-        }
-
-        heartbeatJob = scope.launch(ioDispatcher) {
-            startHeartbeatLoop()
-        }
+        Log.i(tag, "TelemetryMqttCoordinator started for $activeDeviceId")
     }
 
     fun stop() {
@@ -81,6 +72,7 @@ class TelemetryMqttCoordinator(
 
     /**
      * Enqueues a single VariableRegistroEntity record to the MQTT outbox queue.
+     * Contains solely the physical telemetry variables: T1, T2, Humedad, Tension.
      */
     fun enqueueVariableRegistro(registro: VariableRegistroEntity) {
         val timestamp = parseDateToEpoch(registro.fecha)
@@ -91,17 +83,12 @@ class TelemetryMqttCoordinator(
             temperature2C = registro.temperatura2,
             humidityPct = registro.humedad,
             voltageV = registro.tension,
-            procesoActivo = true,
-            zonas = emptyList(),
-            estadoIrrigador = ZoneStatus.OFF,
-            damperActivo = false,
-            calefaccionActiva = false,
-            alarmas = emptyList(),
         )
         val topic = MqttTopics.telemetry(activeDeviceId)
-        Log.d(tag, "Enqueuing historical VariableRegistro for $activeDeviceId to $topic")
+        Log.d(tag, "Enqueuing VariableRegistro for $activeDeviceId to $topic (Fecha: ${registro.fecha})")
         scope.launch(ioDispatcher) {
             outboxManager.enqueue(topic, payload.toJson(), qos = 1)
+            evaluateLocalAlarms(registro.temperatura1, registro.temperatura2, registro.humedad, registro.tension)
         }
     }
 
@@ -137,77 +124,6 @@ class TelemetryMqttCoordinator(
             format.parse(dateStr)?.time ?: System.currentTimeMillis()
         } catch (_: Exception) {
             System.currentTimeMillis()
-        }
-    }
-
-    private suspend fun startTelemetryPublishingLoop() {
-        while (scope.isActive) {
-            try {
-                val isModbusConnected = modbusClient.isConnected.value
-                val t1 = modbusClient.temperatura1.value
-                val t2 = modbusClient.temperatura2.value
-                val hum = modbusClient.humedad.value
-                val vlt = modbusClient.tension.value
-                val proceso = modbusClient.procesoActivo.value
-                val zonas = modbusClient.zonas.value
-                val irrigator = modbusClient.estadoIrrigador.value
-                val damper = modbusClient.damperActivo.value
-                val calefaccion = modbusClient.calefaccionActiva.value
-                val alarmas = modbusClient.alarmasActivas.value
-
-                // Publish telemetry if connected AND has valid sensor readings
-                if (isModbusConnected && (t1 != null || t2 != null || hum != null)) {
-                    val payload = TelemetryMqttPayload(
-                        deviceId = activeDeviceId,
-                        temperatureC = t1,
-                        temperature2C = t2,
-                        humidityPct = hum,
-                        voltageV = vlt,
-                        procesoActivo = proceso,
-                        zonas = zonas,
-                        estadoIrrigador = irrigator,
-                        damperActivo = damper,
-                        calefaccionActiva = calefaccion,
-                        alarmas = alarmas,
-                    )
-                    val topic = MqttTopics.telemetry(activeDeviceId)
-                    Log.d(tag, "Enqueuing telemetry for $activeDeviceId to $topic")
-                    outboxManager.enqueue(topic, payload.toJson(), qos = 1)
-
-                    // Local alarm evaluation
-                    evaluateLocalAlarms(t1, t2, hum, vlt)
-                } else if (!isModbusConnected) {
-                    Log.v(
-                        tag,
-                        "Modbus disconnected: skipping telemetry publishing and alarm evaluations to avoid sending 0/stale values"
-                    )
-                } else {
-                    Log.v(tag, "No telemetry data to send (T1, T2, Hum are null)")
-                }
-            } catch (e: Exception) {
-                Log.w(tag, "Error during telemetry coordination tick: ${e.message}")
-            }
-
-            delay(samplingIntervalMs)
-        }
-    }
-
-    private suspend fun startHeartbeatLoop() {
-        while (scope.isActive) {
-            try {
-                val status = if (modbusClient.isConnected.value) "ONLINE" else "MODBUS_DISCONNECTED"
-                val payload = StatusMqttPayload(
-                    deviceId = activeDeviceId,
-                    status = status,
-                )
-                val topic = MqttTopics.status(activeDeviceId)
-                Log.d(tag, "Enqueuing heartbeat for $activeDeviceId to $topic (Status: $status)")
-                outboxManager.enqueue(topic, payload.toJson(), qos = 1)
-            } catch (e: Exception) {
-                Log.w(tag, "Error during heartbeat tick: ${e.message}")
-            }
-
-            delay(HEARTBEAT_INTERVAL_MS)
         }
     }
 

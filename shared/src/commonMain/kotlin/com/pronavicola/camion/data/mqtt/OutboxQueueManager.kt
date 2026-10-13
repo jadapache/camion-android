@@ -1,6 +1,7 @@
 package com.pronavicola.camion.data.mqtt
 
 import com.pronavicola.camion.data.local.dao.BuzonMqttDao
+import com.pronavicola.camion.data.local.dao.VariableRegistroDao
 import com.pronavicola.camion.data.local.entity.BuzonMqttEntity
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
@@ -17,12 +18,13 @@ import kotlinx.coroutines.sync.Mutex
 import java.util.UUID
 
 /**
- * Manages an offline-first persistent Room outbox buffer for telemetry, GPS, alarm, and status messages,
+ * Manages an offline-first persistent Room outbox buffer for telemetry, GPS, and alarm messages,
  * ensuring QoS 1 delivery across network interruptions and app restarts.
  */
 class OutboxQueueManager(
     private val mqttManager: MqttClientManager,
     private val buzonMqttDao: BuzonMqttDao,
+    private val variableRegistroDao: VariableRegistroDao? = null,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val maxQueueSize: Int = 10000,
@@ -126,6 +128,11 @@ class OutboxQueueManager(
                     break // Stop batch on network error
                 }
             }
+
+            // Once outbox messages are delivered to the broker, mark any pending SQLite records as Enviado
+            if (sentCount > 0) {
+                variableRegistroDao?.markAllPendingAsEnviado()
+            }
         } catch (e: Exception) {
             Log.e(tag, "Error during outbox drain: ${e.message}")
         } finally {
@@ -135,3 +142,4 @@ class OutboxQueueManager(
         return sentCount
     }
 }
+
