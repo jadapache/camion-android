@@ -61,6 +61,7 @@ import com.pronavicola.camion.presentation.navigation.CustomNavBar
 import com.pronavicola.camion.presentation.auth.components.UserSessionDialog
 import com.pronavicola.camion.presentation.config.ConfigScreen
 import com.pronavicola.camion.presentation.hmi.HmiScreen
+import com.pronavicola.camion.presentation.hmi.components.TruckAssignmentDialog
 import com.pronavicola.camion.presentation.parametros.ParametrosScreen
 import com.pronavicola.camion.presentation.registros.RegistrosScreen
 import com.pronavicola.camion.presentation.theme.CamionColors
@@ -137,6 +138,23 @@ fun CamionApp(
         }
     }
 
+    // Reload config when navigating to Config route, reload plate when navigating to HMI route
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == AppDestination.CONFIG.route) {
+            configViewModel.loadConfig()
+        } else if (currentRoute == AppDestination.HMI.route) {
+            hmiViewModel.reloadPlate()
+        }
+    }
+
+    // Keep HMI plate updated dynamically whenever config plate changes
+    LaunchedEffect(configState.furgonPlate) {
+        val plate = configState.furgonPlate.trim()
+        if (plate.isNotBlank()) {
+            hmiViewModel.updatePlate(plate)
+        }
+    }
+
     // Snackbar notifications
     LaunchedEffect(registrosState.statusMessage) {
         registrosState.statusMessage?.let { msg ->
@@ -148,6 +166,16 @@ fun CamionApp(
         configState.saveMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
             configViewModel.clearSaveMessage()
+        }
+    }
+    LaunchedEffect(configState.pairingError) {
+        configState.pairingError?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+    LaunchedEffect(configState.pairingSuccess) {
+        configState.pairingSuccess?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
         }
     }
     LaunchedEffect(configState.testMqttResult) {
@@ -223,6 +251,8 @@ fun CamionApp(
                             AppDestination.HMI.route -> {
                             HmiScreen(
                                 state = hmiState.hmiState,
+                                currentUser = authState.currentUser,
+                                onEditTruckPlate = { hmiViewModel.openTruckAssignmentDialog() },
                             )
                         }
                         AppDestination.REGISTROS.route -> {
@@ -258,9 +288,8 @@ fun CamionApp(
                             ConfigScreen(
                                 currentUser = user,
                                 deviceId = configState.deviceId,
-                                furgonPlate = configState.furgonPlate,
                                 mqttBrokerUrl = configState.brokerUrl,
-                                mqttTopicRoot = "furgones",
+                                mqttTopicRoot = configState.topicRoot,
                                 mqttUsername = configState.brokerUsername,
                                 mqttPassword = configState.brokerPassword,
                                 modbusHost = configState.modbusHost,
@@ -272,9 +301,10 @@ fun CamionApp(
                                 serverBaseUrl = configState.serverBaseUrl,
                                 pairingCode = configState.pairingCode,
                                 licenseStatus = configState.licenseStatus,
-                                licenseKeyInput = "",
+                                licenseKeyInput = configState.licenseKey,
                                 isPollingPairing = configState.isPairing,
-                                availableFurgones = emptyList(),
+                                pairingError = configState.pairingError,
+                                pairingSuccess = configState.pairingSuccess,
                                 modbusSimulationEnabled = false,
                                 mqttTransmittedPacketsCount = 0,
                                 mqttTestSuccessMessage = configState.testMqttResult,
@@ -282,24 +312,21 @@ fun CamionApp(
                                 mqttTestIsSuccess = configState.testMqttSuccess ?: false,
                                 mqttEventLogs = emptyList(),
                                 isTestingMqttConnection = configState.isTestingMqtt,
-                                onDeviceIdChange = configViewModel::onDeviceIdChange,
-                                onFurgonPlateChange = configViewModel::onFurgonPlateChange,
+                                onDeviceIdChange = { id -> configViewModel.onDeviceIdChange(id) },
                                 onMqttBrokerUrlChange = configViewModel::onBrokerUrlChange,
-                                onMqttTopicRootChange = {},
+                                onMqttTopicRootChange = configViewModel::onTopicRootChange,
                                 onMqttUsernameChange = configViewModel::onBrokerUsernameChange,
                                 onMqttPasswordChange = configViewModel::onBrokerPasswordChange,
                                 onModbusHostChange = configViewModel::onModbusHostChange,
                                 onModbusPortChange = configViewModel::onModbusPortChange,
                                 onPublishIntervalChange = configViewModel::onPublishIntervalChange,
                                 onModbusSimulationToggle = {},
-                                onServerBaseUrlChange = {},
-                                onLicenseKeyInputChange = {},
+                                onServerBaseUrlChange = configViewModel::onServerBaseUrlChange,
+                                onLicenseKeyInputChange = configViewModel::onLicenseKeyInputChange,
                                 onRequestPairingCode = configViewModel::requestPairingCode,
                                 onCheckPairingStatus = configViewModel::checkPairingStatus,
-                                onActivateLicenseKey = {},
-                                onFetchFurgones = {},
-                                onSelectFurgon = {},
-                                onUnlinkDevice = {},
+                                onActivateLicenseKey = configViewModel::activateLicenseKey,
+                                onUnlinkDevice = configViewModel::unlinkDevice,
                                 onTestMqttConnection = configViewModel::testMqttConnection,
                                 onNavigateToSimulation = { currentRoute = AppDestination.SIMULACION.route },
                                 onSaveSystemSettings = {
@@ -409,6 +436,22 @@ fun CamionApp(
                 }
             },
             onDismiss = { authViewModel.closeUserDialog() },
+        )
+    }
+
+    if (hmiState.showTruckAssignmentDialog) {
+        TruckAssignmentDialog(
+            currentPlate = hmiState.furgonPlate,
+            availableFurgones = hmiState.availableFurgones,
+            isLoading = hmiState.isLoadingFurgones,
+            errorMessage = hmiState.furgonAssignmentError,
+            onDismiss = { hmiViewModel.closeTruckAssignmentDialog() },
+            onConfirmPlate = { plate ->
+                hmiViewModel.assignTruckPlate(plate)
+                configViewModel.updateAssignedPlate(plate)
+                configViewModel.loadConfig()
+            },
+            onRefreshFurgones = { hmiViewModel.fetchAvailableFurgones() },
         )
     }
 }

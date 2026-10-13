@@ -42,6 +42,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -85,7 +86,6 @@ import com.pronavicola.camion.presentation.theme.CamionColors
 fun ConfigScreen(
     currentUser: SessionUser,
     deviceId: String,
-    furgonPlate: String = "",
     mqttBrokerUrl: String,
     mqttTopicRoot: String = "furgones",
     mqttUsername: String,
@@ -101,7 +101,8 @@ fun ConfigScreen(
     licenseStatus: String,
     licenseKeyInput: String,
     isPollingPairing: Boolean,
-    availableFurgones: List<FurgonInfo>,
+    pairingError: String? = null,
+    pairingSuccess: String? = null,
     modbusSimulationEnabled: Boolean = false,
     mqttTransmittedPacketsCount: Int = 0,
     mqttTestSuccessMessage: String? = null,
@@ -110,7 +111,6 @@ fun ConfigScreen(
     mqttEventLogs: List<MqttLogEvent> = emptyList(),
     isTestingMqttConnection: Boolean = false,
     onDeviceIdChange: (String) -> Unit = {},
-    onFurgonPlateChange: (String) -> Unit = {},
     onMqttBrokerUrlChange: (String) -> Unit,
     onMqttTopicRootChange: (String) -> Unit = {},
     onMqttUsernameChange: (String) -> Unit,
@@ -124,8 +124,6 @@ fun ConfigScreen(
     onRequestPairingCode: () -> Unit,
     onCheckPairingStatus: () -> Unit,
     onActivateLicenseKey: () -> Unit,
-    onFetchFurgones: () -> Unit,
-    onSelectFurgon: (String) -> Unit,
     onUnlinkDevice: () -> Unit,
     onTestMqttConnection: () -> Unit = {},
     onNavigateToSimulation: () -> Unit = {},
@@ -229,93 +227,37 @@ fun ConfigScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                // Associated Furgon Selector
-                if (licenseStatus == "ACTIVE") {
-                    var isManualFurgonEntry by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (isManualFurgonEntry) {
-                            OutlinedTextField(
-                                value = furgonPlate,
-                                onValueChange = onFurgonPlateChange,
-                                label = { Text("Placa de Furgón (Manual)") },
-                                colors = outlinedTextFieldColors(),
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
-                        } else {
-                            var furgonExpanded by remember { mutableStateOf(false) }
-                            val selectedFurgon = availableFurgones.firstOrNull { it.plate == furgonPlate }
 
-                            ExposedDropdownMenuBox(
-                                expanded = furgonExpanded,
-                                onExpandedChange = {
-                                    furgonExpanded = !furgonExpanded
-                                    if (furgonExpanded) onFetchFurgones()
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" }
-                                        ?: furgonPlate.ifBlank { "Sin Furgón Asignado" },
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Furgón Asignado en Web") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = furgonExpanded) },
-                                    colors = outlinedTextFieldColors(),
-                                    modifier = Modifier.menuAnchor(
-                                        ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                        true
-                                    ).fillMaxWidth(),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = furgonExpanded,
-                                    onDismissRequest = { furgonExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF2C2C2C))
-                                ) {
-                                    if (availableFurgones.isEmpty()) {
-                                        DropdownMenuItem(text = {
-                                            Text(
-                                                "Cargando o sin furgones...",
-                                                color = Color.Gray
-                                            )
-                                        }, onClick = { furgonExpanded = false })
-                                    } else {
-                                        availableFurgones.forEach { furgon ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        "${furgon.plate} - ${furgon.brand ?: "Furgón"}",
-                                                        color = Color.White
-                                                    )
-                                                },
-                                                onClick = {
-                                                    onSelectFurgon(furgon.id)
-                                                    furgonExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        IconButton(
-                            onClick = { isManualFurgonEntry = !isManualFurgonEntry },
-                            modifier = Modifier.background(Color(0xFF2A2A2A), CircleShape)
+                if (licenseStatus == "ACTIVE") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (isManualFurgonEntry) Icons.Default.CloudSync else Icons.Default.Edit,
-                                contentDescription = "Alternar modo",
-                                tint = Color.White
+                            Text(
+                                text = "DEVICE ID VINCULADO:",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = deviceId.ifBlank { "SIN_ID" },
+                                color = Color(0xFF64B5F6),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
                             )
                         }
                     }
-                }
 
-                if (licenseStatus == "ACTIVE") {
                     Button(
                         onClick = onUnlinkDevice,
                         modifier = Modifier.fillMaxWidth(),
@@ -390,19 +332,91 @@ fun ConfigScreen(
                             onClick = onCheckPairingStatus,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1)),
+                            enabled = !isPollingPairing
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                if (isPollingPairing) "SONDEANDO..." else "VERIFICAR",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
+                            if (isPollingPairing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("VERIFICANDO...", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "VERIFICAR",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+
+                    if (!pairingError.isNullOrBlank()) {
+                        val isNoRecord = pairingError.contains("No se encontró registro previo", ignoreCase = true)
+                        val bannerBg = if (isNoRecord) Color(0xFF1E293B) else Color(0xFF3B1219)
+                        val bannerBorder = if (isNoRecord) Color(0xFF0288D1) else Color(0xFFB71C1C)
+                        val bannerText = if (isNoRecord) Color(0xFF90CAF9) else Color(0xFFFF8A80)
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = bannerBg,
+                            border = BorderStroke(1.dp, bannerBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    tint = bannerText,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = pairingError,
+                                    color = bannerText,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    if (!pairingSuccess.isNullOrBlank()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF0D2818),
+                            border = BorderStroke(1.dp, Color(0xFF2E7D32))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF81C784),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = pairingSuccess,
+                                    color = Color(0xFF81C784),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
 
@@ -415,7 +429,8 @@ fun ConfigScreen(
                         OutlinedTextField(
                             value = licenseKeyInput,
                             onValueChange = onLicenseKeyInputChange,
-                            label = { Text("CLAVE DE REGISTRO (FRGN-XXXX-XXXX-XXXX)") },
+                            label = { Text("CLAVE DE REGISTRO") },
+                            placeholder = { Text("FRGN-XXXX-XXXX-XXXX", color = Color.Gray) },
                             colors = outlinedTextFieldColors(),
                             modifier = Modifier.weight(1.8f),
                             singleLine = true
@@ -556,16 +571,6 @@ fun ConfigScreen(
                     onValueChange = onMqttBrokerUrlChange,
                     label = { Text("Broker URL") },
                     placeholder = { Text("furgones.emqx.io:1883", color = Color.Gray) },
-                    colors = outlinedTextFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = mqttTopicRoot,
-                    onValueChange = onMqttTopicRootChange,
-                    label = { Text("MQTT Topic Root") },
-                    placeholder = { Text("furgones") },
                     colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true

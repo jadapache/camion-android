@@ -63,6 +63,9 @@ class SaveAppConfigUseCase(
         publishInterval: String? = null,
         deviceId: String? = null,
         furgonPlate: String? = null,
+        topicRoot: String? = null,
+        serverBaseUrl: String? = null,
+        licenseKey: String? = null,
     ) = withContext(Dispatchers.Default) {
         brokerUrl?.let { appConfigRepository.saveBrokerUrl(it) }
         brokerUsername?.let { appConfigRepository.saveBrokerUsername(it) }
@@ -72,6 +75,9 @@ class SaveAppConfigUseCase(
         publishInterval?.let { appConfigRepository.savePublishInterval(it) }
         deviceId?.let { appConfigRepository.saveDeviceId(it) }
         furgonPlate?.let { appConfigRepository.saveFurgonPlate(it) }
+        topicRoot?.let { appConfigRepository.saveTopicRoot(it) }
+        serverBaseUrl?.let { appConfigRepository.saveServerBaseUrl(it) }
+        licenseKey?.let { appConfigRepository.saveLicenseKey(it) }
     }
 }
 
@@ -234,6 +240,12 @@ class PairDeviceUseCase(
 
     suspend fun activateLicenseKey(serverUrl: String, licenseKey: String): Result<Boolean> =
         devicePairingRepository.activateLicenseKey(serverUrl, licenseKey)
+
+    suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?, deviceId: String? = null): Result<List<com.pronavicola.camion.data.remote.FurgonInfo>> =
+        devicePairingRepository.getAvailableFurgones(serverUrl, deviceToken, deviceId)
+
+    suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String, plate: String? = null): Result<String> =
+        devicePairingRepository.updateAssociatedFurgon(serverUrl, deviceToken, furgonId, plate)
 
     suspend fun unpairDevice(serverUrl: String, deviceToken: String?): Result<Unit> =
         devicePairingRepository.unpairDevice(serverUrl, deviceToken)

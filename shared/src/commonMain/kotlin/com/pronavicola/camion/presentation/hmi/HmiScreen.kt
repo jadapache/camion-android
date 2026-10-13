@@ -23,6 +23,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.model.HmiHistoryPoint
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ZoneStatus
@@ -35,8 +38,12 @@ import java.util.Locale
 @Composable
 fun HmiScreen(
     state: HmiState,
+    currentUser: SessionUser? = null,
+    onEditTruckPlate: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val canEditTruckPlate = currentUser?.idPerfil in listOf(0, 1, 2)
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -51,6 +58,8 @@ fun HmiScreen(
         ) {
             TruckHmiLayout(
                 state = state,
+                canEditTruckPlate = canEditTruckPlate,
+                onEditTruckPlate = onEditTruckPlate,
                 modifier = Modifier
                     .fillMaxHeight(0.96f)
                     .aspectRatio(730f / 420f)
@@ -77,6 +86,8 @@ fun HmiScreen(
 @Composable
 private fun TruckHmiLayout(
     state: HmiState,
+    canEditTruckPlate: Boolean = false,
+    onEditTruckPlate: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
@@ -94,23 +105,43 @@ private fun TruckHmiLayout(
                 contentScale = ContentScale.FillBounds
             )
 
-            // License Plate ("AAA000") on door
-            Box(
+            // License Plate ("AAA000") on door with edit button right next to it
+            Row(
                 modifier = Modifier
-                    .offset(x = w * 0.134f, y = h * 0.576f)
-                    .width(w * 0.098f)
-                    .height(h * 0.068f)
-                    .background(Color(0xFFECECEC), RoundedCornerShape(1.dp))
-                    .border(1.dp, Color(0xFF888888), RoundedCornerShape(1.dp)),
-                contentAlignment = Alignment.Center
+                    .offset(x = w * 0.134f, y = h * 0.574f),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = state.idVehiculo,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 0.5.sp
-                )
+                Box(
+                    modifier = Modifier
+                        .width(w * 0.098f)
+                        .height(h * 0.068f)
+                        .background(Color(0xFFECECEC), RoundedCornerShape(2.dp))
+                        .border(1.dp, Color(0xFF888888), RoundedCornerShape(2.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = state.idVehiculo,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                if (canEditTruckPlate) {
+                    Spacer(modifier = Modifier.width(3.dp))
+                    IconButton(
+                        onClick = onEditTruckPlate,
+                        modifier = Modifier.size(h * 0.068f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Editar placa de camión",
+                            tint = Color.Black,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
             }
 
             // Damper (Angled Green Bar in Front Section)
