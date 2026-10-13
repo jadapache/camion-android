@@ -43,9 +43,7 @@ class ResendRegistroUseCase(
         val topic = "furgones/$deviceId/telemetry"
         val payload = BuildTelemetryPayloadUseCase()(registro, deviceId)
         val success = mqttRepository.publish(topic, payload, qos = 1)
-        if (success) {
-            registrosRepository.updateEstadoEnvioByFecha(registro.fecha, "Enviado")
-        } else {
+        if (!success) {
             mqttRepository.enqueueOutbox(topic, payload, qos = 1)
         }
         return success
@@ -80,9 +78,9 @@ class BuildTelemetryPayloadUseCase {
 class ExportRegistrosCsvUseCase {
     operator fun invoke(data: List<VariableRegistroEntity>): String {
         val sb = StringBuilder()
-        sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,Tension,EstadoEnvio\n")
+        sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,Tension\n")
         data.forEach { r ->
-            sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension},\"${r.estadoEnvio}\"\n")
+            sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension}\n")
         }
         return sb.toString()
     }

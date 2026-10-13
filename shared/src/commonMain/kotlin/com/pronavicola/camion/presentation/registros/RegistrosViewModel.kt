@@ -27,7 +27,6 @@ data class RegistrosUiState(
     val filterFechaDesde: String = "",
     val filterFechaHasta: String = "",
     val filterPlaca: String = "",
-    val filterEstado: String = "TODOS", // TODOS, ENVIADO, PENDIENTE
     val sortColumn: SortColumn = SortColumn.NONE,
     val sortDirection: SortDirection = SortDirection.NONE,
     val selectedRegistroForPayload: VariableRegistroEntity? = null,
@@ -63,12 +62,7 @@ data class RegistrosUiState(
                     else -> true
                 }
                 val matchesPlaca = filterPlaca.isBlank() || r.idVehiculo.toString().contains(filterPlaca, ignoreCase = true)
-                val matchesEstado = when (filterEstado) {
-                    "ENVIADO" -> r.estadoEnvio.equals("Enviado", ignoreCase = true)
-                    "PENDIENTE" -> !r.estadoEnvio.equals("Enviado", ignoreCase = true)
-                    else -> true
-                }
-                matchesFecha && matchesPlaca && matchesEstado
+                matchesFecha && matchesPlaca
             }
 
             if (sortColumn != SortColumn.NONE && sortDirection != SortDirection.NONE) {
@@ -78,7 +72,6 @@ data class RegistrosUiState(
                     SortColumn.T2 -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.temperatura2 } else result.sortedByDescending { it.temperatura2 }
                     SortColumn.HUM -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.humedad } else result.sortedByDescending { it.humedad }
                     SortColumn.TENSION -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.tension } else result.sortedByDescending { it.tension }
-                    SortColumn.ESTADO -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.estadoEnvio } else result.sortedByDescending { it.estadoEnvio }
                     else -> result
                 }
             }
@@ -113,7 +106,7 @@ data class RegistrosUiState(
 }
 
 enum class SortColumn {
-    FECHA, T1, T2, HUM, TENSION, ESTADO, NONE
+    FECHA, T1, T2, HUM, TENSION, NONE
 }
 
 enum class SortDirection {
@@ -198,17 +191,12 @@ class RegistrosViewModel(
         _uiState.update { it.copy(filterPlaca = placa, currentPage = 1) }
     }
 
-    fun setFilterEstado(estado: String) {
-        _uiState.update { it.copy(filterEstado = estado, currentPage = 1) }
-    }
-
     fun clearFilters() {
         _uiState.update {
             it.copy(
                 filterFechaDesde = "",
                 filterFechaHasta = "",
                 filterPlaca = "",
-                filterEstado = "TODOS",
                 currentPage = 1,
             )
         }

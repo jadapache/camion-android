@@ -50,7 +50,7 @@ import com.pronavicola.camion.data.local.entity.VehiculoEntity
         VariableRegistroEntity::class,
     ],
     version = 1,
-    exportSchema = false,
+    exportSchema = true,
 )
 @ConstructedBy(FurgonesDatabaseConstructor::class)
 abstract class FurgonesDatabase : RoomDatabase() {

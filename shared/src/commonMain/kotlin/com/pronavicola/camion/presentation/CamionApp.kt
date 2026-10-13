@@ -260,8 +260,10 @@ fun CamionApp(
                                 currentUser = authState.currentUser,
                                 registros = registrosState.registros,
                                 deviceId = registrosState.deviceId,
-                                onResendRegistro = { registro -> registrosViewModel.resendRegistro(registro) },
                                 onClearAllRegistros = { authState.currentUser?.let { registrosViewModel.clearAllRegistros(it) } },
+                                onExportCsv = { fileName, content ->
+                                    appContext.platformCsvSharer.shareCsv(fileName, content)
+                                },
                             )
                         }
                         AppDestination.PARAMETROS.route -> {
@@ -282,6 +284,9 @@ fun CamionApp(
                                     factory = CamionViewModelFactory(appContext),
                                 ),
                                 currentUser = authState.currentUser,
+                                onExportCsv = { fileName, content ->
+                                    appContext.platformCsvSharer.shareCsv(fileName, content)
+                                },
                             )
                         }
                         AppDestination.CONFIG.route -> {

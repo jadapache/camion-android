@@ -61,6 +61,8 @@ import com.pronavicola.camion.domain.usecase.simulation.UpdateSimulationParamsUs
 import com.pronavicola.camion.service.ModbusPollingCoordinator
 import com.pronavicola.camion.util.PlatformInfoProvider
 import com.pronavicola.camion.util.getPlatformInfoProvider
+import com.pronavicola.camion.util.PlatformCsvSharer
+import com.pronavicola.camion.util.getPlatformCsvSharer
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -85,6 +87,10 @@ class AppContainer(
 
     val platformInfoProvider: PlatformInfoProvider by lazy {
         getPlatformInfoProvider(platformContext)
+    }
+
+    val platformCsvSharer: PlatformCsvSharer by lazy {
+        getPlatformCsvSharer(platformContext)
     }
 
     val screensApiService: ScreensApiService by lazy {

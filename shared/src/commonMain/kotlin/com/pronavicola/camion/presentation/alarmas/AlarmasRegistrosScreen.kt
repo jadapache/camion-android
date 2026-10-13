@@ -23,11 +23,10 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,7 +37,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -49,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,14 +57,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.usecase.alarmas.AlarmaRegistroUiModel
 import com.pronavicola.camion.presentation.theme.CamionColors
@@ -72,28 +67,60 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.ceil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmasRegistrosScreen(
     viewModel: AlarmasRegistrosViewModel,
     currentUser: SessionUser? = null,
+    onExportCsv: (fileName: String, csvContent: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
     var exportStatusMessage by remember { mutableStateOf<String?>(null) }
 
     // Filtering State
     var showDatePickerFor by remember { mutableStateOf<String?>(null) } // "DESDE", "HASTA" or null
     var showFiltersPanel by remember { mutableStateOf(false) }
 
+    // Pagination State
+    var currentPage by remember { mutableStateOf(1) }
+    var pageSize by remember { mutableStateOf(25) }
+    val pageSizeOptions = remember { listOf(15, 25, 50, 100) }
+
     // Roles permitted to clean records: Desarrollador (0), Administrador (1), Supervisor (2)
     val canClearRecords = currentUser != null && currentUser.idPerfil in listOf(0, 1, 2)
 
     val displayedAlarmas = uiState.filteredAlarmas
+    val totalRecords = displayedAlarmas.size
+    val totalPages = remember(totalRecords, pageSize) {
+        maxOf(1, ceil(totalRecords.toDouble() / pageSize).toInt())
+    }
+
+    // Reset page to 1 whenever filters or pageSize change
+    LaunchedEffect(uiState.filterFechaDesde, uiState.filterFechaHasta, uiState.filterEstado, pageSize) {
+        currentPage = 1
+    }
+
+    LaunchedEffect(totalPages) {
+        if (currentPage > totalPages) {
+            currentPage = totalPages
+        }
+    }
+
+    val validCurrentPage = currentPage.coerceIn(1, totalPages)
+
+    // Paginated slice for current page
+    val paginatedAlarmas = remember(displayedAlarmas, validCurrentPage, pageSize) {
+        val offset = (validCurrentPage - 1) * pageSize
+        displayedAlarmas.drop(offset).take(pageSize)
+    }
+
+    val fromRecord = if (totalRecords == 0) 0 else ((validCurrentPage - 1) * pageSize) + 1
+    val toRecord = minOf(validCurrentPage * pageSize, totalRecords)
 
     Column(
         modifier = modifier
@@ -116,7 +143,7 @@ fun AlarmasRegistrosScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "${displayedAlarmas.size} de ${uiState.alarmas.size} alarmas registradas",
+                    text = "$totalRecords de ${uiState.alarmas.size} alarmas encontradas • Pág $validCurrentPage de $totalPages",
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 12.sp,
                 )
@@ -145,9 +172,15 @@ fun AlarmasRegistrosScreen(
                     Text("Filtros", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
 
-                // Export CSV Button
+                // Export CSV Button (Genera el archivo temporal y abre el selector nativo de Android)
                 Button(
-                    onClick = { showExportDialog = true },
+                    onClick = {
+                        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        val fileName = "alarmas_registros_$timestamp.csv"
+                        val csvContent = generateAlarmasCsv(displayedAlarmas)
+                        onExportCsv(fileName, csvContent)
+                        exportStatusMessage = "Exportando $totalRecords alarmas a CSV..."
+                    },
                     shape = RoundedCornerShape(4.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
                 ) {
@@ -181,7 +214,7 @@ fun AlarmasRegistrosScreen(
             }
         }
 
-        // Status Toast Banner (e.g. CSV exported or records cleared)
+        // Status Toast Banner
         val activeStatusMsg = exportStatusMessage ?: uiState.statusMessage
         if (activeStatusMsg != null) {
             Card(
@@ -357,7 +390,19 @@ fun AlarmasRegistrosScreen(
                                 FilterChip(
                                     selected = selected,
                                     onClick = { viewModel.setFilterEstado(estado) },
-                                    label = { Text(estado, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
+                                    label = {
+                                        Text(
+                                            text = estado,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = Color(0xFFF0F4F8),
+                                        labelColor = Color(0xFF333333),
+                                        selectedContainerColor = CamionColors.headerBackground,
+                                        selectedLabelColor = Color.White
+                                    )
                                 )
                             }
                         }
@@ -432,25 +477,54 @@ fun AlarmasRegistrosScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f)
                         .background(Color.White)
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = if (uiState.alarmas.isEmpty()) "No hay alarmas registradas en el histórico" else "No se encontraron alarmas con los filtros seleccionados",
-                        color = Color.Gray,
-                        fontSize = 14.sp
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.WarningAmber,
+                            contentDescription = null,
+                            tint = Color.Gray,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = if (uiState.alarmas.isEmpty()) "No hay alarmas registradas en el histórico." else "No se encontraron alarmas con los filtros seleccionados.",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(displayedAlarmas) { alarma ->
+                    items(paginatedAlarmas) { alarma ->
                         AlarmaRegistroRow(alarma)
                     }
                 }
+
+                PaginationBar(
+                    currentPage = validCurrentPage,
+                    totalPages = totalPages,
+                    pageSize = pageSize,
+                    totalRecords = totalRecords,
+                    fromRecord = fromRecord,
+                    toRecord = toRecord,
+                    pageSizeOptions = pageSizeOptions,
+                    onPageChange = { newPage ->
+                        currentPage = newPage
+                    },
+                    onPageSizeChange = { newSize ->
+                        pageSize = newSize
+                        currentPage = 1
+                    }
+                )
             }
         }
     }
@@ -487,18 +561,6 @@ fun AlarmasRegistrosScreen(
         ) {
             DatePicker(state = datePickerState)
         }
-    }
-
-    // --- EXPORT CSV DIALOG ---
-    if (showExportDialog) {
-        ExportAlarmasCsvDialog(
-            alarmas = displayedAlarmas,
-            onDismiss = { showExportDialog = false },
-            onExportSuccess = { savedPath ->
-                exportStatusMessage = "Archivo CSV guardado con éxito en: $savedPath"
-                showExportDialog = false
-            }
-        )
     }
 
     // --- CONFIRMATION DIALOG: CLEAR RECORDS ---
@@ -598,361 +660,168 @@ private fun AlarmaRegistroRow(alarma: AlarmaRegistroUiModel) {
     }
 }
 
+private fun generateAlarmasCsv(alarmas: List<AlarmaRegistroUiModel>): String {
+    val sb = StringBuilder()
+    sb.appendLine("IdAlarma,Alarma,IdVehiculo,IdViaje,HoraInicio,HoraFin,Estado")
+    alarmas.forEach { a ->
+        val safeDesc = a.alarmaDescripcion.replace("\"", "\"\"")
+        val fin = if (a.horaFin.isBlank()) "-" else a.horaFin
+        sb.appendLine("${a.idAlarma},\"$safeDesc\",${a.idVehiculo},${a.idViaje},\"${a.horaInicio}\",\"$fin\",\"${a.estado ?: ""}\"")
+    }
+    return sb.toString()
+}
+
 @Composable
-private fun ExportAlarmasCsvDialog(
-    alarmas: List<AlarmaRegistroUiModel>,
-    onDismiss: () -> Unit,
-    onExportSuccess: (String) -> Unit,
+private fun PaginationBar(
+    currentPage: Int,
+    totalPages: Int,
+    pageSize: Int,
+    totalRecords: Int,
+    fromRecord: Int,
+    toRecord: Int,
+    pageSizeOptions: List<Int>,
+    onPageChange: (Int) -> Unit,
+    onPageSizeChange: (Int) -> Unit,
 ) {
-    val clipboardManager = LocalClipboardManager.current
-    val timestamp = remember {
-        SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    }
-    var fileName by remember { mutableStateOf("Alarmas_$timestamp.csv") }
-    var folderPath by remember { mutableStateOf(getDefaultExportDirectory()) }
-    var saveError by remember { mutableStateOf<String?>(null) }
-    var saveSuccessMessage by remember { mutableStateOf<String?>(null) }
-
-    val csvContent = remember(alarmas) {
-        val sb = StringBuilder()
-        sb.appendLine("IdAlarma,Alarma,IdVehiculo,IdViaje,HoraInicio,HoraFin,Estado")
-        alarmas.forEach { a ->
-            val safeDesc = a.alarmaDescripcion.replace("\"", "\"\"")
-            val fin = if (a.horaFin.isBlank()) "-" else a.horaFin
-            sb.appendLine("${a.idAlarma},\"$safeDesc\",${a.idVehiculo},${a.idViaje},\"${a.horaInicio}\",\"$fin\",\"${a.estado ?: ""}\"")
-        }
-        sb.toString()
-    }
-
-    val previewLines = remember(csvContent) {
-        csvContent.lines().take(5).joinToString("\n")
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(containerColor = CamionColors.headerBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Surface(
+        Row(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .padding(16.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF0A1220),
-            border = BorderStroke(1.dp, Color(0xFF1E3A5F)),
-            shadowElevation = 8.dp
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.FileDownload,
-                            contentDescription = null,
-                            tint = Color(0xFF00E676),
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "EXPORTAR HISTÓRICO DE ALARMAS A CSV",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cerrar",
-                            tint = Color.Gray,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
-
-                // Summary banner
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF0F223D), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Alarmas a exportar: ${alarmas.size}",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Formato: CSV (UTF-8)",
-                        color = Color(0xFF64B5F6),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                // File Name Input
-                OutlinedTextField(
-                    value = fileName,
-                    onValueChange = {
-                        fileName = it
-                        saveError = null
-                        saveSuccessMessage = null
-                    },
-                    label = { Text("Nombre del Archivo", fontSize = 12.sp, color = Color(0xFF90CAF9)) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF64B5F6),
-                        unfocusedBorderColor = Color(0xFF1E3A5F),
-                        focusedContainerColor = Color(0xFF040811),
-                        unfocusedContainerColor = Color(0xFF040811),
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+            // Left: Summary Text
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Mostrando $fromRecord - $toRecord de $totalRecords registros",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
                 )
+            }
 
-                // Folder Path Input
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    OutlinedTextField(
-                        value = folderPath,
-                        onValueChange = {
-                            folderPath = it
-                            saveError = null
-                            saveSuccessMessage = null
-                        },
-                        label = { Text("Ruta / Carpeta de Destino", fontSize = 12.sp, color = Color(0xFF90CAF9)) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color(0xFF64B5F6),
-                            unfocusedBorderColor = Color(0xFF1E3A5F),
-                            focusedContainerColor = Color(0xFF040811),
-                            unfocusedContainerColor = Color(0xFF040811),
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Quick directory buttons
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Rutas sugeridas:", color = Color.Gray, fontSize = 11.sp)
-                        val quickPaths = getQuickDirectoryOptions()
-                        quickPaths.forEach { (label, path) ->
-                            Text(
-                                text = "[$label]",
-                                color = Color(0xFF64B5F6),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable { folderPath = path }
-                                    .padding(vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                // CSV Preview
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Vista previa del encabezado y primeras filas:",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 11.sp
-                    )
+            // Center: Page Size Selector
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Filas:",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 11.sp
+                )
+                pageSizeOptions.forEach { size ->
+                    val isSelected = size == pageSize
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFF040811),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                        shape = RoundedCornerShape(3.dp),
+                        color = if (isSelected) Color(0xFF005AC1) else Color(0xFF0A1E34),
+                        border = BorderStroke(1.dp, if (isSelected) Color(0xFF64B5F6) else Color(0xFF1E3A5F)),
+                        modifier = Modifier
+                            .clickable { onPageSizeChange(size) }
+                            .padding(1.dp)
                     ) {
                         Text(
-                            text = previewLines + if (alarmas.size > 4) "\n..." else "",
-                            fontFamily = FontFamily.Monospace,
+                            text = size.toString(),
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
                             fontSize = 11.sp,
-                            color = Color(0xFF00E676),
-                            modifier = Modifier.padding(10.dp),
-                            maxLines = 6
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         )
                     }
                 }
+            }
 
-                // Error Message if failed
-                if (saveError != null) {
-                    Text(
-                        text = "Error al guardar: $saveError",
-                        color = Color(0xFFEF5350),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+            // Right: Navigation Buttons
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // First Page (|<)
+                Button(
+                    onClick = { onPageChange(1) },
+                    enabled = currentPage > 1,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("|<", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (currentPage > 1) Color.White else Color.Gray)
                 }
 
-                // Success Message
-                if (saveSuccessMessage != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = Color(0xFF00E676),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
+                // Prev Page (<)
+                Button(
+                    onClick = { onPageChange(currentPage - 1) },
+                    enabled = currentPage > 1,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("< Ant", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (currentPage > 1) Color.White else Color.Gray)
+                }
+
+                // Page Indicator Badge
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFF0A1E34),
+                    border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    ) {
                         Text(
-                            text = saveSuccessMessage ?: "",
-                            color = Color(0xFF00E676),
-                            fontSize = 12.sp,
+                            text = "Pág $currentPage de $totalPages",
+                            color = Color.White,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
-
-                // Action Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Next Page (>)
+                Button(
+                    onClick = { onPageChange(currentPage + 1) },
+                    enabled = currentPage < totalPages,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
                 ) {
-                    // Copy to clipboard fallback button
-                    OutlinedButton(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(csvContent))
-                            saveSuccessMessage = "CSV copiado al portapapeles"
-                            saveError = null
-                        },
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color(0xFF1E3A5F))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Copiar Texto", color = Color.White, fontSize = 12.sp)
-                    }
+                    Text("Sig >", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (currentPage < totalPages) Color.White else Color.Gray)
+                }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B))
-                        ) {
-                            Text("Cancelar", color = Color.White, fontSize = 12.sp)
-                        }
-
-                        Button(
-                            onClick = {
-                                val cleanFileName = if (fileName.endsWith(".csv", ignoreCase = true)) fileName else "$fileName.csv"
-                                val result = saveCsvToFile(folderPath.trim(), cleanFileName.trim(), csvContent)
-                                if (result.isSuccess) {
-                                    val savedPath = result.getOrNull() ?: "$folderPath/$cleanFileName"
-                                    saveSuccessMessage = "Guardado con éxito en: $savedPath"
-                                    saveError = null
-                                    onExportSuccess(savedPath)
-                                } else {
-                                    saveError = result.exceptionOrNull()?.message ?: "No se pudo escribir en el directorio seleccionado"
-                                }
-                            },
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Save,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Guardar Archivo", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
-                        }
-                    }
+                // Last Page (>|)
+                Button(
+                    onClick = { onPageChange(totalPages) },
+                    enabled = currentPage < totalPages,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text(">|", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (currentPage < totalPages) Color.White else Color.Gray)
                 }
             }
         }
-    }
-}
-
-private fun getDefaultExportDirectory(): String {
-    val candidates = listOf(
-        "/sdcard/Download",
-        "/storage/emulated/0/Download",
-        System.getProperty("user.home")?.let { "$it/Downloads" },
-        System.getProperty("user.home")?.let { "$it/Documents" },
-        "."
-    ).filterNotNull()
-
-    for (path in candidates) {
-        val f = java.io.File(path)
-        if (f.exists() && f.canWrite()) {
-            return f.absolutePath
-        }
-    }
-    return candidates.firstOrNull() ?: "/sdcard/Download"
-}
-
-private fun getQuickDirectoryOptions(): List<Pair<String, String>> {
-    val options = mutableListOf<Pair<String, String>>()
-    val sdDownload = java.io.File("/sdcard/Download")
-    if (sdDownload.exists()) {
-        options.add("Descargas" to "/sdcard/Download")
-    }
-    val emulated = java.io.File("/storage/emulated/0/Download")
-    if (emulated.exists() && !options.any { it.second == emulated.absolutePath }) {
-        options.add("Descargas" to "/storage/emulated/0/Download")
-    }
-    val home = System.getProperty("user.home")
-    if (!home.isNullOrBlank()) {
-        val dl = java.io.File(home, "Downloads")
-        if (dl.exists() || options.isEmpty()) {
-            options.add("Descargas" to dl.absolutePath)
-        }
-        val docs = java.io.File(home, "Documentos")
-        val docsEn = java.io.File(home, "Documents")
-        if (docs.exists()) {
-            options.add("Documentos" to docs.absolutePath)
-        } else if (docsEn.exists()) {
-            options.add("Documentos" to docsEn.absolutePath)
-        }
-    }
-    if (options.isEmpty()) {
-        options.add("Descargas" to "/sdcard/Download")
-        options.add("Almacenamiento" to "/sdcard")
-    }
-    return options.distinctBy { it.second }
-}
-
-private fun saveCsvToFile(directoryPath: String, fileName: String, csvContent: String): Result<String> {
-    return try {
-        val dir = java.io.File(directoryPath)
-        if (!dir.exists()) {
-            val created = dir.mkdirs()
-            if (!created && !dir.exists()) {
-                return Result.failure(Exception("No se pudo crear la carpeta: $directoryPath"))
-            }
-        }
-        val file = java.io.File(dir, fileName)
-        file.writeText(csvContent, Charsets.UTF_8)
-        Result.success(file.absolutePath)
-    } catch (e: Exception) {
-        Result.failure(e)
     }
 }

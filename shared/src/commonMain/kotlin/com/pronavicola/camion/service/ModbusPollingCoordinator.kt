@@ -83,12 +83,11 @@ class ModbusPollingCoordinator(
                             temperatura2 = t2 ?: 0.0,
                             humedad = hum ?: 0.0,
                             tension = tension ?: 0.0,
-                            estadoEnvio = if (isMqttConnected) "Enviado" else "Pendiente",
                         )
 
                         // 1. Persist to local SQLite database
                         registrosRepository.saveRegistro(registro)
-                        Log.d(tag, "Saved telemetry record to SQLite: T1=$t1, T2=$t2, Hum=$hum, Tension=$tension, Estado=${registro.estadoEnvio}")
+                        Log.d(tag, "Saved telemetry record to SQLite: T1=$t1, T2=$t2, Hum=$hum, Tension=$tension")
 
                         // 2. Transmit via MQTT outbox coordinator
                         telemetryMqttCoordinator.enqueueVariableRegistro(registro)

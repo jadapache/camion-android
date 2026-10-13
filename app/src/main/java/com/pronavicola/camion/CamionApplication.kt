@@ -8,6 +8,9 @@ class CamionApplication : Application() {
     lateinit var appContext: CamionAppContext
         private set
 
+    val isInitialized: Boolean
+        get() = ::appContext.isInitialized
+
     override fun onCreate() {
         super.onCreate()
         appContext = CamionAppContext(platformContext = this).apply {

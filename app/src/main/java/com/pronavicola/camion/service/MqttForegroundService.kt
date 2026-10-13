@@ -41,17 +41,29 @@ class MqttForegroundService : Service() {
         const val ACTION_STOP = "com.pronavicola.camion.service.STOP"
 
         fun startService(context: Context) {
-            val intent = Intent(context, MqttForegroundService::class.java).apply {
-                action = ACTION_START
+            try {
+                val intent = Intent(context, MqttForegroundService::class.java).apply {
+                    action = ACTION_START
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start MqttForegroundService: ${e.message}", e)
             }
-            context.startForegroundService(intent)
         }
 
         fun stopService(context: Context) {
-            val intent = Intent(context, MqttForegroundService::class.java).apply {
-                action = ACTION_STOP
+            try {
+                val intent = Intent(context, MqttForegroundService::class.java).apply {
+                    action = ACTION_STOP
+                }
+                context.startService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop MqttForegroundService: ${e.message}", e)
             }
-            context.startService(intent)
         }
     }
 
@@ -66,30 +78,50 @@ class MqttForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
+        val action = intent?.action ?: ACTION_START
+
+        if (action == ACTION_STOP) {
+            try {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping foreground: ${e.message}")
+            }
             stopSelf()
             return START_NOT_STICKY
         }
 
-        val notification = createNotification("Iniciando servicio de telemetría y registro...")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            val notification = createNotification("Iniciando servicio de telemetría y registro...")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to startForeground: ${e.message}", e)
+            stopSelf()
+            return START_NOT_STICKY
         }
 
-        startTelemetryServices()
+        try {
+            startTelemetryServices()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting telemetry services: ${e.message}", e)
+        }
 
-        return START_STICKY
+        return START_REDELIVER_INTENT
     }
 
     private fun startTelemetryServices() {
         val app = application as? CamionApplication ?: return
+        if (!app.isInitialized) {
+            Log.w(TAG, "CamionApplication appContext is not initialized yet")
+            return
+        }
         val appContainer = app.appContext
 
         // Ensure background services (Modbus polling coordinator + MQTT) are active
@@ -145,9 +177,13 @@ class MqttForegroundService : Service() {
     }
 
     private fun updateNotification(contentText: String) {
-        val notification = createNotification(contentText)
-        val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(NOTIFICATION_ID, notification)
+        try {
+            val notification = createNotification(contentText)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.notify(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error updating notification: ${e.message}")
+        }
     }
 
     private fun acquireWakeLock() {

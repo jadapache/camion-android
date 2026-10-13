@@ -128,11 +128,6 @@ class OutboxQueueManager(
                     break // Stop batch on network error
                 }
             }
-
-            // Once outbox messages are delivered to the broker, mark any pending SQLite records as Enviado
-            if (sentCount > 0) {
-                variableRegistroDao?.markAllPendingAsEnviado()
-            }
         } catch (e: Exception) {
             Log.e(tag, "Error during outbox drain: ${e.message}")
         } finally {

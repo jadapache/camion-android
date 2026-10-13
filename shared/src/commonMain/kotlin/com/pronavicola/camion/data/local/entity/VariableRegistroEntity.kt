@@ -13,8 +13,7 @@ import androidx.room.DatabaseView
             COALESCE(MAX(CASE WHEN vr.IdVariable = 1 THEN vr.Valor END), 0.0) AS Temperatura1,
             COALESCE(MAX(CASE WHEN vr.IdVariable = 2 THEN vr.Valor END), 0.0) AS Temperatura2,
             COALESCE(MAX(CASE WHEN vr.IdVariable = 4 THEN vr.Valor END), 0.0) AS Humedad,
-            COALESCE(MAX(CASE WHEN vr.IdVariable = 5 THEN vr.Valor END), 0.0) AS Tension,
-            COALESCE(MAX(vr.Estado), 'PENDIENTE') AS EstadoEnvio
+            COALESCE(MAX(CASE WHEN vr.IdVariable = 5 THEN vr.Valor END), 0.0) AS Tension
         FROM VariablesRegistros vr
         GROUP BY vr.IdVehiculo, vr.FechaHora
     """,
@@ -27,5 +26,4 @@ data class VariableRegistroEntity(
     @ColumnInfo(name = "Temperatura2") val temperatura2: Double,
     @ColumnInfo(name = "Humedad") val humedad: Double,
     @ColumnInfo(name = "Tension") val tension: Double = 0.0,
-    @ColumnInfo(name = "EstadoEnvio") val estadoEnvio: String = "PENDIENTE",
 )

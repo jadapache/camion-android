@@ -22,12 +22,6 @@ interface VariableRegistroDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRawAll(registros: List<VariablesRegistrosEntity>)
 
-    @Query("UPDATE VariablesRegistros SET Estado = :estado WHERE FechaHora = :fecha")
-    suspend fun updateEstadoEnvioByFecha(fecha: String, estado: String)
-
-    @Query("UPDATE VariablesRegistros SET Estado = 'Enviado' WHERE UPPER(COALESCE(Estado, 'PENDIENTE')) != 'ENVIADO'")
-    suspend fun markAllPendingAsEnviado()
-
     @Query("DELETE FROM VariablesRegistros WHERE rowid IN (SELECT rowid FROM VariablesRegistros WHERE FechaHora < :cutoffDateStr LIMIT :limit)")
     suspend fun deleteOlderThanBatch(cutoffDateStr: String, limit: Int = 1000): Int
 

@@ -32,39 +32,27 @@ class RegistrosRepositoryImpl(
                 idVariable = 1,
                 fechaHora = registro.fecha,
                 valor = registro.temperatura1,
-                estado = registro.estadoEnvio,
             ),
             VariablesRegistrosEntity(
                 idVehiculo = vehiculoId,
                 idVariable = 2,
                 fechaHora = registro.fecha,
                 valor = registro.temperatura2,
-                estado = registro.estadoEnvio,
             ),
             VariablesRegistrosEntity(
                 idVehiculo = vehiculoId,
                 idVariable = 4,
                 fechaHora = registro.fecha,
                 valor = registro.humedad,
-                estado = registro.estadoEnvio,
             ),
             VariablesRegistrosEntity(
                 idVehiculo = vehiculoId,
                 idVariable = 5,
                 fechaHora = registro.fecha,
                 valor = registro.tension,
-                estado = registro.estadoEnvio,
             ),
         )
         variableRegistroDao.insertRawAll(rawEntries)
-    }
-
-    override suspend fun updateEstadoEnvioByFecha(fecha: String, estado: String) {
-        variableRegistroDao.updateEstadoEnvioByFecha(fecha, estado)
-    }
-
-    override suspend fun markAllPendingAsEnviado() {
-        variableRegistroDao.markAllPendingAsEnviado()
     }
 
     override suspend fun clearAllRegistros() {

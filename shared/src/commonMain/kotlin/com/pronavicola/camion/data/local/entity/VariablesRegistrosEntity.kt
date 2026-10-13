@@ -32,5 +32,4 @@ data class VariablesRegistrosEntity(
     @ColumnInfo(name = "IdVariable") val idVariable: Int,
     @ColumnInfo(name = "FechaHora") val fechaHora: String,
     @ColumnInfo(name = "Valor") val valor: Double,
-    @ColumnInfo(name = "Estado") val estado: String? = "PENDIENTE",
 )
