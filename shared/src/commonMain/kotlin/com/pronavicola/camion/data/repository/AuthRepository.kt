@@ -16,9 +16,10 @@ class AuthRepositoryImpl(
     override val activeUsers: Flow<List<UsuarioEntity>> = usuarioDao.observeActiveUsers()
 
     override suspend fun loadDefaultUser(): SessionUser {
-        ensureDesarrolladorExists()
+        ensureDefaultUsersExist()
         val user = usuarioDao.getDefaultUser()
             ?: usuarioDao.getById("OPERARIO")
+            ?: usuarioDao.getById("ADMIN")
             ?: usuarioDao.getById("DESARROLLADOR")
         return user?.toSession() ?: SessionUser(
             idUsuario = "OPERARIO",
@@ -28,7 +29,7 @@ class AuthRepositoryImpl(
         )
     }
 
-    private suspend fun ensureDesarrolladorExists() {
+    private suspend fun ensureDefaultUsersExist() {
         val defaultProfiles = listOf(
             PerfilEntity(0, "Desarrollador"),
             PerfilEntity(1, "Administrador"),
@@ -40,29 +41,59 @@ class AuthRepositoryImpl(
             perfilDao.insert(perfil)
         }
 
-        val dev = usuarioDao.getById("DESARROLLADOR")
-        if (dev == null) {
-            usuarioDao.insert(
-                UsuarioEntity(
-                    idUsuario = "DESARROLLADOR",
-                    usuario = "Desarrollador",
-                    password = "SuperUser123",
-                    idPerfil = 0,
-                    email = "dev@camion.local",
-                    estado = "ESTAUSUA.ACT",
-                ),
-            )
-        } else if (dev.password == "dev") {
-            usuarioDao.update(dev.copy(password = "SuperUser123"))
+        val defaultUsers = listOf(
+            UsuarioEntity(
+                idUsuario = "OPERARIO",
+                usuario = "Operario",
+                password = "",
+                idPerfil = 4,
+                email = "operario@camion.local",
+                estado = "ESTAUSUA.ACT",
+            ),
+            UsuarioEntity(
+                idUsuario = "TECNICO",
+                usuario = "Técnico",
+                password = "123",
+                idPerfil = 3,
+                email = "tecnico@camion.local",
+                estado = "ESTAUSUA.ACT",
+            ),
+            UsuarioEntity(
+                idUsuario = "SUPERVISOR",
+                usuario = "Supervisor",
+                password = "123",
+                idPerfil = 2,
+                email = "supervisor@camion.local",
+                estado = "ESTAUSUA.ACT",
+            ),
+            UsuarioEntity(
+                idUsuario = "ADMIN",
+                usuario = "Administrador",
+                password = "123",
+                idPerfil = 1,
+                email = "admin@camion.local",
+                estado = "ESTAUSUA.ACT",
+            ),
+            UsuarioEntity(
+                idUsuario = "DESARROLLADOR",
+                usuario = "Desarrollador",
+                password = "SuperUser123",
+                idPerfil = 0,
+                email = "dev@camion.local",
+                estado = "ESTAUSUA.ACT",
+            ),
+        )
+
+        for (u in defaultUsers) {
+            val existing = usuarioDao.getById(u.idUsuario)
+            if (existing == null) {
+                usuarioDao.insert(u)
+            } else if (existing.estado == "ESTADO.ACT") {
+                usuarioDao.update(existing.copy(estado = "ESTAUSUA.ACT"))
+            }
         }
     }
 
-    /**
-     * Mirrors legacy Config.xaml.vb login rules:
-     * - Lower IdPerfil = higher privilege (Admin=1, Operario=4, Desarrollador=0)
-     * - Switching to equal/lower privilege requires password
-     * - Switching to higher privilege (target IdPerfil > current) is allowed without password
-     */
     override suspend fun switchUser(
         currentUser: SessionUser,
         targetIdUsuario: String,

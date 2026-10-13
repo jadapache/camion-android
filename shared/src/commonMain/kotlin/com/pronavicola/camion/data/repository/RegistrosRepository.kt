@@ -16,10 +16,7 @@ class RegistrosRepositoryImpl(
     private val vehiculoDao: VehiculoDao,
 ) : RegistrosRepository {
     override fun observeRegistros(user: SessionUser): Flow<List<VariableRegistroEntity>> =
-        vehiculoDao.observePredeterminado().flatMapLatest { activeVehiculo ->
-            val vehiculoId = activeVehiculo?.idVehiculo ?: user.idVehiculo
-            variableRegistroDao.observeRegistros(vehiculoId)
-        }
+        variableRegistroDao.observeAllRegistros()
 
     override suspend fun saveRegistro(registro: VariableRegistroEntity) {
         val vehiculoId = vehiculoDao.getPredeterminado()?.idVehiculo ?: registro.idVehiculo

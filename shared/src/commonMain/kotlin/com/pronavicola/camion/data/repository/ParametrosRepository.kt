@@ -19,8 +19,14 @@ class ParametrosRepositoryImpl(
 ) : ParametrosRepository {
     override fun observeParametros(user: SessionUser): Flow<List<ParametroUiModel>> =
         vehiculoDao.observePredeterminado().flatMapLatest { activeVehiculo ->
-            val vehiculoId = activeVehiculo?.idVehiculo ?: user.idVehiculo
-            parametroDao.observeParametros(vehiculoId)
+            val vehiculoId = activeVehiculo?.idVehiculo ?: 1
+            parametroDao.observeParametros(vehiculoId).flatMapLatest { list ->
+                if (list.isEmpty() && vehiculoId != 1) {
+                    parametroDao.observeParametros(1)
+                } else {
+                    kotlinx.coroutines.flow.flowOf(list)
+                }
+            }
         }.map { rows ->
             rows.map { row ->
                 ParametroUiModel(
@@ -51,7 +57,8 @@ class ParametrosRepositoryImpl(
         parametro: ParametroUiModel,
         nuevoValor: Double,
     ): Result<Double> {
-        val vehiculoId = vehiculoDao.getPredeterminado()?.idVehiculo ?: user.idVehiculo
+        val vehiculoId = vehiculoDao.getPredeterminado()?.idVehiculo ?: 1
+        val targetVehiculoId = if (parametroDao.getByVehiculo(vehiculoId).isNotEmpty()) vehiculoId else 1
         if (!parametroDao.canEdit(user.idPerfil, parametro.idParametro)) {
             return Result.failure(IllegalAccessException("Sin permiso para editar ${parametro.nombre}"))
         }
@@ -59,7 +66,7 @@ class ParametrosRepositoryImpl(
             return Result.failure(IllegalArgumentException("Valor fuera de rango permitido"))
         }
 
-        parametroDao.updateValor(vehiculoId, parametro.idParametro, nuevoValor)
+        parametroDao.updateValor(targetVehiculoId, parametro.idParametro, nuevoValor)
         modbusClient.writeParameter(parametro.tag, nuevoValor)
         return Result.success(nuevoValor)
     }

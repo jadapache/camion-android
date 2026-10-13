@@ -41,26 +41,73 @@ class DevicePairingRepositoryImpl(
     }
 
     override suspend fun checkPairingStatus(serverUrl: String, pairingCode: String, deviceId: String): Result<Boolean> = withContext(Dispatchers.IO) {
-        val result = apiService.checkPairingStatus(serverUrl, pairingCode, deviceId)
-        if (result.isSuccess) {
-            val resp = result.getOrThrow()
-            configRepository.saveLicenseStatus(resp.status)
+        val cleanUrl = serverUrl.trim().removeSuffix("/")
+        val cleanCode = pairingCode.trim()
+        val cleanDeviceId = deviceId.trim()
 
-            if (resp.status == "ACTIVE") {
-                resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
-                if (resp.deviceId.isNotBlank()) {
-                    configRepository.saveDeviceId(resp.deviceId)
+        // 1. If pairingCode is provided, check pairing code status on the server
+        if (cleanCode.isNotBlank()) {
+            val result = apiService.checkPairingStatus(cleanUrl, cleanCode, cleanDeviceId)
+            if (result.isSuccess) {
+                val resp = result.getOrThrow()
+                configRepository.saveLicenseStatus(resp.status)
+
+                if (resp.status == "ACTIVE") {
+                    resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
+                    resp.licenseKey?.let { configRepository.saveLicenseKey(it) }
+                    if (resp.deviceId.isNotBlank()) {
+                        configRepository.saveDeviceId(resp.deviceId)
+                    }
+                    resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { configRepository.saveFurgonPlate(it) }
+                    resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
+                    resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
+                    Log.i(tag, "Screen is ACTIVE and paired successfully (deviceId=${resp.deviceId}, furgon=${resp.furgon?.plate})")
+                    return@withContext Result.success(true)
+                } else {
+                    return@withContext Result.success(false)
                 }
-                resp.furgon?.plate?.let { configRepository.saveFurgonPlate(it) }
-                resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
-                resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
-                Log.i(tag, "Screen is ACTIVE and paired successfully (deviceId=${resp.deviceId}, furgon=${resp.furgon?.plate})")
-                Result.success(true)
             } else {
-                Result.success(false)
+                val ex = result.exceptionOrNull()
+                if (ex !is ScreensApiService.ApiException) {
+                    return@withContext Result.failure(ex ?: Exception("Error de conexión con la API"))
+                }
+            }
+        }
+
+        // 2. Query validate endpoint with deviceId to check if already registered
+        val devToken = configRepository.getDeviceToken()
+        val validateResult = apiService.validateScreen(cleanUrl, devToken, cleanDeviceId)
+        if (validateResult.isSuccess) {
+            val vResp = validateResult.getOrThrow()
+            if (vResp.isValid && vResp.status == "ACTIVE") {
+                configRepository.saveLicenseStatus("ACTIVE")
+                if (cleanDeviceId.isNotBlank()) {
+                    configRepository.saveDeviceId(cleanDeviceId)
+                }
+                vResp.deviceToken?.let { configRepository.saveDeviceToken(it) }
+                vResp.licenseKey?.let { configRepository.saveLicenseKey(it) }
+                vResp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
+                vResp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
+
+                val plate = vResp.furgonPlate ?: vResp.furgon?.plate
+                if (!plate.isNullOrBlank() && plate != cleanDeviceId) {
+                    configRepository.saveFurgonPlate(plate)
+                }
+                Log.i(tag, "Prior registration validated (deviceId=$cleanDeviceId, plate=$plate)")
+                return@withContext Result.success(true)
+            } else if (vResp.status == "PENDING_PAIRING" || vResp.status == "PENDING") {
+                configRepository.saveLicenseStatus("PENDING_PAIRING")
+                return@withContext Result.success(false)
+            } else {
+                return@withContext Result.failure(Exception("No se encontró registro previo, solicita PIN o ingresa clave"))
             }
         } else {
-            Result.failure(result.exceptionOrNull() ?: Exception("Error verificando estado"))
+            val vEx = validateResult.exceptionOrNull()
+            if (vEx !is ScreensApiService.ApiException) {
+                return@withContext Result.failure(vEx ?: Exception("Error de conexión con la API"))
+            } else {
+                return@withContext Result.failure(Exception("No se encontró registro previo, solicita PIN o ingresa clave"))
+            }
         }
     }
 
@@ -75,12 +122,13 @@ class DevicePairingRepositoryImpl(
         if (result.isSuccess) {
             val resp = result.getOrThrow()
             configRepository.saveServerBaseUrl(serverUrl)
-            configRepository.saveLicenseKey(licenseKey)
+            configRepository.saveLicenseKey(resp.licenseKey ?: licenseKey)
             configRepository.saveLicenseStatus(resp.status)
 
             if (resp.status == "ACTIVE") {
                 resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
                 resp.deviceId.let { configRepository.saveDeviceId(it) }
+                resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { configRepository.saveFurgonPlate(it) }
                 resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
                 resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
                 Log.i(tag, "Activated successfully via license key")
@@ -98,26 +146,39 @@ class DevicePairingRepositoryImpl(
         if (result.isSuccess) {
             val resp = result.getOrThrow()
             configRepository.saveLicenseStatus(resp.status)
+            resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
+            resp.licenseKey?.let { configRepository.saveLicenseKey(it) }
+            resp.furgonPlate?.takeIf { it != deviceId }?.let { configRepository.saveFurgonPlate(it) }
             Result.success(resp)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error de validación"))
         }
     }
 
-    override suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?): Result<List<FurgonInfo>> = withContext(Dispatchers.IO) {
-        val result = apiService.getAvailableFurgones(serverUrl, deviceToken)
+    override suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?, deviceId: String?): Result<List<FurgonInfo>> = withContext(Dispatchers.IO) {
+        val token = deviceToken ?: configRepository.getDeviceToken()
+        val devId = deviceId ?: configRepository.getDeviceId()
+        val url = serverUrl.ifBlank { configRepository.getServerBaseUrl() ?: "" }
+        val result = apiService.getAvailableFurgones(url, token, devId)
         if (result.isSuccess) {
-            Result.success(result.getOrThrow().availableFurgones)
+            val resp = result.getOrThrow()
+            resp.assignedFurgon?.plate?.takeIf { it != devId }?.let { configRepository.saveFurgonPlate(it) }
+            Result.success(resp.availableFurgones)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error obteniendo furgones"))
         }
     }
 
-    override suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String): Result<String> = withContext(Dispatchers.IO) {
-        val result = apiService.updateAssociatedFurgon(serverUrl, deviceToken, furgonId)
+    override suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String, plate: String?): Result<String> = withContext(Dispatchers.IO) {
+        val token = deviceToken ?: configRepository.getDeviceToken()
+        val devId = configRepository.getDeviceId()
+        val url = serverUrl.ifBlank { configRepository.getServerBaseUrl() ?: "" }
+        val result = apiService.updateAssociatedFurgon(url, token, furgonId, plate, devId)
         if (result.isSuccess) {
             val furgon = result.getOrThrow()
-            configRepository.saveFurgonPlate(furgon.plate)
+            if (furgon.plate.isNotBlank() && furgon.plate != devId) {
+                configRepository.saveFurgonPlate(furgon.plate)
+            }
             Result.success(furgon.plate)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error actualizando furgón"))
@@ -125,11 +186,21 @@ class DevicePairingRepositoryImpl(
     }
 
     override suspend fun unpairDevice(serverUrl: String, deviceToken: String?): Result<Unit> = withContext(Dispatchers.IO) {
-        val result = apiService.unpairDevice(serverUrl, deviceToken)
-        if (result.isSuccess) {
-            Result.success(Unit)
-        } else {
-            Result.failure(result.exceptionOrNull() ?: Exception("Error desvinculando dispositivo"))
+        val token = deviceToken ?: configRepository.getDeviceToken()
+        val devId = configRepository.getDeviceId()
+        val url = serverUrl.ifBlank { configRepository.getServerBaseUrl() ?: "" }
+        if (url.isNotBlank()) {
+            try {
+                apiService.unpairDevice(url, token, devId)
+            } catch (e: Exception) {
+                Log.w(tag, "Remote unpair error: ${e.message}, proceeding with local unpair")
+            }
         }
+        configRepository.saveLicenseStatus("UNPAIRED")
+        configRepository.saveDeviceToken("")
+        configRepository.savePairingCode("")
+        configRepository.saveLicenseKey("")
+        Log.i(tag, "Device unpaired successfully (local credentials cleared)")
+        Result.success(Unit)
     }
 }

@@ -9,7 +9,7 @@ interface DevicePairingRepository {
     suspend fun checkPairingStatus(serverUrl: String, pairingCode: String, deviceId: String): Result<Boolean>
     suspend fun activateLicenseKey(serverUrl: String, licenseKey: String): Result<Boolean>
     suspend fun validateScreen(serverUrl: String, deviceToken: String?, deviceId: String?): Result<ValidateScreenResponse>
-    suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?): Result<List<FurgonInfo>>
-    suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String): Result<String>
+    suspend fun getAvailableFurgones(serverUrl: String, deviceToken: String?, deviceId: String? = null): Result<List<FurgonInfo>>
+    suspend fun updateAssociatedFurgon(serverUrl: String, deviceToken: String?, furgonId: String, plate: String? = null): Result<String>
     suspend fun unpairDevice(serverUrl: String, deviceToken: String?): Result<Unit>
 }

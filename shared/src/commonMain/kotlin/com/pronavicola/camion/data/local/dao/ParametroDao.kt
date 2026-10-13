@@ -38,8 +38,10 @@ interface ParametroDao {
 
     @Query(
         """
-        SELECT COUNT(*) > 0 FROM PerfilesParametros
-        WHERE IdPerfil = :idPerfil AND IdParametro = :idParametro
+        SELECT (:idPerfil IN (0, 1) OR (
+            SELECT COUNT(*) FROM PerfilesParametros
+            WHERE IdPerfil = :idPerfil AND IdParametro = :idParametro
+        ) > 0)
         """,
     )
     suspend fun canEdit(idPerfil: Int, idParametro: Int): Boolean
