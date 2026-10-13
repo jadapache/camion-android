@@ -19,5 +19,11 @@ class CamionApplication : Application() {
         } catch (e: Exception) {
             Log.e("CamionApplication", "Error starting MqttForegroundService: ${e.message}")
         }
+
+        try {
+            com.pronavicola.camion.service.HistoricalDataCleanupWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("CamionApplication", "Error scheduling HistoricalDataCleanupWorker: ${e.message}")
+        }
     }
 }

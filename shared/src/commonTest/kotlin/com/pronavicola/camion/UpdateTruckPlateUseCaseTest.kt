@@ -153,7 +153,7 @@ class UpdateTruckPlateUseCaseTest {
     }
 
     @Test
-    fun testUpdateTruckPlate_WhenPlateDoesNotExist_RegistersAndCopiesParamsFromVehicle1() = runTest {
+    fun testUpdateTruckPlate_WhenPlateDoesNotExist_UpdatesActiveVehiclePreservingParams() = runTest {
         val fakeVehiculoDao = FakeVehiculoDao()
         val fakeParametroDao = FakeParametroDao()
         val fakeAppConfigRepo = FakeAppConfigRepository()
@@ -171,25 +171,40 @@ class UpdateTruckPlateUseCaseTest {
         val registeredVehiculo = result.getOrThrow()
         assertEquals("FURG-002", registeredVehiculo.placa)
         assertEquals(1, registeredVehiculo.predeterminado)
-        val newId = registeredVehiculo.idVehiculo
-        assertTrue(newId > 1)
 
-        // Previous vehicle 1 should no longer be predeterminado
-        val v1 = fakeVehiculoDao.getById(1)
+        // Active vehicle 1 should remain predeterminado and retain its parameters
+        val v1 = fakeVehiculoDao.getById(registeredVehiculo.idVehiculo)
         assertNotNull(v1)
-        assertEquals(0, v1.predeterminado)
+        assertEquals(1, v1.predeterminado)
+        assertEquals("FURG-002", v1.placa)
 
-        // Check that parameters were copied from vehicle 1 to new vehicle
-        val newVehicleParams = fakeParametroDao.getByVehiculo(newId)
-        assertEquals(2, newVehicleParams.size)
-        assertEquals("Hum Max", newVehicleParams[0].parametro)
-        assertEquals(newId, newVehicleParams[0].idVehiculo)
-        assertEquals("Hum Min", newVehicleParams[1].parametro)
-        assertEquals(newId, newVehicleParams[1].idVehiculo)
+        // Check that parameters are preserved
+        val vehicleParams = fakeParametroDao.getByVehiculo(registeredVehiculo.idVehiculo)
+        assertEquals(2, vehicleParams.size)
+        assertEquals("Hum Max", vehicleParams[0].parametro)
+        assertEquals("Hum Min", vehicleParams[1].parametro)
 
-        // AppConfig was synced
-        assertEquals("FURG-002", fakeAppConfigRepo.deviceId)
+        // AppConfig was synced with furgonPlate
         assertEquals("FURG-002", fakeAppConfigRepo.furgonPlate)
+    }
+
+    @Test
+    fun testUpdateTruckPlate_WhenPlateMatchesDeviceId_RejectsAssignment() = runTest {
+        val fakeVehiculoDao = FakeVehiculoDao()
+        val fakeParametroDao = FakeParametroDao()
+        val fakeAppConfigRepo = FakeAppConfigRepository().apply {
+            deviceId = "BW7JTW7Z2QP"
+        }
+
+        val useCase = UpdateTruckPlateUseCase(
+            vehiculoDao = fakeVehiculoDao,
+            parametroDao = fakeParametroDao,
+            appConfigRepository = fakeAppConfigRepo,
+        )
+
+        val result = useCase("BW7JTW7Z2QP")
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message?.contains("Device ID") == true)
     }
 
     @Test

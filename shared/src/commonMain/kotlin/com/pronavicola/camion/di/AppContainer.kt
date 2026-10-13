@@ -55,8 +55,12 @@ import com.pronavicola.camion.domain.usecase.simulation.UpdateSimulationParamsUs
 import com.pronavicola.camion.service.ModbusPollingCoordinator
 import com.pronavicola.camion.util.PlatformInfoProvider
 import com.pronavicola.camion.util.getPlatformInfoProvider
+import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -97,6 +101,23 @@ class AppContainer(
         database.vehiculoDao()
     }
 
+    val buzonMqttDao by lazy {
+        database.buzonMqttDao()
+    }
+
+    val trazasUbicacionDao by lazy {
+        database.trazasUbicacionDao()
+    }
+
+    val gpsLocationTracker: com.pronavicola.camion.service.GpsLocationTracker by lazy {
+        com.pronavicola.camion.service.createGpsLocationTracker(
+            platformContext = platformContext,
+            trazasUbicacionDao = trazasUbicacionDao,
+            deviceIdProvider = { appConfigRepository.getDeviceId() ?: "AAA000" },
+            scope = appScope
+        )
+    }
+
     val modbusClient: ModbusClient by lazy {
         ModbusTcpClient(appScope)
     }
@@ -106,7 +127,11 @@ class AppContainer(
     }
 
     val outboxQueueManager: OutboxQueueManager by lazy {
-        OutboxQueueManager(mqttClientManager, appScope)
+        OutboxQueueManager(
+            mqttManager = mqttClientManager,
+            buzonMqttDao = buzonMqttDao,
+            scope = appScope
+        )
     }
 
     // 2. Repositories
@@ -201,7 +226,10 @@ class AppContainer(
     val testMqttConnectionUseCase: TestMqttConnectionUseCase by lazy { TestMqttConnectionUseCase(appConfigRepository) }
     val pairDeviceUseCase: PairDeviceUseCase by lazy { PairDeviceUseCase(devicePairingRepository) }
     val updateTruckPlateUseCase: UpdateTruckPlateUseCase by lazy {
-        UpdateTruckPlateUseCase(database.vehiculoDao(), database.parametroDao(), appConfigRepository)
+        UpdateTruckPlateUseCase(database.vehiculoDao(), database.parametroDao(), appConfigRepository, telemetryMqttCoordinator)
+    }
+    val cleanupHistoricalDataUseCase: com.pronavicola.camion.domain.usecase.config.CleanupHistoricalDataUseCase by lazy {
+        com.pronavicola.camion.domain.usecase.config.CleanupHistoricalDataUseCase(database.variableRegistroDao(), database.trazasUbicacionDao())
     }
 
     // 9. Use Cases - Simulation
@@ -210,11 +238,82 @@ class AppContainer(
     val updateSimulationParamsUseCase: UpdateSimulationParamsUseCase by lazy { UpdateSimulationParamsUseCase(simulationRepository) }
     val injectSimulatedFaultUseCase: InjectSimulatedFaultUseCase by lazy { InjectSimulatedFaultUseCase(simulationRepository) }
 
+    private var periodicPairingSyncJob: Job? = null
+
+    /**
+     * Valida periódicamente el estado de emparejamiento y vinculación con la API web.
+     * Si el dispositivo cuenta con conexión a internet:
+     * - Efectúa consulta del estado de vinculación (detectando si fue eliminado o revocado).
+     * - Sincroniza la placa en caso de haber sido reasignada desde la web app.
+     */
+    private fun startPeriodicPairingValidation() {
+        periodicPairingSyncJob?.cancel()
+        periodicPairingSyncJob = appScope.launch {
+            while (isActive) {
+                delay(15_000L) // Consulta periódica cada 15 segundos
+                val serverUrl = appConfigRepository.getServerBaseUrl()?.trim()
+                val deviceId = appConfigRepository.getDeviceId()?.trim()
+                val deviceToken = appConfigRepository.getDeviceToken()?.trim()
+
+                if (!serverUrl.isNullOrBlank() && (!deviceId.isNullOrBlank() || !deviceToken.isNullOrBlank())) {
+                    try {
+                        val result = devicePairingRepository.validateScreen(serverUrl, deviceToken, deviceId)
+                        if (result.isSuccess) {
+                            val resp = result.getOrThrow()
+                            if (resp.isValid && resp.status == "ACTIVE") {
+                                appConfigRepository.saveLicenseStatus("ACTIVE")
+                                val remotePlate = resp.furgonPlate ?: resp.furgon?.plate
+                                val currentLocalPlate = appConfigRepository.getFurgonPlate()?.trim()
+                                if (!remotePlate.isNullOrBlank() &&
+                                    !remotePlate.equals(deviceId, ignoreCase = true) &&
+                                    !remotePlate.equals(currentLocalPlate, ignoreCase = true)
+                                ) {
+                                    Log.i("AppContainer", "Reasignación de placa detectada desde web app: '$currentLocalPlate' -> '$remotePlate'")
+                                    updateTruckPlateUseCase(remotePlate)
+                                }
+                            } else {
+                                // El registro del dispositivo fue deshabilitado, revocado o puesto en pendiente en la web
+                                val newStatus = when (resp.status.uppercase()) {
+                                    "REVOKED" -> "REVOKED"
+                                    "INACTIVE" -> "INACTIVE"
+                                    "PENDING", "PENDING_PAIRING" -> "PENDING_PAIRING"
+                                    else -> "UNPAIRED"
+                                }
+                                Log.w("AppContainer", "Dispositivo no activo en FURGN-BI. Estado reportado: $newStatus")
+                                appConfigRepository.saveLicenseStatus(newStatus)
+                            }
+                        } else {
+                            val ex = result.exceptionOrNull()
+                            if (ex is ScreensApiService.ApiException && (ex.code == 404 || ex.code == 401)) {
+                                Log.w("AppContainer", "El registro del dispositivo fue eliminado de la API web (${ex.message}). Marcando como NO VINCULADO.")
+                                appConfigRepository.saveLicenseStatus("UNPAIRED")
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // Error de red transitorio (modo offline en carretera): se preserva el estado local
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Initializes background services (MQTT client connection, polling loop, telemetry publishing).
      */
     fun startBackgroundServices() {
+        startPeriodicPairingValidation()
         appScope.launch {
+            // Auto-heal DB state if deviceId was previously saved as truck plate
+            val currentPlate = appConfigRepository.getFurgonPlate()
+            val currentDevId = appConfigRepository.getDeviceId()
+            if (!currentPlate.isNullOrBlank() && !currentDevId.isNullOrBlank() && currentPlate == currentDevId) {
+                appConfigRepository.saveFurgonPlate("ABC123")
+                val v = vehiculoDao.getPredeterminado() ?: vehiculoDao.getById(1)
+                if (v != null && v.placa == currentDevId) {
+                    vehiculoDao.update(v.copy(placa = "ABC123"))
+                }
+            }
+
             val brokerUrl = appConfigRepository.getBrokerUrl()?.trim() ?: ""
             val deviceId = appConfigRepository.getDeviceId() ?: "ABC123"
             val username = appConfigRepository.getBrokerUsername() ?: ""
@@ -233,12 +332,20 @@ class AppContainer(
                 modbusRepository.connect(host, port)
             }
 
+            // Start GPS tracking
+            gpsLocationTracker.startTracking()
+
             // Start continuous sampling and SQLite persistence coordinator
             modbusPollingCoordinator.start()
         }
     }
 
     fun stopBackgroundServices() {
+        periodicPairingSyncJob?.cancel()
+        periodicPairingSyncJob = null
+        appScope.launch {
+            gpsLocationTracker.stopTracking()
+        }
         modbusPollingCoordinator.stop()
         telemetryMqttCoordinator.stop()
         mqttClientManager.stop()

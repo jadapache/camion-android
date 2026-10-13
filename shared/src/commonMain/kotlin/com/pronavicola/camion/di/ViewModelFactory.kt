@@ -37,6 +37,9 @@ class CamionViewModelFactory(
                 connectModbusUseCase = appContainer.connectModbusUseCase,
                 disconnectModbusUseCase = appContainer.disconnectModbusUseCase,
                 appConfigRepository = appContainer.appConfigRepository,
+                updateTruckPlateUseCase = appContainer.updateTruckPlateUseCase,
+                devicePairingRepository = appContainer.devicePairingRepository,
+                vehiculoDao = appContainer.vehiculoDao,
             ) as T
 
             ParametrosViewModel::class -> ParametrosViewModel(
@@ -71,6 +74,7 @@ class CamionViewModelFactory(
                 pairDeviceUseCase = appContainer.pairDeviceUseCase,
                 connectModbusUseCase = appContainer.connectModbusUseCase,
                 updateTruckPlateUseCase = appContainer.updateTruckPlateUseCase,
+                appConfigRepository = appContainer.appConfigRepository,
             ) as T
 
             SimulationViewModel::class -> SimulationViewModel(
