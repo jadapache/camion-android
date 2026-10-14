@@ -1,6 +1,6 @@
 package com.pronavicola.camion.domain.model
 
-import com.pronavicola.camion.data.local.entity.TrazasUbicacionEntity
+import com.pronavicola.camion.data.local.entity.UbicacionEntity
 
 data class GpsLocation(
     val latitud: Double,
@@ -14,8 +14,14 @@ data class GpsLocation(
         return latitud in -90.0..90.0 && longitud in -180.0..180.0
     }
 
-    fun toTrazasUbicacionEntity(deviceId: String): TrazasUbicacionEntity {
-        return TrazasUbicacionEntity(
+    fun toUbicacionEntity(
+        idVehiculo: Int,
+        deviceId: String,
+        idUbicacion: Long = 0,
+    ): UbicacionEntity {
+        return UbicacionEntity(
+            idVehiculo = idVehiculo,
+            idUbicacion = idUbicacion,
             idDispositivo = deviceId,
             marcaTiempo = marcaTiempo,
             latitud = latitud,

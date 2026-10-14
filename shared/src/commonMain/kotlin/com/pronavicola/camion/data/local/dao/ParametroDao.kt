@@ -8,7 +8,6 @@ import com.pronavicola.camion.data.local.entity.ParametroEntity
 import kotlinx.coroutines.flow.Flow
 
 data class ParametroConUnidad(
-    val idVehiculo: Int,
     val idParametro: Int,
     val parametro: String,
     val idTipo: String,
@@ -24,17 +23,16 @@ data class ParametroConUnidad(
 interface ParametroDao {
     @Query(
         """
-        SELECT p.IdVehiculo AS idVehiculo, p.IdParametro AS idParametro,
+        SELECT p.IdParametro AS idParametro,
                p.Parametro AS parametro, p.IdTipo AS idTipo, p.Valor AS valor,
                p.IdUnidad AS idUnidad, p.Tag AS tag, p.Minimo AS minimo,
                p.Maximo AS maximo, COALESCE(d.Definicion, p.IdUnidad) AS unidad
         FROM Parametros p
         LEFT JOIN Definiciones d ON d.IdDefinicion = p.IdUnidad
-        WHERE p.IdVehiculo = :idVehiculo
         ORDER BY p.IdParametro
         """,
     )
-    fun observeParametros(idVehiculo: Int): Flow<List<ParametroConUnidad>>
+    fun observeParametros(): Flow<List<ParametroConUnidad>>
 
     @Query(
         """
@@ -49,18 +47,18 @@ interface ParametroDao {
     @Query(
         """
         UPDATE Parametros SET Valor = :valor
-        WHERE IdVehiculo = :idVehiculo AND IdParametro = :idParametro
+        WHERE IdParametro = :idParametro
         """,
     )
-    suspend fun updateValor(idVehiculo: Int, idParametro: Int, valor: Double)
+    suspend fun updateValor(idParametro: Int, valor: Double)
 
     @Query(
-        "SELECT * FROM Parametros WHERE IdVehiculo = :idVehiculo AND IdParametro = :idParametro LIMIT 1",
+        "SELECT * FROM Parametros WHERE IdParametro = :idParametro LIMIT 1",
     )
-    suspend fun getById(idVehiculo: Int, idParametro: Int): ParametroEntity?
+    suspend fun getById(idParametro: Int): ParametroEntity?
 
-    @Query("SELECT * FROM Parametros WHERE IdVehiculo = :idVehiculo ORDER BY IdParametro ASC")
-    suspend fun getByVehiculo(idVehiculo: Int): List<ParametroEntity>
+    @Query("SELECT * FROM Parametros ORDER BY IdParametro ASC")
+    suspend fun getAll(): List<ParametroEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(parametros: List<ParametroEntity>)

@@ -1,6 +1,5 @@
 package com.pronavicola.camion.domain.usecase.config
 
-import com.pronavicola.camion.data.local.dao.ParametroDao
 import com.pronavicola.camion.data.local.dao.VehiculoDao
 import com.pronavicola.camion.data.local.entity.VehiculoEntity
 import com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator
@@ -10,12 +9,11 @@ import kotlinx.coroutines.withContext
 
 class UpdateTruckPlateUseCase(
     private val vehiculoDao: VehiculoDao,
-    private val parametroDao: ParametroDao,
     private val appConfigRepository: AppConfigRepository,
     private val telemetryMqttCoordinator: TelemetryMqttCoordinator? = null,
 ) {
     suspend operator fun invoke(rawPlate: String): Result<VehiculoEntity> = withContext(Dispatchers.Default) {
-        val plate = rawPlate.trim()
+        val plate = rawPlate.trim().uppercase()
         if (plate.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("La placa no puede estar vacía"))
         }
@@ -27,21 +25,18 @@ class UpdateTruckPlateUseCase(
                 return@withContext Result.failure(IllegalArgumentException("El Device ID ($plate) no puede ser asignado como placa"))
             }
 
-            // Update active vehicle in place to NEVER orphan parameters or historical records
-            val currentVehiculo = vehiculoDao.getPredeterminado() ?: vehiculoDao.getById(1)
-            val updatedVehiculo = if (currentVehiculo != null) {
-                val updated = currentVehiculo.copy(placa = plate, predeterminado = 1)
-                vehiculoDao.update(updated)
-                updated
+            // Crear un registro por cada placa en la tabla Vehiculos y marcarla como 'Predeterminada' con el valor 1
+            val existingVehiculo = vehiculoDao.getByPlaca(plate)
+            val updatedVehiculo = if (existingVehiculo != null) {
+                vehiculoDao.clearPredeterminado()
+                vehiculoDao.setPredeterminado(existingVehiculo.idVehiculo)
+                existingVehiculo.copy(predeterminado = 1)
             } else {
-                val newVehiculo = VehiculoEntity(idVehiculo = 1, placa = plate, predeterminado = 1)
-                vehiculoDao.insert(newVehiculo)
-                newVehiculo
+                vehiculoDao.clearPredeterminado()
+                val newVehiculo = VehiculoEntity(idVehiculo = 0, placa = plate, predeterminado = 1)
+                val newId = vehiculoDao.insert(newVehiculo)
+                VehiculoEntity(idVehiculo = newId.toInt(), placa = plate, predeterminado = 1)
             }
-
-            // Ensure vehicle 1 is active and clear any other predeterminados
-            vehiculoDao.clearPredeterminado()
-            vehiculoDao.setPredeterminado(updatedVehiculo.idVehiculo)
 
             // Sincronizar con AppConfig (furgonPlate)
             appConfigRepository.saveFurgonPlate(plate)

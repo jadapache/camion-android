@@ -1,5 +1,7 @@
 package com.pronavicola.camion.data.repository
 
+import com.pronavicola.camion.data.local.dao.VehiculoDao
+import com.pronavicola.camion.data.local.entity.VehiculoEntity
 import com.pronavicola.camion.data.remote.FurgonInfo
 import com.pronavicola.camion.data.remote.ScreensApiService
 import com.pronavicola.camion.data.remote.ValidateScreenResponse
@@ -14,8 +16,28 @@ class DevicePairingRepositoryImpl(
     private val platformInfoProvider: PlatformInfoProvider,
     private val apiService: ScreensApiService,
     private val configRepository: AppConfigRepository,
+    private val vehiculoDao: VehiculoDao? = null,
 ) : DevicePairingRepository {
     private val tag = "DevicePairingRepository"
+
+    private suspend fun syncFurgonPlate(plate: String) {
+        val cleanPlate = plate.trim().uppercase()
+        if (cleanPlate.isBlank()) return
+        configRepository.saveFurgonPlate(cleanPlate)
+        vehiculoDao?.let { dao ->
+            try {
+                val existing = dao.getByPlaca(cleanPlate)
+                dao.clearPredeterminado()
+                if (existing != null) {
+                    dao.setPredeterminado(existing.idVehiculo)
+                } else {
+                    dao.insert(VehiculoEntity(idVehiculo = 0, placa = cleanPlate, predeterminado = 1))
+                }
+            } catch (e: Exception) {
+                Log.w(tag, "Error syncing vehicle plate $cleanPlate: ${e.message}")
+            }
+        }
+    }
 
     override fun getHardwareFingerprint(): String = platformInfoProvider.getHardwareFingerprint()
 
@@ -58,7 +80,7 @@ class DevicePairingRepositoryImpl(
                     if (resp.deviceId.isNotBlank()) {
                         configRepository.saveDeviceId(resp.deviceId)
                     }
-                    resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { configRepository.saveFurgonPlate(it) }
+                    resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { syncFurgonPlate(it) }
                     resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
                     resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
                     Log.i(tag, "Screen is ACTIVE and paired successfully (deviceId=${resp.deviceId}, furgon=${resp.furgon?.plate})")
@@ -91,7 +113,7 @@ class DevicePairingRepositoryImpl(
 
                 val plate = vResp.furgonPlate ?: vResp.furgon?.plate
                 if (!plate.isNullOrBlank() && plate != cleanDeviceId) {
-                    configRepository.saveFurgonPlate(plate)
+                    syncFurgonPlate(plate)
                 }
                 Log.i(tag, "Prior registration validated (deviceId=$cleanDeviceId, plate=$plate)")
                 return@withContext Result.success(true)
@@ -99,19 +121,19 @@ class DevicePairingRepositoryImpl(
                 configRepository.saveLicenseStatus("PENDING_PAIRING")
                 return@withContext Result.success(false)
             } else {
-                return@withContext Result.failure(Exception("No se encontró registro previo, solicita PIN o ingresa clave"))
+                configRepository.saveLicenseStatus(vResp.status)
+                return@withContext Result.success(false)
             }
         } else {
-            val vEx = validateResult.exceptionOrNull()
-            if (vEx !is ScreensApiService.ApiException) {
-                return@withContext Result.failure(vEx ?: Exception("Error de conexión con la API"))
-            } else {
-                return@withContext Result.failure(Exception("No se encontró registro previo, solicita PIN o ingresa clave"))
-            }
+            val ex = validateResult.exceptionOrNull()
+            return@withContext Result.failure(ex ?: Exception("Error validando registro previo"))
         }
     }
 
-    override suspend fun activateLicenseKey(serverUrl: String, licenseKey: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    override suspend fun activateLicenseKey(
+        serverUrl: String,
+        licenseKey: String,
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
         val fingerprint = platformInfoProvider.getHardwareFingerprint()
         val brand = platformInfoProvider.getDeviceBrand()
         val model = platformInfoProvider.getDeviceModel()
@@ -128,7 +150,7 @@ class DevicePairingRepositoryImpl(
             if (resp.status == "ACTIVE") {
                 resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
                 resp.deviceId.let { configRepository.saveDeviceId(it) }
-                resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { configRepository.saveFurgonPlate(it) }
+                resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { syncFurgonPlate(it) }
                 resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
                 resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
                 Log.i(tag, "Activated successfully via license key")
@@ -148,7 +170,7 @@ class DevicePairingRepositoryImpl(
             configRepository.saveLicenseStatus(resp.status)
             resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
             resp.licenseKey?.let { configRepository.saveLicenseKey(it) }
-            resp.furgonPlate?.takeIf { it != deviceId }?.let { configRepository.saveFurgonPlate(it) }
+            resp.furgonPlate?.takeIf { it != deviceId }?.let { syncFurgonPlate(it) }
             Result.success(resp)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error de validación"))
@@ -162,7 +184,7 @@ class DevicePairingRepositoryImpl(
         val result = apiService.getAvailableFurgones(url, token, devId)
         if (result.isSuccess) {
             val resp = result.getOrThrow()
-            resp.assignedFurgon?.plate?.takeIf { it != devId }?.let { configRepository.saveFurgonPlate(it) }
+            resp.assignedFurgon?.plate?.takeIf { it != devId }?.let { syncFurgonPlate(it) }
             Result.success(resp.availableFurgones)
         } else {
             Result.failure(result.exceptionOrNull() ?: Exception("Error obteniendo furgones"))
@@ -177,7 +199,7 @@ class DevicePairingRepositoryImpl(
         if (result.isSuccess) {
             val furgon = result.getOrThrow()
             if (furgon.plate.isNotBlank() && furgon.plate != devId) {
-                configRepository.saveFurgonPlate(furgon.plate)
+                syncFurgonPlate(furgon.plate)
             }
             Result.success(furgon.plate)
         } else {

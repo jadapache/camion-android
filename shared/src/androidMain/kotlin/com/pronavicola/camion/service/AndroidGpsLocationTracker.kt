@@ -7,7 +7,8 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
-import com.pronavicola.camion.data.local.dao.TrazasUbicacionDao
+import com.pronavicola.camion.data.local.dao.UbicacionDao
+import com.pronavicola.camion.data.local.dao.VehiculoDao
 import com.pronavicola.camion.domain.model.GpsLocation
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +21,8 @@ import kotlinx.coroutines.withContext
 
 class AndroidGpsLocationTracker(
     private val context: Context,
-    private val trazasUbicacionDao: TrazasUbicacionDao,
+    private val ubicacionDao: UbicacionDao,
+    private val vehiculoDao: VehiculoDao,
     private val deviceIdProvider: suspend () -> String,
     private val scope: CoroutineScope,
 ) : GpsLocationTracker {
@@ -163,10 +165,16 @@ class AndroidGpsLocationTracker(
         scope.launch(Dispatchers.IO) {
             try {
                 val deviceId = deviceIdProvider()
-                val entity = gpsLocation.toTrazasUbicacionEntity(deviceId)
-                trazasUbicacionDao.insert(entity)
+                val idVehiculo = vehiculoDao.getPredeterminado()?.idVehiculo ?: 1
+                val idUbicacion = ubicacionDao.getNextIdUbicacion(idVehiculo)
+                val entity = gpsLocation.toUbicacionEntity(
+                    idVehiculo = idVehiculo,
+                    deviceId = deviceId,
+                    idUbicacion = idUbicacion,
+                )
+                ubicacionDao.insert(entity)
             } catch (e: Exception) {
-                Log.e(tag, "Failed to persist GPS trace to database: ${e.message}")
+                Log.e(tag, "Failed to persist GPS location to database: ${e.message}")
             }
         }
     }

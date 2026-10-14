@@ -1,9 +1,6 @@
 package com.pronavicola.camion
 
-import com.pronavicola.camion.data.local.dao.ParametroConUnidad
-import com.pronavicola.camion.data.local.dao.ParametroDao
 import com.pronavicola.camion.data.local.dao.VehiculoDao
-import com.pronavicola.camion.data.local.entity.ParametroEntity
 import com.pronavicola.camion.data.local.entity.VehiculoEntity
 import com.pronavicola.camion.domain.repository.AppConfigRepository
 import com.pronavicola.camion.domain.usecase.config.UpdateTruckPlateUseCase
@@ -65,57 +62,6 @@ class UpdateTruckPlateUseCaseTest {
         }
     }
 
-    private class FakeParametroDao : ParametroDao {
-        val parametros = mutableListOf<ParametroEntity>()
-
-        init {
-            // Seed parameters for vehicle 1
-            parametros.add(
-                ParametroEntity(
-                    idVehiculo = 1,
-                    idParametro = 1,
-                    parametro = "Hum Max",
-                    idTipo = "TIPONUME.DEC",
-                    valor = 85.0,
-                    idUnidad = "UNIDMEDI.PCT",
-                    tag = "HumMax",
-                    minimo = 0.0,
-                    maximo = 100.0,
-                )
-            )
-            parametros.add(
-                ParametroEntity(
-                    idVehiculo = 1,
-                    idParametro = 2,
-                    parametro = "Hum Min",
-                    idTipo = "TIPONUME.DEC",
-                    valor = 40.0,
-                    idUnidad = "UNIDMEDI.PCT",
-                    tag = "HumMin",
-                    minimo = 0.0,
-                    maximo = 100.0,
-                )
-            )
-        }
-
-        override fun observeParametros(idVehiculo: Int): Flow<List<ParametroConUnidad>> = emptyFlow()
-        override suspend fun canEdit(idPerfil: Int, idParametro: Int): Boolean = true
-        override suspend fun updateValor(idVehiculo: Int, idParametro: Int, valor: Double) {}
-        override suspend fun getById(idVehiculo: Int, idParametro: Int): ParametroEntity? =
-            parametros.firstOrNull { it.idVehiculo == idVehiculo && it.idParametro == idParametro }
-
-        override suspend fun getByVehiculo(idVehiculo: Int): List<ParametroEntity> =
-            parametros.filter { it.idVehiculo == idVehiculo }
-
-        override suspend fun insertAll(parametros: List<ParametroEntity>) {
-            this.parametros.addAll(parametros)
-        }
-
-        override suspend fun insert(parametro: ParametroEntity) {
-            this.parametros.add(parametro)
-        }
-    }
-
     private class FakeAppConfigRepository : AppConfigRepository {
         var deviceId: String? = null
         var furgonPlate: String? = null
@@ -153,14 +99,12 @@ class UpdateTruckPlateUseCaseTest {
     }
 
     @Test
-    fun testUpdateTruckPlate_WhenPlateDoesNotExist_UpdatesActiveVehiclePreservingParams() = runTest {
+    fun testUpdateTruckPlate_WhenPlateDoesNotExist_CreatesNewVehicleAndSetsPredeterminado() = runTest {
         val fakeVehiculoDao = FakeVehiculoDao()
-        val fakeParametroDao = FakeParametroDao()
         val fakeAppConfigRepo = FakeAppConfigRepository()
 
         val useCase = UpdateTruckPlateUseCase(
             vehiculoDao = fakeVehiculoDao,
-            parametroDao = fakeParametroDao,
             appConfigRepository = fakeAppConfigRepo,
         )
 
@@ -171,18 +115,19 @@ class UpdateTruckPlateUseCaseTest {
         val registeredVehiculo = result.getOrThrow()
         assertEquals("FURG-002", registeredVehiculo.placa)
         assertEquals(1, registeredVehiculo.predeterminado)
+        assertEquals(2, registeredVehiculo.idVehiculo)
 
-        // Active vehicle 1 should remain predeterminado and retain its parameters
-        val v1 = fakeVehiculoDao.getById(registeredVehiculo.idVehiculo)
+        // Previous vehicle 1 is now predeterminado = 0
+        val v1 = fakeVehiculoDao.getById(1)
         assertNotNull(v1)
-        assertEquals(1, v1.predeterminado)
-        assertEquals("FURG-002", v1.placa)
+        assertEquals(0, v1.predeterminado)
+        assertEquals("ABC123", v1.placa)
 
-        // Check that parameters are preserved
-        val vehicleParams = fakeParametroDao.getByVehiculo(registeredVehiculo.idVehiculo)
-        assertEquals(2, vehicleParams.size)
-        assertEquals("Hum Max", vehicleParams[0].parametro)
-        assertEquals("Hum Min", vehicleParams[1].parametro)
+        // Newly created vehicle 2 is predeterminado = 1
+        val v2 = fakeVehiculoDao.getById(2)
+        assertNotNull(v2)
+        assertEquals(1, v2.predeterminado)
+        assertEquals("FURG-002", v2.placa)
 
         // AppConfig was synced with furgonPlate
         assertEquals("FURG-002", fakeAppConfigRepo.furgonPlate)
@@ -191,14 +136,12 @@ class UpdateTruckPlateUseCaseTest {
     @Test
     fun testUpdateTruckPlate_WhenPlateMatchesDeviceId_RejectsAssignment() = runTest {
         val fakeVehiculoDao = FakeVehiculoDao()
-        val fakeParametroDao = FakeParametroDao()
         val fakeAppConfigRepo = FakeAppConfigRepository().apply {
             deviceId = "BW7JTW7Z2QP"
         }
 
         val useCase = UpdateTruckPlateUseCase(
             vehiculoDao = fakeVehiculoDao,
-            parametroDao = fakeParametroDao,
             appConfigRepository = fakeAppConfigRepo,
         )
 
@@ -210,16 +153,19 @@ class UpdateTruckPlateUseCaseTest {
     @Test
     fun testUpdateTruckPlate_WhenPlateAlreadyExists_ActivatesItWithoutDuplicating() = runTest {
         val fakeVehiculoDao = FakeVehiculoDao()
-        val fakeParametroDao = FakeParametroDao()
         val fakeAppConfigRepo = FakeAppConfigRepository()
 
         val useCase = UpdateTruckPlateUseCase(
             vehiculoDao = fakeVehiculoDao,
-            parametroDao = fakeParametroDao,
             appConfigRepository = fakeAppConfigRepo,
         )
 
-        // Select ABC123 which already exists as ID 1
+        // First add FURG-002
+        useCase("FURG-002")
+        assertEquals(2, fakeVehiculoDao.vehiculos.size)
+        assertEquals(1, fakeVehiculoDao.getById(2)?.predeterminado)
+
+        // Now select ABC123 which already exists as ID 1
         val result = useCase("abc123")
 
         assertTrue(result.isSuccess)
@@ -227,8 +173,8 @@ class UpdateTruckPlateUseCaseTest {
         assertEquals(1, vehiculo.idVehiculo)
         assertEquals(1, vehiculo.predeterminado)
 
-        // Ensure parameters count is still 2 (not duplicated)
-        val v1Params = fakeParametroDao.getByVehiculo(1)
-        assertEquals(2, v1Params.size)
+        // Still only 2 vehicles in table (no duplicates)
+        assertEquals(2, fakeVehiculoDao.vehiculos.size)
+        assertEquals(0, fakeVehiculoDao.getById(2)?.predeterminado)
     }
 }

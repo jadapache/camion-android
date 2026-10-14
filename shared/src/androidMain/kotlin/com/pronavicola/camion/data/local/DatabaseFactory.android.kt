@@ -14,7 +14,6 @@ actual fun createFurgonesDatabase(
 
     val dbFile = context.getDatabasePath(FurgonesDatabase.DB_NAME)
 
-    // Inicializar desde assets únicamente en la primera instalación.
     if (!dbFile.exists()) {
         dbFile.parentFile?.let { parent ->
             check(parent.exists() || parent.mkdirs()) {
@@ -45,7 +44,6 @@ actual fun createFurgonesDatabase(
     )
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
-        .addMigrations(MIGRATION_1_2)
-        .fallbackToDestructiveMigration(dropAllTables = false)
+        .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
 }

@@ -117,14 +117,15 @@ class AppContainer(
         database.buzonMqttDao()
     }
 
-    val trazasUbicacionDao by lazy {
-        database.trazasUbicacionDao()
+    val ubicacionDao by lazy {
+        database.ubicacionDao()
     }
 
     val gpsLocationTracker: com.pronavicola.camion.service.GpsLocationTracker by lazy {
         com.pronavicola.camion.service.createGpsLocationTracker(
             platformContext = platformContext,
-            trazasUbicacionDao = trazasUbicacionDao,
+            ubicacionDao = ubicacionDao,
+            vehiculoDao = database.vehiculoDao(),
             deviceIdProvider = { appConfigRepository.getDeviceId() ?: "AAA000" },
             scope = appScope
         )
@@ -164,7 +165,7 @@ class AppContainer(
     }
 
     val parametrosRepository: ParametrosRepository by lazy {
-        ParametrosRepositoryImpl(database.parametroDao(), database.vehiculoDao(), modbusClient)
+        ParametrosRepositoryImpl(database.parametroDao(), modbusClient)
     }
 
     val registrosRepository: RegistrosRepository by lazy {
@@ -180,7 +181,7 @@ class AppContainer(
     }
 
     val devicePairingRepository: DevicePairingRepository by lazy {
-        DevicePairingRepositoryImpl(platformInfoProvider, screensApiService, appConfigRepository)
+        DevicePairingRepositoryImpl(platformInfoProvider, screensApiService, appConfigRepository, database.vehiculoDao())
     }
 
     val modbusPlcServer: ModbusPlcServer by lazy {
@@ -249,10 +250,10 @@ class AppContainer(
     val testMqttConnectionUseCase: TestMqttConnectionUseCase by lazy { TestMqttConnectionUseCase(appConfigRepository) }
     val pairDeviceUseCase: PairDeviceUseCase by lazy { PairDeviceUseCase(devicePairingRepository) }
     val updateTruckPlateUseCase: UpdateTruckPlateUseCase by lazy {
-        UpdateTruckPlateUseCase(database.vehiculoDao(), database.parametroDao(), appConfigRepository, telemetryMqttCoordinator)
+        UpdateTruckPlateUseCase(database.vehiculoDao(), appConfigRepository, telemetryMqttCoordinator)
     }
     val cleanupHistoricalDataUseCase: com.pronavicola.camion.domain.usecase.config.CleanupHistoricalDataUseCase by lazy {
-        com.pronavicola.camion.domain.usecase.config.CleanupHistoricalDataUseCase(database.variableRegistroDao(), database.trazasUbicacionDao())
+        com.pronavicola.camion.domain.usecase.config.CleanupHistoricalDataUseCase(database.variableRegistroDao(), ubicacionDao)
     }
 
     // 9. Use Cases - Simulation

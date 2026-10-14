@@ -1,6 +1,6 @@
 package com.pronavicola.camion.domain.usecase.config
 
-import com.pronavicola.camion.data.local.dao.TrazasUbicacionDao
+import com.pronavicola.camion.data.local.dao.UbicacionDao
 import com.pronavicola.camion.data.local.dao.VariableRegistroDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,7 +16,7 @@ data class CleanupResult(
 
 class CleanupHistoricalDataUseCase(
     private val variableRegistroDao: VariableRegistroDao,
-    private val trazasUbicacionDao: TrazasUbicacionDao,
+    private val ubicacionDao: UbicacionDao,
 ) {
     suspend operator fun invoke(retentionDays: Long = 60L): CleanupResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
@@ -30,7 +30,7 @@ class CleanupHistoricalDataUseCase(
             totalDeletedTelemetry += deleted
         } while (deleted == 1000)
 
-        val deletedGps = trazasUbicacionDao.deleteOlderThan(cutoff)
+        val deletedGps = ubicacionDao.deleteOlderThan(cutoff)
         val durationMs = System.currentTimeMillis() - startTime
 
         CleanupResult(

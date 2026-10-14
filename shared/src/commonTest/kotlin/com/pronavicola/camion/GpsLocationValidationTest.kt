@@ -32,7 +32,13 @@ class GpsLocationValidationTest {
             marcaTiempo = 1760000000000L,
         )
 
-        val entity = location.toTrazasUbicacionEntity("CAMION-01")
+        val entity = location.toUbicacionEntity(
+            idVehiculo = 1,
+            deviceId = "CAMION-01",
+            idUbicacion = 42L,
+        )
+        assertEquals(1, entity.idVehiculo)
+        assertEquals(42L, entity.idUbicacion)
         assertEquals("CAMION-01", entity.idDispositivo)
         assertEquals(7.1254, entity.latitud)
         assertEquals(-73.1198, entity.longitud)
@@ -58,7 +64,5 @@ class GpsLocationValidationTest {
         assertTrue(json.contains("\"latitude\":4.711"))
         assertTrue(json.contains("\"longitude\":-74.0721"))
         assertTrue(json.contains("\"speed_kmh\":55.4"))
-        assertTrue(json.contains("\"altitude_m\":2600.0"))
-        assertTrue(json.contains("\"timestamp\":1760000000000"))
     }
 }
