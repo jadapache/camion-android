@@ -49,7 +49,7 @@ import com.pronavicola.camion.data.local.entity.VehiculoEntity
     views = [
         VariableRegistroEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @ConstructedBy(FurgonesDatabaseConstructor::class)
@@ -68,6 +68,28 @@ abstract class FurgonesDatabase : RoomDatabase() {
 
     companion object {
         const val DB_NAME = "Furgones.db"
+    }
+}
+
+val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+    override fun migrate(connection: androidx.sqlite.SQLiteConnection) {
+        connection.prepare("DROP VIEW IF EXISTS `V_VariablesRegistro`").use { it.step() }
+        connection.prepare(
+            """
+                CREATE VIEW `V_VariablesRegistro` AS SELECT 
+                    ROW_NUMBER() OVER (ORDER BY vr.FechaHora ASC) AS IdRegistro,
+                    vr.IdVehiculo,
+                    COALESCE(MAX(v.Placa), '') AS Placa,
+                    vr.FechaHora AS Fecha,
+                    COALESCE(MAX(CASE WHEN vr.IdVariable = 1 THEN vr.Valor END), 0.0) AS Temperatura1,
+                    COALESCE(MAX(CASE WHEN vr.IdVariable = 2 THEN vr.Valor END), 0.0) AS Temperatura2,
+                    COALESCE(MAX(CASE WHEN vr.IdVariable = 4 THEN vr.Valor END), 0.0) AS Humedad,
+                    COALESCE(MAX(CASE WHEN vr.IdVariable = 5 THEN vr.Valor END), 0.0) AS Tension
+                FROM VariablesRegistros vr
+                LEFT JOIN Vehiculos v ON vr.IdVehiculo = v.IdVehiculo
+                GROUP BY vr.IdVehiculo, vr.FechaHora
+            """.trimIndent()
+        ).use { it.step() }
     }
 }
 

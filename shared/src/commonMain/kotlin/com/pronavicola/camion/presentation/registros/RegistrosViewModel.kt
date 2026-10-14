@@ -61,18 +61,21 @@ data class RegistrosUiState(
                     hastaMillis != null -> rMillis <= hastaMillis
                     else -> true
                 }
-                val matchesPlaca = filterPlaca.isBlank() || r.idVehiculo.toString().contains(filterPlaca, ignoreCase = true)
+                val matchesPlaca = filterPlaca.isBlank() || 
+                    r.placa.contains(filterPlaca.trim(), ignoreCase = true) || 
+                    r.idVehiculo.toString().contains(filterPlaca.trim(), ignoreCase = true)
                 matchesFecha && matchesPlaca
             }
 
             if (sortColumn != SortColumn.NONE && sortDirection != SortDirection.NONE) {
                 result = when (sortColumn) {
+                    SortColumn.PLACA -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.placa } else result.sortedByDescending { it.placa }
                     SortColumn.FECHA -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.fecha } else result.sortedByDescending { it.fecha }
                     SortColumn.T1 -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.temperatura1 } else result.sortedByDescending { it.temperatura1 }
                     SortColumn.T2 -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.temperatura2 } else result.sortedByDescending { it.temperatura2 }
                     SortColumn.HUM -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.humedad } else result.sortedByDescending { it.humedad }
                     SortColumn.TENSION -> if (sortDirection == SortDirection.ASC) result.sortedBy { it.tension } else result.sortedByDescending { it.tension }
-                    else -> result
+                    SortColumn.NONE -> result
                 }
             }
             return result
@@ -106,7 +109,7 @@ data class RegistrosUiState(
 }
 
 enum class SortColumn {
-    FECHA, T1, T2, HUM, TENSION, NONE
+    PLACA, FECHA, T1, T2, HUM, TENSION, NONE
 }
 
 enum class SortDirection {

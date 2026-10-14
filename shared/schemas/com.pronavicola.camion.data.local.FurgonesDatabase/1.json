@@ -1,0 +1,849 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "7467954dff8f8d4ff2d85775b8095de3",
+    "entities": [
+      {
+        "tableName": "Definiciones",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdDefinicion` TEXT NOT NULL, `Definicion` TEXT NOT NULL, PRIMARY KEY(`IdDefinicion`))",
+        "fields": [
+          {
+            "fieldPath": "idDefinicion",
+            "columnName": "IdDefinicion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "definicion",
+            "columnName": "Definicion",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdDefinicion"
+          ]
+        }
+      },
+      {
+        "tableName": "Perfiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdPerfil` INTEGER NOT NULL, `Perfil` TEXT NOT NULL, PRIMARY KEY(`IdPerfil`))",
+        "fields": [
+          {
+            "fieldPath": "idPerfil",
+            "columnName": "IdPerfil",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "perfil",
+            "columnName": "Perfil",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdPerfil"
+          ]
+        }
+      },
+      {
+        "tableName": "Usuarios",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdUsuario` TEXT NOT NULL, `Usuario` TEXT NOT NULL, `Password` TEXT NOT NULL, `IdPerfil` INTEGER NOT NULL, `Email` TEXT, `Estado` TEXT NOT NULL, PRIMARY KEY(`IdUsuario`), FOREIGN KEY(`IdPerfil`) REFERENCES `Perfiles`(`IdPerfil`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "idUsuario",
+            "columnName": "IdUsuario",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usuario",
+            "columnName": "Usuario",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "password",
+            "columnName": "Password",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idPerfil",
+            "columnName": "IdPerfil",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "email",
+            "columnName": "Email",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "Estado",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdUsuario"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Usuarios_IdPerfil",
+            "unique": false,
+            "columnNames": [
+              "IdPerfil"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Usuarios_IdPerfil` ON `${TABLE_NAME}` (`IdPerfil`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Perfiles",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdPerfil"
+            ],
+            "referencedColumns": [
+              "IdPerfil"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "Parametros",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdVehiculo` INTEGER NOT NULL, `IdParametro` INTEGER NOT NULL, `Parametro` TEXT NOT NULL, `IdTipo` TEXT NOT NULL, `Valor` REAL NOT NULL, `IdUnidad` TEXT NOT NULL, `Tag` TEXT NOT NULL, `Minimo` REAL NOT NULL, `Maximo` REAL NOT NULL, PRIMARY KEY(`IdVehiculo`, `IdParametro`), FOREIGN KEY(`IdVehiculo`) REFERENCES `Vehiculos`(`IdVehiculo`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`IdTipo`) REFERENCES `Definiciones`(`IdDefinicion`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`IdUnidad`) REFERENCES `Definiciones`(`IdDefinicion`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "idVehiculo",
+            "columnName": "IdVehiculo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idParametro",
+            "columnName": "IdParametro",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parametro",
+            "columnName": "Parametro",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idTipo",
+            "columnName": "IdTipo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "valor",
+            "columnName": "Valor",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idUnidad",
+            "columnName": "IdUnidad",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "Tag",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minimo",
+            "columnName": "Minimo",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maximo",
+            "columnName": "Maximo",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdVehiculo",
+            "IdParametro"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Parametros_IdVehiculo",
+            "unique": false,
+            "columnNames": [
+              "IdVehiculo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Parametros_IdVehiculo` ON `${TABLE_NAME}` (`IdVehiculo`)"
+          },
+          {
+            "name": "index_Parametros_IdTipo",
+            "unique": false,
+            "columnNames": [
+              "IdTipo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Parametros_IdTipo` ON `${TABLE_NAME}` (`IdTipo`)"
+          },
+          {
+            "name": "index_Parametros_IdUnidad",
+            "unique": false,
+            "columnNames": [
+              "IdUnidad"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Parametros_IdUnidad` ON `${TABLE_NAME}` (`IdUnidad`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Vehiculos",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdVehiculo"
+            ],
+            "referencedColumns": [
+              "IdVehiculo"
+            ]
+          },
+          {
+            "table": "Definiciones",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdTipo"
+            ],
+            "referencedColumns": [
+              "IdDefinicion"
+            ]
+          },
+          {
+            "table": "Definiciones",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdUnidad"
+            ],
+            "referencedColumns": [
+              "IdDefinicion"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "PerfilesParametros",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdPerfil` INTEGER NOT NULL, `IdParametro` INTEGER NOT NULL, PRIMARY KEY(`IdPerfil`, `IdParametro`), FOREIGN KEY(`IdPerfil`) REFERENCES `Perfiles`(`IdPerfil`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "idPerfil",
+            "columnName": "IdPerfil",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idParametro",
+            "columnName": "IdParametro",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdPerfil",
+            "IdParametro"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_PerfilesParametros_IdPerfil",
+            "unique": false,
+            "columnNames": [
+              "IdPerfil"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PerfilesParametros_IdPerfil` ON `${TABLE_NAME}` (`IdPerfil`)"
+          },
+          {
+            "name": "index_PerfilesParametros_IdParametro",
+            "unique": false,
+            "columnNames": [
+              "IdParametro"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PerfilesParametros_IdParametro` ON `${TABLE_NAME}` (`IdParametro`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Perfiles",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdPerfil"
+            ],
+            "referencedColumns": [
+              "IdPerfil"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "Variables",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdVariable` INTEGER NOT NULL, `Variable` TEXT NOT NULL, `Minimo` REAL, `Maximo` REAL, `Estado` TEXT, PRIMARY KEY(`IdVariable`))",
+        "fields": [
+          {
+            "fieldPath": "idVariable",
+            "columnName": "IdVariable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "variable",
+            "columnName": "Variable",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minimo",
+            "columnName": "Minimo",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "maximo",
+            "columnName": "Maximo",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "Estado",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdVariable"
+          ]
+        }
+      },
+      {
+        "tableName": "VariablesRegistros",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdVehiculo` INTEGER NOT NULL, `IdVariable` INTEGER NOT NULL, `FechaHora` TEXT NOT NULL, `Valor` REAL NOT NULL, PRIMARY KEY(`IdVehiculo`, `IdVariable`, `FechaHora`), FOREIGN KEY(`IdVehiculo`) REFERENCES `Vehiculos`(`IdVehiculo`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`IdVariable`) REFERENCES `Variables`(`IdVariable`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "idVehiculo",
+            "columnName": "IdVehiculo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idVariable",
+            "columnName": "IdVariable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fechaHora",
+            "columnName": "FechaHora",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "valor",
+            "columnName": "Valor",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdVehiculo",
+            "IdVariable",
+            "FechaHora"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_VariablesRegistros_IdVehiculo",
+            "unique": false,
+            "columnNames": [
+              "IdVehiculo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_VariablesRegistros_IdVehiculo` ON `${TABLE_NAME}` (`IdVehiculo`)"
+          },
+          {
+            "name": "index_VariablesRegistros_IdVariable",
+            "unique": false,
+            "columnNames": [
+              "IdVariable"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_VariablesRegistros_IdVariable` ON `${TABLE_NAME}` (`IdVariable`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Vehiculos",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdVehiculo"
+            ],
+            "referencedColumns": [
+              "IdVehiculo"
+            ]
+          },
+          {
+            "table": "Variables",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdVariable"
+            ],
+            "referencedColumns": [
+              "IdVariable"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "AppConfig",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Clave` TEXT NOT NULL, `Valor` TEXT NOT NULL, PRIMARY KEY(`Clave`))",
+        "fields": [
+          {
+            "fieldPath": "clave",
+            "columnName": "Clave",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "valor",
+            "columnName": "Valor",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "Clave"
+          ]
+        }
+      },
+      {
+        "tableName": "Alarmas",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdAlarma` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Alarma` TEXT, `Tag` TEXT, `Descripcion` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "idAlarma",
+            "columnName": "IdAlarma",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alarma",
+            "columnName": "Alarma",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "Tag",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "descripcion",
+            "columnName": "Descripcion",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "IdAlarma"
+          ]
+        }
+      },
+      {
+        "tableName": "AlarmasRegistros",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdVehiculo` INTEGER NOT NULL, `IdAlarma` INTEGER NOT NULL, `IdViaje` INTEGER NOT NULL, `HoraInicio` TEXT NOT NULL, `HoraFin` TEXT NOT NULL, `Estado` TEXT, `AlarmasIdAlarma` INTEGER, `VehiculosIdVehiculo` INTEGER, `DefinicionesIdDefinicion` TEXT, PRIMARY KEY(`IdAlarma`, `IdVehiculo`, `IdViaje`), FOREIGN KEY(`AlarmasIdAlarma`) REFERENCES `Alarmas`(`IdAlarma`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`VehiculosIdVehiculo`) REFERENCES `Vehiculos`(`IdVehiculo`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`DefinicionesIdDefinicion`) REFERENCES `Definiciones`(`IdDefinicion`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "idVehiculo",
+            "columnName": "IdVehiculo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idAlarma",
+            "columnName": "IdAlarma",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idViaje",
+            "columnName": "IdViaje",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "horaInicio",
+            "columnName": "HoraInicio",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "horaFin",
+            "columnName": "HoraFin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "Estado",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "alarmasIdAlarma",
+            "columnName": "AlarmasIdAlarma",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "vehiculosIdVehiculo",
+            "columnName": "VehiculosIdVehiculo",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "definicionesIdDefinicion",
+            "columnName": "DefinicionesIdDefinicion",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IdAlarma",
+            "IdVehiculo",
+            "IdViaje"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_AlarmasRegistros_AlarmasIdAlarma",
+            "unique": false,
+            "columnNames": [
+              "AlarmasIdAlarma"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AlarmasRegistros_AlarmasIdAlarma` ON `${TABLE_NAME}` (`AlarmasIdAlarma`)"
+          },
+          {
+            "name": "index_AlarmasRegistros_VehiculosIdVehiculo",
+            "unique": false,
+            "columnNames": [
+              "VehiculosIdVehiculo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AlarmasRegistros_VehiculosIdVehiculo` ON `${TABLE_NAME}` (`VehiculosIdVehiculo`)"
+          },
+          {
+            "name": "index_AlarmasRegistros_DefinicionesIdDefinicion",
+            "unique": false,
+            "columnNames": [
+              "DefinicionesIdDefinicion"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AlarmasRegistros_DefinicionesIdDefinicion` ON `${TABLE_NAME}` (`DefinicionesIdDefinicion`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Alarmas",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "AlarmasIdAlarma"
+            ],
+            "referencedColumns": [
+              "IdAlarma"
+            ]
+          },
+          {
+            "table": "Vehiculos",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "VehiculosIdVehiculo"
+            ],
+            "referencedColumns": [
+              "IdVehiculo"
+            ]
+          },
+          {
+            "table": "Definiciones",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "DefinicionesIdDefinicion"
+            ],
+            "referencedColumns": [
+              "IdDefinicion"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "Vehiculos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdVehiculo` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Placa` TEXT NOT NULL, `Predeterminado` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "idVehiculo",
+            "columnName": "IdVehiculo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "placa",
+            "columnName": "Placa",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "predeterminado",
+            "columnName": "Predeterminado",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "IdVehiculo"
+          ]
+        }
+      },
+      {
+        "tableName": "TrazasUbicacion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `IdDispositivo` TEXT NOT NULL, `MarcaTiempo` INTEGER NOT NULL, `Latitud` REAL NOT NULL, `Longitud` REAL NOT NULL, `Altitud` REAL, `Precision` REAL, `Velocidad` REAL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idDispositivo",
+            "columnName": "IdDispositivo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "marcaTiempo",
+            "columnName": "MarcaTiempo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latitud",
+            "columnName": "Latitud",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitud",
+            "columnName": "Longitud",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "altitud",
+            "columnName": "Altitud",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "precision",
+            "columnName": "Precision",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "velocidad",
+            "columnName": "Velocidad",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_TrazasUbicacion_IdDispositivo",
+            "unique": false,
+            "columnNames": [
+              "IdDispositivo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrazasUbicacion_IdDispositivo` ON `${TABLE_NAME}` (`IdDispositivo`)"
+          },
+          {
+            "name": "index_TrazasUbicacion_MarcaTiempo",
+            "unique": false,
+            "columnNames": [
+              "MarcaTiempo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrazasUbicacion_MarcaTiempo` ON `${TABLE_NAME}` (`MarcaTiempo`)"
+          },
+          {
+            "name": "index_TrazasUbicacion_IdDispositivo_MarcaTiempo",
+            "unique": false,
+            "columnNames": [
+              "IdDispositivo",
+              "MarcaTiempo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrazasUbicacion_IdDispositivo_MarcaTiempo` ON `${TABLE_NAME}` (`IdDispositivo`, `MarcaTiempo`)"
+          }
+        ]
+      },
+      {
+        "tableName": "BuzonMqtt",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `IdMensaje` TEXT NOT NULL, `Topico` TEXT NOT NULL, `CargaUtil` TEXT NOT NULL, `Qos` INTEGER NOT NULL, `MarcaTiempo` INTEGER NOT NULL, `ConteoReintentos` INTEGER NOT NULL, `Estado` TEXT NOT NULL, `UltimoReintentoEn` INTEGER, `MensajeError` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idMensaje",
+            "columnName": "IdMensaje",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "topico",
+            "columnName": "Topico",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cargaUtil",
+            "columnName": "CargaUtil",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qos",
+            "columnName": "Qos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "marcaTiempo",
+            "columnName": "MarcaTiempo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conteoReintentos",
+            "columnName": "ConteoReintentos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estado",
+            "columnName": "Estado",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ultimoReintentoEn",
+            "columnName": "UltimoReintentoEn",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "mensajeError",
+            "columnName": "MensajeError",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_BuzonMqtt_MarcaTiempo",
+            "unique": false,
+            "columnNames": [
+              "MarcaTiempo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_BuzonMqtt_MarcaTiempo` ON `${TABLE_NAME}` (`MarcaTiempo`)"
+          },
+          {
+            "name": "index_BuzonMqtt_ConteoReintentos",
+            "unique": false,
+            "columnNames": [
+              "ConteoReintentos"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_BuzonMqtt_ConteoReintentos` ON `${TABLE_NAME}` (`ConteoReintentos`)"
+          },
+          {
+            "name": "index_BuzonMqtt_Estado",
+            "unique": false,
+            "columnNames": [
+              "Estado"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_BuzonMqtt_Estado` ON `${TABLE_NAME}` (`Estado`)"
+          }
+        ]
+      }
+    ],
+    "views": [
+      {
+        "viewName": "V_VariablesRegistro",
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT \n            ROW_NUMBER() OVER (ORDER BY vr.FechaHora ASC) AS IdRegistro,\n            vr.IdVehiculo,\n            vr.FechaHora AS Fecha,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 1 THEN vr.Valor END), 0.0) AS Temperatura1,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 2 THEN vr.Valor END), 0.0) AS Temperatura2,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 4 THEN vr.Valor END), 0.0) AS Humedad,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 5 THEN vr.Valor END), 0.0) AS Tension\n        FROM VariablesRegistros vr\n        GROUP BY vr.IdVehiculo, vr.FechaHora"
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7467954dff8f8d4ff2d85775b8095de3')"
+    ]
+  }
+}

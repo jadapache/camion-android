@@ -137,11 +137,14 @@ fun RegistrosScreen(
             val datePart = reg.fecha.substringBefore(" ").trim()
             val matchDesde = filterFechaDesde.isBlank() || datePart >= filterFechaDesde
             val matchHasta = filterFechaHasta.isBlank() || datePart <= filterFechaHasta
-            val matchPlaca = filterPlaca.isBlank() || reg.idVehiculo.toString().contains(filterPlaca.trim(), ignoreCase = true)
+            val matchPlaca = filterPlaca.isBlank() || 
+                reg.placa.contains(filterPlaca.trim(), ignoreCase = true) || 
+                reg.idVehiculo.toString().contains(filterPlaca.trim(), ignoreCase = true)
             matchDesde && matchHasta && matchPlaca
         }
 
         when (sortColumn) {
+            SortColumn.PLACA -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.placa } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.placa } else list
             SortColumn.FECHA -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.fecha } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.fecha } else list
             SortColumn.T1 -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.temperatura1 } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.temperatura1 } else list
             SortColumn.T2 -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.temperatura2 } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.temperatura2 } else list
@@ -631,12 +634,20 @@ private fun TableHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SortableHeaderItem(
+            title = "Placa",
+            column = SortColumn.PLACA,
+            currentColumn = sortColumn,
+            direction = sortDirection,
+            onSort = onSort,
+            modifier = Modifier.weight(1.3f)
+        )
+        SortableHeaderItem(
             title = "Fecha/Hora",
             column = SortColumn.FECHA,
             currentColumn = sortColumn,
             direction = sortDirection,
             onSort = onSort,
-            modifier = Modifier.weight(2.4f)
+            modifier = Modifier.weight(2.1f)
         )
         SortableHeaderItem(
             title = "T1",
@@ -644,7 +655,7 @@ private fun TableHeader(
             currentColumn = sortColumn,
             direction = sortDirection,
             onSort = onSort,
-            modifier = Modifier.weight(1.1f)
+            modifier = Modifier.weight(1.0f)
         )
         SortableHeaderItem(
             title = "T2",
@@ -652,7 +663,7 @@ private fun TableHeader(
             currentColumn = sortColumn,
             direction = sortDirection,
             onSort = onSort,
-            modifier = Modifier.weight(1.1f)
+            modifier = Modifier.weight(1.0f)
         )
         SortableHeaderItem(
             title = "Hum",
@@ -660,7 +671,7 @@ private fun TableHeader(
             currentColumn = sortColumn,
             direction = sortDirection,
             onSort = onSort,
-            modifier = Modifier.weight(1.1f)
+            modifier = Modifier.weight(1.0f)
         )
         SortableHeaderItem(
             title = "Tensión",
@@ -668,7 +679,7 @@ private fun TableHeader(
             currentColumn = sortColumn,
             direction = sortDirection,
             onSort = onSort,
-            modifier = Modifier.weight(1.1f)
+            modifier = Modifier.weight(1.0f)
         )
     }
 }
@@ -724,10 +735,19 @@ private fun RegistroRow(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Placa
+            Text(
+                text = registro.placa.ifBlank { "ID: ${registro.idVehiculo}" },
+                modifier = Modifier.weight(1.3f),
+                fontSize = 13.sp,
+                color = Color(0xFF00325B),
+                fontWeight = FontWeight.SemiBold
+            )
+
             // Fecha / Hora
             Text(
                 text = registro.fecha,
-                modifier = Modifier.weight(2.4f),
+                modifier = Modifier.weight(2.1f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
                 fontWeight = FontWeight.Normal
@@ -736,7 +756,7 @@ private fun RegistroRow(
             // T1
             Text(
                 text = "${String.format(Locale.US, "%.1f", registro.temperatura1)} °C",
-                modifier = Modifier.weight(1.1f),
+                modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
                 fontWeight = FontWeight.Normal
@@ -745,7 +765,7 @@ private fun RegistroRow(
             // T2
             Text(
                 text = "${String.format(Locale.US, "%.1f", registro.temperatura2)} °C",
-                modifier = Modifier.weight(1.1f),
+                modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
                 fontWeight = FontWeight.Normal
@@ -754,7 +774,7 @@ private fun RegistroRow(
             // Hum
             Text(
                 text = "${String.format(Locale.US, "%.1f", registro.humedad)} %",
-                modifier = Modifier.weight(1.1f),
+                modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
                 fontWeight = FontWeight.Normal
@@ -763,7 +783,7 @@ private fun RegistroRow(
             // Tensión
             Text(
                 text = "${String.format(Locale.US, "%.1f", registro.tension)} V",
-                modifier = Modifier.weight(1.1f),
+                modifier = Modifier.weight(1.0f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
                 fontWeight = FontWeight.Normal
@@ -774,9 +794,9 @@ private fun RegistroRow(
 
 private fun generateCsv(data: List<VariableRegistroEntity>): String {
     val sb = StringBuilder()
-    sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,Tension\n")
+    sb.append("IdRegistro,IdVehiculo,Placa,Fecha,Temperatura1,Temperatura2,Humedad,Tension\n")
     data.forEach { r ->
-        sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension}\n")
+        sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.placa}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension}\n")
     }
     return sb.toString()
 }

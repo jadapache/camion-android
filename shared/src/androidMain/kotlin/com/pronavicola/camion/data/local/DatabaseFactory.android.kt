@@ -45,5 +45,7 @@ actual fun createFurgonesDatabase(
     )
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
+        .addMigrations(MIGRATION_1_2)
+        .fallbackToDestructiveMigration(dropAllTables = false)
         .build()
 }

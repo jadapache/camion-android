@@ -64,44 +64,74 @@ class AndroidGpsLocationTracker(
         }
 
         try {
-            val hasGps = try { locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) } catch (_: Exception) { false }
-            val hasNetwork = try { locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) } catch (_: Exception) { false }
-
-            if (!hasGps && !hasNetwork) {
-                Log.w(tag, "No location providers enabled")
+            val enabledProviders = locationManager.getProviders(true)
+            if (enabledProviders.isEmpty()) {
+                Log.w(tag, "No enabled location providers found")
+            } else {
+                Log.i(tag, "Enabled location providers: $enabledProviders")
             }
 
-            if (hasGps) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    MIN_UPDATE_INTERVAL_MS,
-                    MIN_DISPLACEMENT_METERS,
-                    locationListener,
-                    Looper.getMainLooper()
-                )
+            var registeredAny = false
+            for (provider in enabledProviders) {
+                try {
+                    locationManager.requestLocationUpdates(
+                        provider,
+                        MIN_UPDATE_INTERVAL_MS,
+                        MIN_DISPLACEMENT_METERS,
+                        locationListener,
+                        Looper.getMainLooper()
+                    )
+                    registeredAny = true
+                    Log.d(tag, "Requested location updates from provider: $provider")
+                } catch (e: Exception) {
+                    Log.w(tag, "Failed to request location updates from $provider: ${e.message}")
+                }
             }
 
-            if (hasNetwork) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    MIN_UPDATE_INTERVAL_MS,
-                    MIN_DISPLACEMENT_METERS,
-                    locationListener,
-                    Looper.getMainLooper()
-                )
+            if (!registeredAny) {
+                val hasGps = try { locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) } catch (_: Exception) { false }
+                val hasNetwork = try { locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) } catch (_: Exception) { false }
+                if (hasGps) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        MIN_UPDATE_INTERVAL_MS,
+                        MIN_DISPLACEMENT_METERS,
+                        locationListener,
+                        Looper.getMainLooper()
+                    )
+                    registeredAny = true
+                }
+                if (hasNetwork) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        MIN_UPDATE_INTERVAL_MS,
+                        MIN_DISPLACEMENT_METERS,
+                        locationListener,
+                        Looper.getMainLooper()
+                    )
+                    registeredAny = true
+                }
             }
 
-            // Get last known location immediately
-            val lastGps = if (hasGps) locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) else null
-            val lastNetwork = if (hasNetwork) locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) else null
-            val bestLast = lastGps ?: lastNetwork
+            // Get last known location immediately across all providers
+            var bestLast: Location? = null
+            for (provider in locationManager.allProviders) {
+                try {
+                    val last = locationManager.getLastKnownLocation(provider)
+                    if (last != null && (bestLast == null || last.time > bestLast.time)) {
+                        bestLast = last
+                    }
+                } catch (_: Exception) {}
+            }
             bestLast?.let { handleLocationUpdate(it) }
 
             _isTracking.value = true
-            Log.i(tag, "GPS tracking started successfully")
+            Log.i(tag, "GPS tracking started successfully (registeredAny=$registeredAny)")
         } catch (e: SecurityException) {
+            _isTracking.value = false
             Log.e(tag, "Missing location permissions: ${e.message}")
         } catch (e: Exception) {
+            _isTracking.value = false
             Log.e(tag, "Error starting location tracking: ${e.message}")
         }
     }

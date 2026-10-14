@@ -1,5 +1,6 @@
 package com.pronavicola.camion.service
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,11 +8,13 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.pronavicola.camion.CamionApplication
 import com.pronavicola.camion.MainActivity
 import com.pronavicola.camion.R
@@ -21,7 +24,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Enterprise Android Foreground Service ensuring continuous 24/7 background telemetry:
@@ -91,12 +96,16 @@ class MqttForegroundService : Service() {
         }
 
         try {
-            val notification = createNotification("Iniciando servicio de telemetría y registro...")
+            val notification = createNotification("Iniciando servicio de telemetría y geolocalización...")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                var fgsType = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                if (hasLocationPermission()) {
+                    fgsType = fgsType or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                }
                 startForeground(
                     NOTIFICATION_ID,
                     notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                    fgsType,
                 )
             } else {
                 startForeground(NOTIFICATION_ID, notification)
@@ -116,6 +125,18 @@ class MqttForegroundService : Service() {
         return START_REDELIVER_INTENT
     }
 
+    private fun hasLocationPermission(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
     private fun startTelemetryServices() {
         val app = application as? CamionApplication ?: return
         if (!app.isInitialized) {
@@ -124,19 +145,30 @@ class MqttForegroundService : Service() {
         }
         val appContainer = app.appContext
 
-        // Ensure background services (Modbus polling coordinator + MQTT) are active
+        // Ensure background services (Modbus polling coordinator + MQTT + GPS) are active
         appContainer.startBackgroundServices()
 
-        // Dynamically update foreground notification based on connection state
+        // Dynamically update foreground notification based on connection state and GPS tracking
         statusCollectorJob?.cancel()
         statusCollectorJob = serviceScope.launch {
-            appContainer.mqttRepository.isConnected.collect { connected ->
+            combine(
+                appContainer.mqttRepository.isConnected,
+                appContainer.gpsLocationTracker.currentLocation
+            ) { connected, location ->
+                Pair(connected, location)
+            }.collect { (connected, location) ->
                 val modbusConnected = appContainer.modbusRepository.isConnected.value
                 val pending = appContainer.mqttRepository.outboxPendingCount.value
                 val statusText = buildString {
-                    append(if (connected) "MQTT: Conectado" else "MQTT: Reconectando")
+                    append(if (connected) "MQTT: OK" else "MQTT: Reconectando")
                     append(" | ")
                     append(if (modbusConnected) "PLC: OK" else "PLC: Desconectado")
+                    append(" | ")
+                    if (location != null) {
+                        append("GPS: ${String.format(Locale.US, "%.4f, %.4f", location.latitud, location.longitud)}")
+                    } else {
+                        append("GPS: Rastreo activo")
+                    }
                     if (pending > 0) append(" | Pendientes: $pending")
                 }
                 updateNotification(statusText)
@@ -150,7 +182,7 @@ class MqttForegroundService : Service() {
             CHANNEL_NAME,
             NotificationManager.IMPORTANCE_LOW,
         ).apply {
-            description = "Monitoreo continuo de temperatura, humedad y alarmas de transporte"
+            description = "Monitoreo continuo de temperatura, humedad, geolocalización y alarmas de transporte"
             setShowBadge(false)
         }
         val manager = getSystemService(NotificationManager::class.java)
