@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "7467954dff8f8d4ff2d85775b8095de3",
+    "identityHash": "cd34ec731d1ad7790ad28a170fd0058e",
     "entities": [
       {
         "tableName": "Definiciones",
@@ -125,14 +125,8 @@
       },
       {
         "tableName": "Parametros",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdVehiculo` INTEGER NOT NULL, `IdParametro` INTEGER NOT NULL, `Parametro` TEXT NOT NULL, `IdTipo` TEXT NOT NULL, `Valor` REAL NOT NULL, `IdUnidad` TEXT NOT NULL, `Tag` TEXT NOT NULL, `Minimo` REAL NOT NULL, `Maximo` REAL NOT NULL, PRIMARY KEY(`IdVehiculo`, `IdParametro`), FOREIGN KEY(`IdVehiculo`) REFERENCES `Vehiculos`(`IdVehiculo`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`IdTipo`) REFERENCES `Definiciones`(`IdDefinicion`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`IdUnidad`) REFERENCES `Definiciones`(`IdDefinicion`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdParametro` INTEGER NOT NULL, `Parametro` TEXT NOT NULL, `IdTipo` TEXT NOT NULL, `Valor` REAL NOT NULL, `IdUnidad` TEXT NOT NULL, `Tag` TEXT NOT NULL, `Minimo` REAL NOT NULL, `Maximo` REAL NOT NULL, PRIMARY KEY(`IdParametro`), FOREIGN KEY(`IdTipo`) REFERENCES `Definiciones`(`IdDefinicion`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`IdUnidad`) REFERENCES `Definiciones`(`IdDefinicion`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
-          {
-            "fieldPath": "idVehiculo",
-            "columnName": "IdVehiculo",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
           {
             "fieldPath": "idParametro",
             "columnName": "IdParametro",
@@ -185,20 +179,10 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "IdVehiculo",
             "IdParametro"
           ]
         },
         "indices": [
-          {
-            "name": "index_Parametros_IdVehiculo",
-            "unique": false,
-            "columnNames": [
-              "IdVehiculo"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_Parametros_IdVehiculo` ON `${TABLE_NAME}` (`IdVehiculo`)"
-          },
           {
             "name": "index_Parametros_IdTipo",
             "unique": false,
@@ -219,17 +203,6 @@
           }
         ],
         "foreignKeys": [
-          {
-            "table": "Vehiculos",
-            "onDelete": "NO ACTION",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "IdVehiculo"
-            ],
-            "referencedColumns": [
-              "IdVehiculo"
-            ]
-          },
           {
             "table": "Definiciones",
             "onDelete": "NO ACTION",
@@ -649,12 +622,18 @@
         }
       },
       {
-        "tableName": "TrazasUbicacion",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `IdDispositivo` TEXT NOT NULL, `MarcaTiempo` INTEGER NOT NULL, `Latitud` REAL NOT NULL, `Longitud` REAL NOT NULL, `Altitud` REAL, `Precision` REAL, `Velocidad` REAL)",
+        "tableName": "Ubicacion",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IdVehiculo` INTEGER NOT NULL, `IdUbicacion` INTEGER NOT NULL, `IdDispositivo` TEXT NOT NULL, `MarcaTiempo` INTEGER NOT NULL, `Latitud` REAL NOT NULL, `Longitud` REAL NOT NULL, `Altitud` REAL, `Precision` REAL, `Velocidad` REAL, PRIMARY KEY(`IdVehiculo`, `IdUbicacion`), FOREIGN KEY(`IdVehiculo`) REFERENCES `Vehiculos`(`IdVehiculo`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
-            "fieldPath": "id",
-            "columnName": "id",
+            "fieldPath": "idVehiculo",
+            "columnName": "IdVehiculo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idUbicacion",
+            "columnName": "IdUbicacion",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -699,39 +678,62 @@
           }
         ],
         "primaryKey": {
-          "autoGenerate": true,
+          "autoGenerate": false,
           "columnNames": [
-            "id"
+            "IdVehiculo",
+            "IdUbicacion"
           ]
         },
         "indices": [
           {
-            "name": "index_TrazasUbicacion_IdDispositivo",
+            "name": "index_Ubicacion_IdVehiculo",
+            "unique": false,
+            "columnNames": [
+              "IdVehiculo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Ubicacion_IdVehiculo` ON `${TABLE_NAME}` (`IdVehiculo`)"
+          },
+          {
+            "name": "index_Ubicacion_IdDispositivo",
             "unique": false,
             "columnNames": [
               "IdDispositivo"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrazasUbicacion_IdDispositivo` ON `${TABLE_NAME}` (`IdDispositivo`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Ubicacion_IdDispositivo` ON `${TABLE_NAME}` (`IdDispositivo`)"
           },
           {
-            "name": "index_TrazasUbicacion_MarcaTiempo",
+            "name": "index_Ubicacion_MarcaTiempo",
             "unique": false,
             "columnNames": [
               "MarcaTiempo"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrazasUbicacion_MarcaTiempo` ON `${TABLE_NAME}` (`MarcaTiempo`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Ubicacion_MarcaTiempo` ON `${TABLE_NAME}` (`MarcaTiempo`)"
           },
           {
-            "name": "index_TrazasUbicacion_IdDispositivo_MarcaTiempo",
+            "name": "index_Ubicacion_IdDispositivo_MarcaTiempo",
             "unique": false,
             "columnNames": [
               "IdDispositivo",
               "MarcaTiempo"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_TrazasUbicacion_IdDispositivo_MarcaTiempo` ON `${TABLE_NAME}` (`IdDispositivo`, `MarcaTiempo`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Ubicacion_IdDispositivo_MarcaTiempo` ON `${TABLE_NAME}` (`IdDispositivo`, `MarcaTiempo`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "Vehiculos",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "IdVehiculo"
+            ],
+            "referencedColumns": [
+              "IdVehiculo"
+            ]
           }
         ]
       },
@@ -838,12 +840,16 @@
     "views": [
       {
         "viewName": "V_VariablesRegistro",
-        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT \n            ROW_NUMBER() OVER (ORDER BY vr.FechaHora ASC) AS IdRegistro,\n            vr.IdVehiculo,\n            vr.FechaHora AS Fecha,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 1 THEN vr.Valor END), 0.0) AS Temperatura1,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 2 THEN vr.Valor END), 0.0) AS Temperatura2,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 4 THEN vr.Valor END), 0.0) AS Humedad,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 5 THEN vr.Valor END), 0.0) AS Tension\n        FROM VariablesRegistros vr\n        GROUP BY vr.IdVehiculo, vr.FechaHora"
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT \n            ROW_NUMBER() OVER (ORDER BY vr.FechaHora ASC) AS IdRegistro,\n            vr.IdVehiculo,\n            COALESCE(MAX(v.Placa), '') AS Placa,\n            vr.FechaHora AS Fecha,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 1 THEN vr.Valor END), 0.0) AS Temperatura1,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 2 THEN vr.Valor END), 0.0) AS Temperatura2,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 4 THEN vr.Valor END), 0.0) AS Humedad,\n            COALESCE(MAX(CASE WHEN vr.IdVariable = 5 THEN vr.Valor END), 0.0) AS Tension\n        FROM VariablesRegistros vr\n        LEFT JOIN Vehiculos v ON vr.IdVehiculo = v.IdVehiculo\n        GROUP BY vr.IdVehiculo, vr.FechaHora"
+      },
+      {
+        "viewName": "V_AlarmasRegistro",
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT \n            ar.IdAlarma,\n            ar.IdVehiculo,\n            ar.IdViaje,\n            COALESCE(v.Placa, '') AS Placa,\n            COALESCE(a.Alarma, '') AS Alarma,\n            ar.HoraInicio,\n            ar.HoraFin,\n            ar.Estado,\n            ar.AlarmasIdAlarma,\n            ar.VehiculosIdVehiculo,\n            ar.DefinicionesIdDefinicion\n        FROM AlarmasRegistros ar\n        LEFT JOIN Vehiculos v ON ar.IdVehiculo = v.IdVehiculo\n        LEFT JOIN Alarmas a ON ar.IdAlarma = a.IdAlarma"
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7467954dff8f8d4ff2d85775b8095de3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cd34ec731d1ad7790ad28a170fd0058e')"
     ]
   }
 }

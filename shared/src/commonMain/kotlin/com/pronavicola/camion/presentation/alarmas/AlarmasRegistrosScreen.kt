@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.usecase.alarmas.AlarmaRegistroUiModel
+import com.pronavicola.camion.presentation.registros.SortDirection
 import com.pronavicola.camion.presentation.theme.CamionColors
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -379,6 +380,28 @@ fun AlarmasRegistrosScreen(
                             )
                         }
 
+                        // Filter by Placa / Vehículo
+                        OutlinedTextField(
+                            value = uiState.filterPlaca,
+                            onValueChange = { viewModel.setFilterPlaca(it) },
+                            label = { Text("Placa", fontSize = 12.sp) },
+                            placeholder = { Text("Ej. ABC123", fontSize = 12.sp) },
+                            trailingIcon = {
+                                if (uiState.filterPlaca.isNotEmpty()) {
+                                    IconButton(onClick = { viewModel.setFilterPlaca("") }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "Limpiar placa",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1.0f),
+                            singleLine = true
+                        )
+
                         // Filter by Estado Chips
                         Row(
                             modifier = Modifier.weight(1.6f),
@@ -408,7 +431,7 @@ fun AlarmasRegistrosScreen(
                         }
 
                         // Clear All Filters Button
-                        if (uiState.filterFechaDesde.isNotEmpty() || uiState.filterFechaHasta.isNotEmpty() || uiState.filterEstado != "TODOS") {
+                        if (uiState.filterFechaDesde.isNotEmpty() || uiState.filterFechaHasta.isNotEmpty() || uiState.filterPlaca.isNotEmpty() || uiState.filterEstado != "TODOS") {
                             TextButton(onClick = { viewModel.clearFilters() }) {
                                 Text("Limpiar Filtros", color = Color(0xFFC62828), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -428,7 +451,7 @@ fun AlarmasRegistrosScreen(
                 Text("Error: ${uiState.error}", color = Color.Red)
             }
         } else {
-            // Table Header
+            // Table Header with Column Sorting
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -436,39 +459,44 @@ fun AlarmasRegistrosScreen(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Id",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    modifier = Modifier.weight(0.6f)
+                SortableAlarmaHeaderItem(
+                    title = "Placa",
+                    column = AlarmaSortColumn.PLACA,
+                    currentColumn = uiState.sortColumn,
+                    direction = uiState.sortDirection,
+                    onSort = { viewModel.toggleSort(it) },
+                    modifier = Modifier.weight(1.2f)
                 )
-                Text(
-                    "Alarma",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    modifier = Modifier.weight(2.4f)
+                SortableAlarmaHeaderItem(
+                    title = "Alarma",
+                    column = AlarmaSortColumn.ALARMA,
+                    currentColumn = uiState.sortColumn,
+                    direction = uiState.sortDirection,
+                    onSort = { viewModel.toggleSort(it) },
+                    modifier = Modifier.weight(2.2f)
                 )
-                Text(
-                    "Inicio",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
+                SortableAlarmaHeaderItem(
+                    title = "Inicio",
+                    column = AlarmaSortColumn.INICIO,
+                    currentColumn = uiState.sortColumn,
+                    direction = uiState.sortDirection,
+                    onSort = { viewModel.toggleSort(it) },
                     modifier = Modifier.weight(1.8f)
                 )
-                Text(
-                    "Fin",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
+                SortableAlarmaHeaderItem(
+                    title = "Fin",
+                    column = AlarmaSortColumn.FIN,
+                    currentColumn = uiState.sortColumn,
+                    direction = uiState.sortDirection,
+                    onSort = { viewModel.toggleSort(it) },
                     modifier = Modifier.weight(1.8f)
                 )
-                Text(
-                    "Estado",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
+                SortableAlarmaHeaderItem(
+                    title = "Estado",
+                    column = AlarmaSortColumn.ESTADO,
+                    currentColumn = uiState.sortColumn,
+                    direction = uiState.sortDirection,
+                    onSort = { viewModel.toggleSort(it) },
                     modifier = Modifier.weight(1.0f)
                 )
             }
@@ -624,18 +652,18 @@ private fun AlarmaRegistroRow(alarma: AlarmaRegistroUiModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${alarma.idAlarma}",
+                text = if (alarma.placa.isNotBlank()) alarma.placa else "V-${alarma.idVehiculo}",
                 color = Color(0xFF1A1A1A),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(0.6f)
+                modifier = Modifier.weight(1.2f)
             )
             Text(
                 text = alarma.alarmaDescripcion,
                 color = Color(0xFF1A1A1A),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(2.4f)
+                modifier = Modifier.weight(2.2f)
             )
             Text(
                 text = alarma.horaInicio,
@@ -660,13 +688,51 @@ private fun AlarmaRegistroRow(alarma: AlarmaRegistroUiModel) {
     }
 }
 
+@Composable
+private fun SortableAlarmaHeaderItem(
+    title: String,
+    column: AlarmaSortColumn,
+    currentColumn: AlarmaSortColumn,
+    direction: SortDirection,
+    onSort: (AlarmaSortColumn) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clickable { onSort(column) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        val arrow = when {
+            currentColumn != column || direction == SortDirection.NONE -> "↕"
+            direction == SortDirection.ASC -> "▲"
+            else -> "▼"
+        }
+        val arrowAlpha = if (currentColumn == column && direction != SortDirection.NONE) 1.0f else 0.4f
+        Text(
+            text = arrow,
+            color = Color.White.copy(alpha = arrowAlpha),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
 private fun generateAlarmasCsv(alarmas: List<AlarmaRegistroUiModel>): String {
     val sb = StringBuilder()
-    sb.appendLine("IdAlarma,Alarma,IdVehiculo,IdViaje,HoraInicio,HoraFin,Estado")
+    sb.appendLine("Placa,IdAlarma,Alarma,IdVehiculo,IdViaje,HoraInicio,HoraFin,Estado")
     alarmas.forEach { a ->
         val safeDesc = a.alarmaDescripcion.replace("\"", "\"\"")
+        val safePlaca = a.placa.replace("\"", "\"\"")
         val fin = if (a.horaFin.isBlank()) "-" else a.horaFin
-        sb.appendLine("${a.idAlarma},\"$safeDesc\",${a.idVehiculo},${a.idViaje},\"${a.horaInicio}\",\"$fin\",\"${a.estado ?: ""}\"")
+        sb.appendLine("\"$safePlaca\",${a.idAlarma},\"$safeDesc\",${a.idVehiculo},${a.idViaje},\"${a.horaInicio}\",\"$fin\",\"${a.estado ?: ""}\"")
     }
     return sb.toString()
 }

@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.pronavicola.camion.data.local.entity.AlarmaRegistroEntity
+import com.pronavicola.camion.data.local.entity.AlarmaRegistroView
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -16,6 +17,12 @@ interface AlarmaRegistroDao {
 
     @Query("SELECT * FROM AlarmasRegistros WHERE IdVehiculo = :idVehiculo ORDER BY HoraInicio DESC")
     fun observeByVehiculo(idVehiculo: Int): Flow<List<AlarmaRegistroEntity>>
+
+    @Query("SELECT * FROM V_AlarmasRegistro ORDER BY HoraInicio DESC")
+    fun observeAllViews(): Flow<List<AlarmaRegistroView>>
+
+    @Query("SELECT * FROM V_AlarmasRegistro WHERE IdVehiculo = :idVehiculo ORDER BY HoraInicio DESC")
+    fun observeViewsByVehiculo(idVehiculo: Int): Flow<List<AlarmaRegistroView>>
 
     @Query("SELECT * FROM AlarmasRegistros WHERE IdVehiculo = :idVehiculo AND IdViaje = :idViaje ORDER BY HoraInicio DESC")
     suspend fun getByVehiculoAndViaje(idVehiculo: Int, idViaje: Int): List<AlarmaRegistroEntity>

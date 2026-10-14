@@ -10,6 +10,7 @@ data class AlarmaRegistroUiModel(
     val idAlarma: Int,
     val idVehiculo: Int,
     val idViaje: Int,
+    val placa: String = "",
     val alarmaDescripcion: String,
     val horaInicio: String,
     val horaFin: String,
@@ -20,23 +21,22 @@ class ObserveAlarmasRegistrosUseCase(
     private val alarmaRegistroRepository: AlarmaRegistroRepository
 ) {
     suspend operator fun invoke(idVehiculo: Int? = null): Flow<List<AlarmaRegistroUiModel>> {
-        val alarmas = alarmaRegistroRepository.getAlarmas().associateBy { it.idAlarma }
         val flow = if (idVehiculo != null && idVehiculo > 0) {
-            alarmaRegistroRepository.observeAlarmasRegistros(idVehiculo)
+            alarmaRegistroRepository.observeAlarmasViews(idVehiculo)
         } else {
-            alarmaRegistroRepository.observeAllAlarmasRegistros()
+            alarmaRegistroRepository.observeAllAlarmasViews()
         }
-        return flow.map { registros ->
-            registros.map { registro ->
-                val alarma = registro.alarmasIdAlarma?.let { alarmas[it] } ?: alarmas[registro.idAlarma]
+        return flow.map { views ->
+            views.map { v ->
                 AlarmaRegistroUiModel(
-                    idAlarma = registro.idAlarma,
-                    idVehiculo = registro.idVehiculo,
-                    idViaje = registro.idViaje,
-                    alarmaDescripcion = alarma?.alarma ?: "Alarma Desconocida (${registro.idAlarma})",
-                    horaInicio = registro.horaInicio,
-                    horaFin = registro.horaFin,
-                    estado = registro.estado,
+                    idAlarma = v.idAlarma,
+                    idVehiculo = v.idVehiculo,
+                    idViaje = v.idViaje,
+                    placa = v.placa,
+                    alarmaDescripcion = if (v.alarma.isNotBlank()) v.alarma else "Alarma ${v.idAlarma}",
+                    horaInicio = v.horaInicio,
+                    horaFin = v.horaFin,
+                    estado = v.estado,
                 )
             }
         }

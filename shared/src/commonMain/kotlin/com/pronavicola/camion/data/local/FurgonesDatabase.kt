@@ -17,6 +17,7 @@ import com.pronavicola.camion.data.local.dao.VariableRegistroDao
 import com.pronavicola.camion.data.local.dao.VehiculoDao
 import com.pronavicola.camion.data.local.entity.AlarmaEntity
 import com.pronavicola.camion.data.local.entity.AlarmaRegistroEntity
+import com.pronavicola.camion.data.local.entity.AlarmaRegistroView
 import com.pronavicola.camion.data.local.entity.AppConfigEntity
 import com.pronavicola.camion.data.local.entity.BuzonMqttEntity
 import com.pronavicola.camion.data.local.entity.DefinicionEntity
@@ -48,6 +49,7 @@ import com.pronavicola.camion.data.local.entity.VehiculoEntity
     ],
     views = [
         VariableRegistroEntity::class,
+        AlarmaRegistroView::class,
     ],
     version = 1,
     exportSchema = true,

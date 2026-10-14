@@ -19,6 +19,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+
 class AndroidGpsLocationTracker(
     private val context: Context,
     private val ubicacionDao: UbicacionDao,
@@ -35,6 +39,9 @@ class AndroidGpsLocationTracker(
 
     private val _isTracking = MutableStateFlow(false)
     override val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
+
+    private var heartbeatJob: Job? = null
+    private var lastPersistTimeMs: Long = 0L
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
@@ -53,7 +60,7 @@ class AndroidGpsLocationTracker(
 
     companion object {
         const val MIN_UPDATE_INTERVAL_MS = 15_000L // 15 seconds
-        const val MIN_DISPLACEMENT_METERS = 5f // 5 meters
+        const val MIN_DISPLACEMENT_METERS = 0f // 0 meters - ensures updates even when stationary/parked
     }
 
     @SuppressLint("MissingPermission")
@@ -129,6 +136,37 @@ class AndroidGpsLocationTracker(
 
             _isTracking.value = true
             Log.i(tag, "GPS tracking started successfully (registeredAny=$registeredAny)")
+
+            // Periodic heartbeat to refresh stationary location coordinates even when stationary indoors
+            heartbeatJob?.cancel()
+            heartbeatJob = scope.launch(Dispatchers.IO) {
+                while (isActive) {
+                    delay(MIN_UPDATE_INTERVAL_MS)
+                    if (!_isTracking.value) break
+
+                    val now = System.currentTimeMillis()
+                    if (now - lastPersistTimeMs >= (MIN_UPDATE_INTERVAL_MS - 2000L)) {
+                        var candidate: Location? = null
+                        try {
+                            for (p in locationManager.allProviders) {
+                                val last = locationManager.getLastKnownLocation(p)
+                                if (last != null && (candidate == null || last.time > candidate.time)) {
+                                    candidate = last
+                                }
+                            }
+                        } catch (_: Exception) {}
+
+                        if (candidate != null) {
+                            handleLocationUpdate(candidate)
+                        } else {
+                            val curr = _currentLocation.value
+                            if (curr != null) {
+                                persistGpsLocation(curr.copy(marcaTiempo = now))
+                            }
+                        }
+                    }
+                }
+            }
         } catch (e: SecurityException) {
             _isTracking.value = false
             Log.e(tag, "Missing location permissions: ${e.message}")
@@ -141,6 +179,8 @@ class AndroidGpsLocationTracker(
     override suspend fun stopTracking() = withContext(Dispatchers.Main) {
         if (!_isTracking.value) return@withContext
         try {
+            heartbeatJob?.cancel()
+            heartbeatJob = null
             locationManager?.removeUpdates(locationListener)
             _isTracking.value = false
             Log.i(tag, "GPS tracking stopped")
@@ -150,18 +190,24 @@ class AndroidGpsLocationTracker(
     }
 
     private fun handleLocationUpdate(location: Location) {
+        val now = System.currentTimeMillis()
         val gpsLocation = GpsLocation(
             latitud = location.latitude,
             longitud = location.longitude,
             altitud = if (location.hasAltitude()) location.altitude else null,
             precision = if (location.hasAccuracy()) location.accuracy else null,
             velocidad = if (location.hasSpeed()) location.speed else null,
-            marcaTiempo = if (location.time > 0) location.time else System.currentTimeMillis()
+            marcaTiempo = now,
         )
 
         _currentLocation.value = gpsLocation
         Log.d(tag, "New location: lat=${gpsLocation.latitud}, lng=${gpsLocation.longitud}, acc=${gpsLocation.precision}")
 
+        persistGpsLocation(gpsLocation)
+    }
+
+    private fun persistGpsLocation(gpsLocation: GpsLocation) {
+        lastPersistTimeMs = System.currentTimeMillis()
         scope.launch(Dispatchers.IO) {
             try {
                 val deviceId = deviceIdProvider()

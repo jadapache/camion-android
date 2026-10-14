@@ -126,7 +126,19 @@ class AppContainer(
             platformContext = platformContext,
             ubicacionDao = ubicacionDao,
             vehiculoDao = database.vehiculoDao(),
-            deviceIdProvider = { appConfigRepository.getDeviceId() ?: "AAA000" },
+            deviceIdProvider = {
+                val devId = appConfigRepository.getDeviceId()?.trim()
+                if (!devId.isNullOrBlank() && devId != "AAA000") {
+                    devId
+                } else {
+                    val persistent = persistentDeviceIdentityStore.loadIdentity()?.deviceId?.trim()
+                    if (!persistent.isNullOrBlank() && persistent != "AAA000") {
+                        persistent
+                    } else {
+                        appConfigRepository.getFurgonPlate()?.trim()?.takeIf { it.isNotBlank() } ?: "ABC123"
+                    }
+                }
+            },
             scope = appScope
         )
     }
@@ -197,8 +209,8 @@ class AppContainer(
     init {
         appScope.launch {
             try {
-                val currentDevId = appConfigRepository.getDeviceId()
-                if (currentDevId.isNullOrBlank() || currentDevId == "ABC123") {
+                val currentDevId = appConfigRepository.getDeviceId()?.trim()
+                if (currentDevId.isNullOrBlank() || currentDevId == "ABC123" || currentDevId == "AAA000") {
                     val stored = persistentDeviceIdentityStore.loadIdentity()
                     if (stored != null && stored.deviceId.isNotBlank()) {
                         appConfigRepository.saveDeviceId(stored.deviceId)
@@ -206,6 +218,7 @@ class AppContainer(
                         stored.serverBaseUrl?.let { appConfigRepository.saveServerBaseUrl(it) }
                         stored.furgonPlate?.let { appConfigRepository.saveFurgonPlate(it) }
                         stored.deviceToken?.let { appConfigRepository.saveDeviceToken(it) }
+                        telemetryMqttCoordinator.updateDeviceId(stored.deviceId)
                         Log.i("AppContainer", "Restored persistent device identity: ${stored.deviceId} (furgon=${stored.furgonPlate})")
                     }
                 }
@@ -238,6 +251,7 @@ class AppContainer(
             alarmaDao = database.alarmaDao(),
             alarmaRegistroDao = database.alarmaRegistroDao(),
             scope = appScope,
+            gpsLocationTracker = gpsLocationTracker,
         )
     }
 

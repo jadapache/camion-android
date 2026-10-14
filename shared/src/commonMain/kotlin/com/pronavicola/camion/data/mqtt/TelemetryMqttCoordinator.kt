@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+import com.pronavicola.camion.domain.model.GpsLocation
+
 /**
  * Coordinates telemetry data gathering and routes payloads
  * through the OutboxQueueManager to EMQX MQTT topics using standard schema:
@@ -25,7 +27,7 @@ class TelemetryMqttCoordinator(
     private val outboxManager: OutboxQueueManager,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val defaultDeviceId: String = "AAA000",
+    private val defaultDeviceId: String = "ABC123",
 ) {
     private val tag = "TelemetryMqttCoordinator"
     private var activeDeviceId: String = defaultDeviceId
@@ -72,9 +74,9 @@ class TelemetryMqttCoordinator(
 
     /**
      * Enqueues a single VariableRegistroEntity record to the MQTT outbox queue.
-     * Contains solely the physical telemetry variables: T1, T2, Humedad, Tension.
+     * Includes physical telemetry variables and attached GPS coordinates when available.
      */
-    fun enqueueVariableRegistro(registro: VariableRegistroEntity) {
+    fun enqueueVariableRegistro(registro: VariableRegistroEntity, gpsLocation: GpsLocation? = null) {
         val timestamp = parseDateToEpoch(registro.fecha)
         val payload = TelemetryMqttPayload(
             deviceId = activeDeviceId,
@@ -83,28 +85,50 @@ class TelemetryMqttCoordinator(
             temperature2C = registro.temperatura2,
             humidityPct = registro.humedad,
             voltageV = registro.tension,
+            latitude = gpsLocation?.latitud,
+            longitude = gpsLocation?.longitud,
+            speedKmh = gpsLocation?.velocidad?.toDouble(),
+            altitudeM = gpsLocation?.altitud,
         )
         val topic = MqttTopics.telemetry(activeDeviceId)
-        Log.d(tag, "Enqueuing VariableRegistro for $activeDeviceId to $topic (Fecha: ${registro.fecha})")
+        Log.d(tag, "Enqueuing VariableRegistro for $activeDeviceId to $topic (Fecha: ${registro.fecha}, GPS: ${gpsLocation?.latitud}, ${gpsLocation?.longitud})")
         scope.launch(ioDispatcher) {
             outboxManager.enqueue(topic, payload.toJson(), qos = 1)
             evaluateLocalAlarms(registro.temperatura1, registro.temperatura2, registro.humedad, registro.tension)
+        }
+
+        // Also enqueue a synchronized location trace to furgones/{deviceId}/location with the EXACT same timestamp!
+        if (gpsLocation != null) {
+            enqueueLocation(
+                latitude = gpsLocation.latitud,
+                longitude = gpsLocation.longitud,
+                speedKmh = gpsLocation.velocidad?.toDouble(),
+                altitudeM = gpsLocation.altitud,
+                timestamp = timestamp,
+            )
         }
     }
 
     /**
      * Enqueues a location payload to the MQTT outbox queue: furgones/{device_id}/location
      */
-    fun enqueueLocation(latitude: Double, longitude: Double, speedKmh: Double? = null, altitudeM: Double? = null) {
+    fun enqueueLocation(
+        latitude: Double,
+        longitude: Double,
+        speedKmh: Double? = null,
+        altitudeM: Double? = null,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
         val payload = LocationMqttPayload(
             deviceId = activeDeviceId,
             latitude = latitude,
             longitude = longitude,
             speedKmh = speedKmh,
             altitudeM = altitudeM,
+            timestamp = timestamp,
         )
         val topic = MqttTopics.location(activeDeviceId)
-        Log.d(tag, "Enqueuing Location for $activeDeviceId to $topic")
+        Log.d(tag, "Enqueuing Location for $activeDeviceId to $topic (timestamp=$timestamp)")
         scope.launch(ioDispatcher) {
             outboxManager.enqueue(topic, payload.toJson(), qos = 1)
         }

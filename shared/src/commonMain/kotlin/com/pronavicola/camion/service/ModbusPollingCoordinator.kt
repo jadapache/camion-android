@@ -41,6 +41,7 @@ class ModbusPollingCoordinator(
     private val alarmaRegistroDao: AlarmaRegistroDao,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val gpsLocationTracker: GpsLocationTracker? = null,
 ) {
     private val tag = "ModbusPollingCoordinator"
     private var pollingJob: Job? = null
@@ -89,8 +90,9 @@ class ModbusPollingCoordinator(
                         registrosRepository.saveRegistro(registro)
                         Log.d(tag, "Saved telemetry record to SQLite: T1=$t1, T2=$t2, Hum=$hum, Tension=$tension")
 
-                        // 2. Transmit via MQTT outbox coordinator
-                        telemetryMqttCoordinator.enqueueVariableRegistro(registro)
+                        // 2. Transmit via MQTT outbox coordinator with current GPS location
+                        val loc = gpsLocationTracker?.currentLocation?.value
+                        telemetryMqttCoordinator.enqueueVariableRegistro(registro, loc)
                     } else if (!isConnected) {
                         Log.v(tag, "Modbus disconnected: skipping SQLite persistence to avoid recording zero/stale values.")
                     }
