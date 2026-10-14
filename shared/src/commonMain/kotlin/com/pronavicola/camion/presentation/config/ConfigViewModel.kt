@@ -90,10 +90,16 @@ class ConfigViewModel(
             } else {
                 "ABC123"
             }
+            val rawBroker = data.brokerUrl
+            val displayBroker = when {
+                rawBroker.startsWith("tcp://", ignoreCase = true) -> "mqtt://" + rawBroker.removePrefix("tcp://")
+                rawBroker.startsWith("ssl://", ignoreCase = true) -> "mqtts://" + rawBroker.removePrefix("ssl://")
+                else -> rawBroker
+            }
             _uiState.update {
                 it.copy(
                     configData = data,
-                    brokerUrl = data.brokerUrl,
+                    brokerUrl = displayBroker,
                     brokerUsername = data.brokerUsername,
                     brokerPassword = data.brokerPassword,
                     topicRoot = data.topicRoot.ifBlank { "furgones" },
@@ -173,15 +179,21 @@ class ConfigViewModel(
 
     fun saveMqttConfig() {
         viewModelScope.launch {
+            val broker = _uiState.value.brokerUrl.trim()
+            val formattedBroker = when {
+                broker.startsWith("tcp://", ignoreCase = true) -> "mqtt://" + broker.removePrefix("tcp://")
+                broker.startsWith("ssl://", ignoreCase = true) -> "mqtts://" + broker.removePrefix("ssl://")
+                else -> broker
+            }
             saveAppConfigUseCase(
-                brokerUrl = _uiState.value.brokerUrl,
+                brokerUrl = formattedBroker,
                 brokerUsername = _uiState.value.brokerUsername,
                 brokerPassword = _uiState.value.brokerPassword,
                 publishInterval = _uiState.value.publishInterval,
                 topicRoot = _uiState.value.topicRoot,
             )
             restartMqttClientUseCase()
-            _uiState.update { it.copy(saveMessage = "Configuración MQTT guardada y conexión reiniciada") }
+            _uiState.update { it.copy(brokerUrl = formattedBroker, saveMessage = "Configuración MQTT guardada y conexión reiniciada") }
         }
     }
 
@@ -283,25 +295,35 @@ class ConfigViewModel(
             val result = pairDeviceUseCase.checkPairingStatus(serverUrl, code, devId)
             if (result.isSuccess) {
                 val active = result.getOrThrow()
-                _uiState.update {
-                    it.copy(
-                        isPairing = false,
-                        licenseStatus = if (active) "ACTIVE" else "PENDING_PAIRING",
-                        pairingSuccess = if (active) "¡Dispositivo vinculado y activo correctamente!" else "Conexión exitosa con la API. Pendiente de aprobación/asignación en la plataforma web.",
-                        pairingError = null,
-                    )
-                }
                 if (active) {
+                    _uiState.update {
+                        it.copy(
+                            isPairing = false,
+                            licenseStatus = "ACTIVE",
+                            pairingSuccess = "¡Dispositivo vinculado y activo correctamente!",
+                            pairingError = null,
+                        )
+                    }
                     val freshConfig = getAppConfigUseCase()
                     val savedPlate = freshConfig.furgonPlate
                     val finalPlate = if (savedPlate.isNotBlank() && savedPlate != freshConfig.deviceId) savedPlate else "ABC123"
                     updateTruckPlateUseCase(finalPlate)
                     loadConfig()
+                } else {
+                    val hasPendingCode = code.isNotBlank()
+                    _uiState.update {
+                        it.copy(
+                            isPairing = false,
+                            licenseStatus = if (hasPendingCode) "PENDING_PAIRING" else "UNPAIRED",
+                            pairingSuccess = if (hasPendingCode) "Conexión exitosa con la API. Pendiente de aprobación/asignación en la plataforma web." else null,
+                            pairingError = if (!hasPendingCode) "No se encontró registro previo activo para el dispositivo en FURGN BI. Solicite un PIN o active con la clave de registro." else null,
+                        )
+                    }
                 }
             } else {
                 val err = result.exceptionOrNull()?.message ?: "Error desconocido"
                 val displayMsg = if (err.contains("No se encontró registro previo", ignoreCase = true) || err.contains("404")) {
-                    "No se encontró registro previo, solicita PIN o ingresa clave."
+                    "No se encontró registro previo activo en FURGN BI. Solicite un PIN o active con la clave de registro."
                 } else if (err.startsWith("Error de conexión con la API")) {
                     err
                 } else {

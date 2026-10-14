@@ -273,6 +273,36 @@ fun ConfigScreen(
                         Text("DESVINCULAR DISPOSITIVO", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 } else {
+                    // Display current Device ID card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "DEVICE ID DETECTADO:",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = deviceId.ifBlank { "SIN_ID" },
+                                color = Color(0xFF64B5F6),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
                     // Pairing PIN Code Banner
                     if (pairingCode.isNotBlank()) {
                         Card(

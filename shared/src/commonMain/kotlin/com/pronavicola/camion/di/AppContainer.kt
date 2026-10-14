@@ -180,8 +180,39 @@ class AppContainer(
         MqttRepositoryImpl(mqttClientManager, outboxQueueManager)
     }
 
+    val persistentDeviceIdentityStore: com.pronavicola.camion.util.PersistentDeviceIdentityStore by lazy {
+        com.pronavicola.camion.util.getPersistentDeviceIdentityStore(platformContext)
+    }
+
     val devicePairingRepository: DevicePairingRepository by lazy {
-        DevicePairingRepositoryImpl(platformInfoProvider, screensApiService, appConfigRepository, database.vehiculoDao())
+        DevicePairingRepositoryImpl(
+            platformInfoProvider = platformInfoProvider,
+            apiService = screensApiService,
+            configRepository = appConfigRepository,
+            vehiculoDao = database.vehiculoDao(),
+            persistentIdentityStore = persistentDeviceIdentityStore,
+        )
+    }
+
+    init {
+        appScope.launch {
+            try {
+                val currentDevId = appConfigRepository.getDeviceId()
+                if (currentDevId.isNullOrBlank() || currentDevId == "ABC123") {
+                    val stored = persistentDeviceIdentityStore.loadIdentity()
+                    if (stored != null && stored.deviceId.isNotBlank()) {
+                        appConfigRepository.saveDeviceId(stored.deviceId)
+                        stored.licenseKey?.let { appConfigRepository.saveLicenseKey(it) }
+                        stored.serverBaseUrl?.let { appConfigRepository.saveServerBaseUrl(it) }
+                        stored.furgonPlate?.let { appConfigRepository.saveFurgonPlate(it) }
+                        stored.deviceToken?.let { appConfigRepository.saveDeviceToken(it) }
+                        Log.i("AppContainer", "Restored persistent device identity: ${stored.deviceId} (furgon=${stored.furgonPlate})")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("AppContainer", "Error restoring persistent device identity: ${e.message}")
+            }
+        }
     }
 
     val modbusPlcServer: ModbusPlcServer by lazy {

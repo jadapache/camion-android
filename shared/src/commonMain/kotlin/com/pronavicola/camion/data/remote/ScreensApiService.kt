@@ -27,6 +27,9 @@ data class FurgonInfo(
 data class MqttConfigInfo(
     val brokerUrl: String?,
     val topicRoot: String?,
+    val username: String? = null,
+    val password: String? = null,
+    val clientId: String? = null,
 )
 
 data class CheckPairingStatusResponse(
@@ -121,6 +124,9 @@ class ScreensApiService {
                 MqttConfigInfo(
                     brokerUrl = it.optString("broker_url", "").takeIf { s -> s.isNotBlank() },
                     topicRoot = it.optString("topic_root", "").takeIf { s -> s.isNotBlank() },
+                    username = it.optString("username", "").takeIf { s -> s.isNotBlank() },
+                    password = it.optString("password", "").takeIf { s -> s.isNotBlank() },
+                    clientId = it.optString("client_id", "").takeIf { s -> s.isNotBlank() },
                 )
             }
 
@@ -180,6 +186,9 @@ class ScreensApiService {
                 MqttConfigInfo(
                     brokerUrl = it.optString("broker_url", "").takeIf { s -> s.isNotBlank() },
                     topicRoot = it.optString("topic_root", "").takeIf { s -> s.isNotBlank() },
+                    username = it.optString("username", "").takeIf { s -> s.isNotBlank() },
+                    password = it.optString("password", "").takeIf { s -> s.isNotBlank() },
+                    clientId = it.optString("client_id", "").takeIf { s -> s.isNotBlank() },
                 )
             }
 
@@ -205,7 +214,12 @@ class ScreensApiService {
         deviceId: String?,
     ): Result<ValidateScreenResponse> = withContext(Dispatchers.IO) {
         try {
-            val endpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/validate"
+            val baseEndpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/validate"
+            val endpoint = if (!deviceId.isNullOrBlank()) {
+                "$baseEndpoint?device_id=$deviceId"
+            } else {
+                baseEndpoint
+            }
             val responseJson = executeGet(endpoint, deviceToken, deviceId)
 
             val furgonObj = responseJson.optJSONObject("furgon")
@@ -223,6 +237,9 @@ class ScreensApiService {
                 MqttConfigInfo(
                     brokerUrl = it.optString("broker_url", "").takeIf { s -> s.isNotBlank() },
                     topicRoot = it.optString("topic_root", "").takeIf { s -> s.isNotBlank() },
+                    username = it.optString("username", "").takeIf { s -> s.isNotBlank() },
+                    password = it.optString("password", "").takeIf { s -> s.isNotBlank() },
+                    clientId = it.optString("client_id", "").takeIf { s -> s.isNotBlank() },
                 )
             }
 

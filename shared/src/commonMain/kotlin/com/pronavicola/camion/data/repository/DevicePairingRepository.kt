@@ -12,13 +12,28 @@ import com.pronavicola.camion.util.PlatformInfoProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+import com.pronavicola.camion.util.PersistentDeviceIdentityStore
+import com.pronavicola.camion.util.StoredDeviceIdentity
+
 class DevicePairingRepositoryImpl(
     private val platformInfoProvider: PlatformInfoProvider,
     private val apiService: ScreensApiService,
     private val configRepository: AppConfigRepository,
     private val vehiculoDao: VehiculoDao? = null,
+    private val persistentIdentityStore: PersistentDeviceIdentityStore? = null,
 ) : DevicePairingRepository {
     private val tag = "DevicePairingRepository"
+
+    private fun normalizeBrokerUrl(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        val trimmed = url.trim()
+        return when {
+            trimmed.startsWith("tcp://", ignoreCase = true) -> "mqtt://" + trimmed.removePrefix("tcp://")
+            trimmed.startsWith("ssl://", ignoreCase = true) -> "mqtts://" + trimmed.removePrefix("ssl://")
+            !trimmed.startsWith("mqtt://", ignoreCase = true) && !trimmed.startsWith("mqtts://", ignoreCase = true) -> "mqtt://$trimmed"
+            else -> trimmed
+        }
+    }
 
     private suspend fun syncFurgonPlate(plate: String) {
         val cleanPlate = plate.trim().uppercase()
@@ -55,6 +70,12 @@ class DevicePairingRepositoryImpl(
             configRepository.saveDeviceId(resp.deviceId)
             configRepository.savePairingCode(resp.pairingCode)
             configRepository.saveLicenseStatus("PENDING_PAIRING")
+            persistentIdentityStore?.saveIdentity(
+                StoredDeviceIdentity(
+                    deviceId = resp.deviceId,
+                    serverBaseUrl = serverUrl,
+                )
+            )
             Log.i(tag, "Pairing code requested successfully: ${resp.pairingCode} for deviceId: ${resp.deviceId}")
             Result.success(Pair(resp.deviceId, resp.pairingCode))
         } else {
@@ -65,11 +86,23 @@ class DevicePairingRepositoryImpl(
     override suspend fun checkPairingStatus(serverUrl: String, pairingCode: String, deviceId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         val cleanUrl = serverUrl.trim().removeSuffix("/")
         val cleanCode = pairingCode.trim()
-        val cleanDeviceId = deviceId.trim()
+        var targetDeviceId = deviceId.trim()
+
+        // Si targetDeviceId está vacío o es un valor por defecto, intentar recuperarlo del almacén persistente
+        if (targetDeviceId.isBlank() || targetDeviceId == "ABC123") {
+            persistentIdentityStore?.loadIdentity()?.let { stored ->
+                if (stored.deviceId.isNotBlank()) {
+                    targetDeviceId = stored.deviceId
+                    configRepository.saveDeviceId(stored.deviceId)
+                    stored.licenseKey?.let { configRepository.saveLicenseKey(it) }
+                    stored.furgonPlate?.let { configRepository.saveFurgonPlate(it) }
+                }
+            }
+        }
 
         // 1. If pairingCode is provided, check pairing code status on the server
         if (cleanCode.isNotBlank()) {
-            val result = apiService.checkPairingStatus(cleanUrl, cleanCode, cleanDeviceId)
+            val result = apiService.checkPairingStatus(cleanUrl, cleanCode, targetDeviceId)
             if (result.isSuccess) {
                 val resp = result.getOrThrow()
                 configRepository.saveLicenseStatus(resp.status)
@@ -77,13 +110,27 @@ class DevicePairingRepositoryImpl(
                 if (resp.status == "ACTIVE") {
                     resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
                     resp.licenseKey?.let { configRepository.saveLicenseKey(it) }
-                    if (resp.deviceId.isNotBlank()) {
-                        configRepository.saveDeviceId(resp.deviceId)
+                    val finalDevId = if (resp.deviceId.isNotBlank()) resp.deviceId else targetDeviceId
+                    if (finalDevId.isNotBlank()) {
+                        configRepository.saveDeviceId(finalDevId)
                     }
-                    resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { syncFurgonPlate(it) }
-                    resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
+                    val plate = resp.furgon?.plate?.takeIf { it != finalDevId }
+                    plate?.let { syncFurgonPlate(it) }
+                    resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(normalizeBrokerUrl(it) ?: it) }
                     resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
-                    Log.i(tag, "Screen is ACTIVE and paired successfully (deviceId=${resp.deviceId}, furgon=${resp.furgon?.plate})")
+                    resp.mqttConfig?.username?.let { configRepository.saveBrokerUsername(it) }
+                    resp.mqttConfig?.password?.let { configRepository.saveBrokerPassword(it) }
+
+                    persistentIdentityStore?.saveIdentity(
+                        StoredDeviceIdentity(
+                            deviceId = finalDevId,
+                            licenseKey = resp.licenseKey,
+                            serverBaseUrl = cleanUrl,
+                            furgonPlate = plate,
+                            deviceToken = resp.deviceToken,
+                        )
+                    )
+                    Log.i(tag, "Screen is ACTIVE and paired successfully (deviceId=$finalDevId, furgon=$plate)")
                     return@withContext Result.success(true)
                 } else {
                     return@withContext Result.success(false)
@@ -98,33 +145,68 @@ class DevicePairingRepositoryImpl(
 
         // 2. Query validate endpoint with deviceId to check if already registered
         val devToken = configRepository.getDeviceToken()
-        val validateResult = apiService.validateScreen(cleanUrl, devToken, cleanDeviceId)
+        val validateResult = apiService.validateScreen(cleanUrl, devToken, targetDeviceId)
         if (validateResult.isSuccess) {
             val vResp = validateResult.getOrThrow()
             if (vResp.isValid && vResp.status == "ACTIVE") {
                 configRepository.saveLicenseStatus("ACTIVE")
-                if (cleanDeviceId.isNotBlank()) {
-                    configRepository.saveDeviceId(cleanDeviceId)
+                val finalDevId = vResp.deviceId ?: targetDeviceId
+                if (finalDevId.isNotBlank()) {
+                    configRepository.saveDeviceId(finalDevId)
                 }
                 vResp.deviceToken?.let { configRepository.saveDeviceToken(it) }
                 vResp.licenseKey?.let { configRepository.saveLicenseKey(it) }
-                vResp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
+                vResp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(normalizeBrokerUrl(it) ?: it) }
                 vResp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
+                vResp.mqttConfig?.username?.let { configRepository.saveBrokerUsername(it) }
+                vResp.mqttConfig?.password?.let { configRepository.saveBrokerPassword(it) }
 
                 val plate = vResp.furgonPlate ?: vResp.furgon?.plate
-                if (!plate.isNullOrBlank() && plate != cleanDeviceId) {
+                if (!plate.isNullOrBlank() && plate != finalDevId) {
                     syncFurgonPlate(plate)
                 }
-                Log.i(tag, "Prior registration validated (deviceId=$cleanDeviceId, plate=$plate)")
+                persistentIdentityStore?.saveIdentity(
+                    StoredDeviceIdentity(
+                        deviceId = finalDevId,
+                        licenseKey = vResp.licenseKey ?: configRepository.getLicenseKey(),
+                        serverBaseUrl = cleanUrl,
+                        furgonPlate = plate,
+                        deviceToken = vResp.deviceToken ?: devToken,
+                    )
+                )
+                Log.i(tag, "Prior registration validated (deviceId=$finalDevId, plate=$plate)")
                 return@withContext Result.success(true)
-            } else if (vResp.status == "PENDING_PAIRING" || vResp.status == "PENDING") {
-                configRepository.saveLicenseStatus("PENDING_PAIRING")
-                return@withContext Result.success(false)
             } else {
-                configRepository.saveLicenseStatus(vResp.status)
-                return@withContext Result.success(false)
+                // Si la validación directa no está activa, intentar reactivación con clave de licencia si existe
+                val savedLicenseKey = configRepository.getLicenseKey()
+                    ?: persistentIdentityStore?.loadIdentity()?.licenseKey
+                if (!savedLicenseKey.isNullOrBlank()) {
+                    Log.i(tag, "Attempting auto-activation with stored license key: $savedLicenseKey")
+                    val activateResult = activateLicenseKey(cleanUrl, savedLicenseKey)
+                    if (activateResult.isSuccess && activateResult.getOrThrow()) {
+                        return@withContext Result.success(true)
+                    }
+                }
+
+                if (vResp.status == "PENDING_PAIRING" || vResp.status == "PENDING") {
+                    configRepository.saveLicenseStatus("PENDING_PAIRING")
+                    return@withContext Result.success(false)
+                } else {
+                    configRepository.saveLicenseStatus(vResp.status)
+                    return@withContext Result.failure(Exception("No se encontró registro previo activo para el dispositivo en FURGN BI. Solicite un PIN o active con su clave de registro."))
+                }
             }
         } else {
+            // Si la llamada directa falló (por ejemplo, 401 porque no hay token ni deviceId registrado),
+            // verificar si podemos auto-activar con clave de licencia
+            val savedLicenseKey = configRepository.getLicenseKey()
+                ?: persistentIdentityStore?.loadIdentity()?.licenseKey
+            if (!savedLicenseKey.isNullOrBlank()) {
+                val activateResult = activateLicenseKey(cleanUrl, savedLicenseKey)
+                if (activateResult.isSuccess && activateResult.getOrThrow()) {
+                    return@withContext Result.success(true)
+                }
+            }
             val ex = validateResult.exceptionOrNull()
             return@withContext Result.failure(ex ?: Exception("Error validando registro previo"))
         }
@@ -150,9 +232,22 @@ class DevicePairingRepositoryImpl(
             if (resp.status == "ACTIVE") {
                 resp.deviceToken?.let { configRepository.saveDeviceToken(it) }
                 resp.deviceId.let { configRepository.saveDeviceId(it) }
-                resp.furgon?.plate?.takeIf { it != resp.deviceId }?.let { syncFurgonPlate(it) }
-                resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(it) }
+                val plate = resp.furgon?.plate?.takeIf { it != resp.deviceId }
+                plate?.let { syncFurgonPlate(it) }
+                resp.mqttConfig?.brokerUrl?.let { configRepository.saveBrokerUrl(normalizeBrokerUrl(it) ?: it) }
                 resp.mqttConfig?.topicRoot?.let { configRepository.saveTopicRoot(it) }
+                resp.mqttConfig?.username?.let { configRepository.saveBrokerUsername(it) }
+                resp.mqttConfig?.password?.let { configRepository.saveBrokerPassword(it) }
+
+                persistentIdentityStore?.saveIdentity(
+                    StoredDeviceIdentity(
+                        deviceId = resp.deviceId,
+                        licenseKey = resp.licenseKey ?: licenseKey,
+                        serverBaseUrl = serverUrl,
+                        furgonPlate = plate,
+                        deviceToken = resp.deviceToken,
+                    )
+                )
                 Log.i(tag, "Activated successfully via license key")
                 Result.success(true)
             } else {
@@ -222,6 +317,7 @@ class DevicePairingRepositoryImpl(
         configRepository.saveDeviceToken("")
         configRepository.savePairingCode("")
         configRepository.saveLicenseKey("")
+        persistentIdentityStore?.clearIdentity()
         Log.i(tag, "Device unpaired successfully (local credentials cleared)")
         Result.success(Unit)
     }

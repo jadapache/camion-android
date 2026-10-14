@@ -133,6 +133,7 @@ class MqttClientManager(
             disconnectInternal()
             val sanitizedUrl = when {
                 currentBrokerUrl.startsWith("mqtt://") -> "tcp://" + currentBrokerUrl.removePrefix("mqtt://")
+                currentBrokerUrl.startsWith("mqtts://") -> "ssl://" + currentBrokerUrl.removePrefix("mqtts://")
                 !currentBrokerUrl.startsWith("tcp://") && !currentBrokerUrl.startsWith("ssl://") -> "tcp://$currentBrokerUrl"
                 else -> currentBrokerUrl
             }
