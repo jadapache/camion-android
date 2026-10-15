@@ -8,8 +8,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.pronavicola.camion.ui.CamionApp
-import com.pronavicola.camion.ui.theme.CamionTheme
+import com.pronavicola.camion.presentation.CamionApp
+import com.pronavicola.camion.presentation.theme.CamionTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         val app = application as CamionApplication
         setContent {
             CamionTheme {
-                CamionApp(app = app)
+                CamionApp(appContext = app.appContext)
             }
         }
     }

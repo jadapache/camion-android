@@ -22,6 +22,7 @@ Default users (password in parentheses):
 
 | IdUsuario | Perfil | Password |
 |-----------|--------|----------|
+| DESARROLLADOR | 0  | dev      |
 | ADMIN     | 1      | admin    |
 | SUPERVISOR| 2      | super    |
 | TECNICO   | 3      | tec      |
