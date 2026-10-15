@@ -125,7 +125,7 @@ fun ConfigScreen(
     onCheckPairingStatus: () -> Unit,
     onActivateLicenseKey: () -> Unit,
     onFetchFurgones: () -> Unit,
-    onSelectFurgon: (String) -> Unit,
+    onSelectFurgon: (FurgonInfo) -> Unit,
     onUnlinkDevice: () -> Unit,
     onTestMqttConnection: () -> Unit = {},
     onNavigateToSimulation: () -> Unit = {},
@@ -228,92 +228,6 @@ fun ConfigScreen(
                     colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
-
-                // Associated Furgon Selector
-                if (licenseStatus == "ACTIVE") {
-                    var isManualFurgonEntry by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (isManualFurgonEntry) {
-                            OutlinedTextField(
-                                value = furgonPlate,
-                                onValueChange = onFurgonPlateChange,
-                                label = { Text("Placa de Furgón (Manual)") },
-                                colors = outlinedTextFieldColors(),
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
-                        } else {
-                            var furgonExpanded by remember { mutableStateOf(false) }
-                            val selectedFurgon = availableFurgones.firstOrNull { it.plate == furgonPlate }
-
-                            ExposedDropdownMenuBox(
-                                expanded = furgonExpanded,
-                                onExpandedChange = {
-                                    furgonExpanded = !furgonExpanded
-                                    if (furgonExpanded) onFetchFurgones()
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedFurgon?.let { "${it.plate} (${it.brand ?: "Furgón"})" }
-                                        ?: furgonPlate.ifBlank { "Sin Furgón Asignado" },
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Furgón Asignado en Web") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = furgonExpanded) },
-                                    colors = outlinedTextFieldColors(),
-                                    modifier = Modifier.menuAnchor(
-                                        ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                        true
-                                    ).fillMaxWidth(),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = furgonExpanded,
-                                    onDismissRequest = { furgonExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF2C2C2C))
-                                ) {
-                                    if (availableFurgones.isEmpty()) {
-                                        DropdownMenuItem(text = {
-                                            Text(
-                                                "Cargando o sin furgones...",
-                                                color = Color.Gray
-                                            )
-                                        }, onClick = { furgonExpanded = false })
-                                    } else {
-                                        availableFurgones.forEach { furgon ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        "${furgon.plate} - ${furgon.brand ?: "Furgón"}",
-                                                        color = Color.White
-                                                    )
-                                                },
-                                                onClick = {
-                                                    onSelectFurgon(furgon.id)
-                                                    furgonExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        IconButton(
-                            onClick = { isManualFurgonEntry = !isManualFurgonEntry },
-                            modifier = Modifier.background(Color(0xFF2A2A2A), CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = if (isManualFurgonEntry) Icons.Default.CloudSync else Icons.Default.Edit,
-                                contentDescription = "Alternar modo",
-                                tint = Color.White
-                            )
-                        }
-                    }
-                }
 
                 if (licenseStatus == "ACTIVE") {
                     Button(
@@ -437,8 +351,6 @@ fun ConfigScreen(
                         }
                     }
                 }
-
-
             }
         }
 

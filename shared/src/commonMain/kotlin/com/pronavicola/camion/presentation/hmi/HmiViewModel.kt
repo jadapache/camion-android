@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 data class HmiUiState(
     val hmiState: HmiState = HmiState(),
     val deviceId: String = "ABC123",
-    val furgonPlate: String = "AAA000",
+    val furgonPlate: String = "AAA123",
     val historyPoints: List<HmiHistoryPoint> = emptyList(),
     val isConnecting: Boolean = false,
     val feedbackMessage: String? = null,
@@ -41,14 +41,14 @@ class HmiViewModel(
     init {
         viewModelScope.launch {
             val devId = appConfigRepository.getDeviceId() ?: "ABC123"
-            val plate = appConfigRepository.getFurgonPlate() ?: "AAA000"
+            val plate = appConfigRepository.getFurgonPlate() ?: "AAA123"
             _uiState.update { it.copy(deviceId = devId, furgonPlate = plate) }
 
             observeHmiStateUseCase(devId).collect { rawState ->
                 _uiState.update { current ->
                     current.copy(
                         hmiState = rawState.copy(
-                            idVehiculo = plate.ifBlank { devId },
+                            idVehiculo = plate.ifBlank { "AAA123" },
                             history = current.historyPoints
                         )
                     )
@@ -108,6 +108,18 @@ class HmiViewModel(
             val host = appConfigRepository.getModbusHost() ?: "127.0.0.1"
             val port = appConfigRepository.getModbusPort()?.toIntOrNull() ?: 502
             connectModbusUseCase(host, port)
+        }
+    }
+
+    fun refreshPlate() {
+        viewModelScope.launch {
+            val plate = appConfigRepository.getFurgonPlate() ?: "AAA123"
+            _uiState.update { current ->
+                current.copy(
+                    furgonPlate = plate,
+                    hmiState = current.hmiState.copy(idVehiculo = plate.ifBlank { "AAA123" })
+                )
+            }
         }
     }
 

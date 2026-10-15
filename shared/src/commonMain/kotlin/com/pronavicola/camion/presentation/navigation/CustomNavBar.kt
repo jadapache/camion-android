@@ -12,8 +12,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Doorbell
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
@@ -46,23 +49,26 @@ fun CustomNavBar(
             .fillMaxHeight()
             .width(72.dp)
             .background(Color.Black)
-            .padding(vertical = 24.dp),
+            .padding(vertical = 15.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        destinations.forEach { destination ->
-            val isSelected = currentRoute == destination.route
-            val icon = getIconForDestination(destination)
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            destinations.forEach { destination ->
+                val isSelected = currentRoute == destination.route
+                val icon = getIconForDestination(destination)
 
-            NavBarItem(
-                icon = icon,
-                label = destination.label,
-                isSelected = isSelected,
-                onClick = { onNavigate(destination.route) },
-            )
+                NavBarItem(
+                    icon = icon,
+                    label = destination.label,
+                    isSelected = isSelected,
+                    onClick = { onNavigate(destination.route) },
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.weight(1f))
 
         UserItem(
             user = currentUser,
@@ -128,7 +134,7 @@ private fun NavBarItem(
 
     Box(
         modifier = modifier
-            .size(width = 72.dp, height = 56.dp)
+            .size(width = 72.dp, height = 48.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -161,7 +167,7 @@ private fun getIconForDestination(destination: AppDestination): ImageVector {
     return when (destination) {
         AppDestination.HMI -> Icons.Default.LocalShipping
         AppDestination.REGISTROS -> Icons.Default.History
-        AppDestination.ALARMAS_REGISTROS -> Icons.Default.Warning
+        AppDestination.ALARMAS_REGISTROS -> Icons.Default.Notifications
         AppDestination.PARAMETROS -> Icons.Default.Tune
         AppDestination.CONFIG -> Icons.Default.Settings
         AppDestination.SIMULACION -> Icons.Default.Build

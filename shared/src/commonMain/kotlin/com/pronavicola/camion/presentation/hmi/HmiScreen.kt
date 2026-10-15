@@ -27,6 +27,15 @@ import com.pronavicola.camion.domain.model.HmiHistoryPoint
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ZoneStatus
 import com.pronavicola.camion.presentation.theme.CamionColors
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.pronavicola.camion.data.remote.FurgonInfo
+import com.pronavicola.camion.presentation.config.TruckAssignmentDialog
 import com.pronavicola.camion.resources.*
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,29 +44,39 @@ import java.util.Locale
 @Composable
 fun HmiScreen(
     state: HmiState,
+    availableFurgones: List<FurgonInfo> = emptyList(),
+    onSelectPlate: (FurgonInfo) -> Unit = {},
+    userProfileLevel: Int = 4,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CamionColors.panelBackground),
-        contentAlignment = Alignment.Center
+            .background(CamionColors.panelBackground)
     ) {
-        // Main HMI Area with fixed 730:420 aspect
+        // Main HMI Area with fixed 730:420 aspect, enlarged and positioned higher
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
-            contentAlignment = Alignment.Center
+                .padding(start = 2.dp, end = 2.dp, top = 0.dp, bottom = 22.dp),
+            contentAlignment = Alignment.TopCenter
         ) {
-            TruckHmiLayout(state = state)
+            TruckHmiLayout(
+                state = state,
+                availableFurgones = availableFurgones,
+                onSelectPlate = onSelectPlate,
+                userProfileLevel = userProfileLevel,
+                modifier = Modifier
+                    .fillMaxHeight(0.96f)
+                    .aspectRatio(730f / 420f)
+            )
         }
 
         // Connection Badge & Alarms at the bottom left
         Row(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -71,11 +90,15 @@ fun HmiScreen(
 }
 
 @Composable
-private fun TruckHmiLayout(state: HmiState) {
+private fun TruckHmiLayout(
+    state: HmiState,
+    availableFurgones: List<FurgonInfo> = emptyList(),
+    onSelectPlate: (FurgonInfo) -> Unit = {},
+    userProfileLevel: Int = 4,
+    modifier: Modifier = Modifier,
+) {
     BoxWithConstraints(
-        modifier = Modifier
-            .aspectRatio(730f / 420f)
-            .fillMaxWidth()
+        modifier = modifier
     ) {
         val w = this.maxWidth
         val h = this.maxHeight
@@ -89,22 +112,68 @@ private fun TruckHmiLayout(state: HmiState) {
                 contentScale = ContentScale.FillBounds
             )
 
-            // License Plate ("AAA000") on door
+            val displayPlate = state.idVehiculo.ifBlank { "AAA123" }
+            var showSelectDialog by remember { mutableStateOf(false) }
+
+            // Campo para seleccionar la placa encima del recuadro
+            Box(
+                modifier = Modifier
+                    .offset(x = w * 0.134f, y = h * 0.518f)
+                    .width(w * 0.098f)
+                    .height(h * 0.052f)
+                    .background(Color(0xFF003B73), RoundedCornerShape(2.dp))
+                    .clickable { showSelectDialog = true }
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "PLACA",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Seleccionar placa",
+                        tint = Color.White,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+
+            // Recuadro donde se visualiza la placa ("AAA123") en la puerta
             Box(
                 modifier = Modifier
                     .offset(x = w * 0.134f, y = h * 0.576f)
                     .width(w * 0.098f)
                     .height(h * 0.068f)
                     .background(Color(0xFFECECEC), RoundedCornerShape(1.dp))
-                    .border(1.dp, Color(0xFF888888), RoundedCornerShape(1.dp)),
+                    .border(1.dp, Color(0xFF888888), RoundedCornerShape(1.dp))
+                    .clickable { showSelectDialog = true },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = state.idVehiculo,
+                    text = displayPlate,
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
                     letterSpacing = 0.5.sp
+                )
+            }
+
+            if (showSelectDialog) {
+                TruckAssignmentDialog(
+                    availableFurgones = availableFurgones,
+                    onDismiss = { showSelectDialog = false },
+                    onSelectFurgon = { selectedFurgon ->
+                        onSelectPlate(selectedFurgon)
+                        showSelectDialog = false
+                    }
                 )
             }
 
@@ -127,84 +196,14 @@ private fun TruckHmiLayout(state: HmiState) {
                 )
             }
 
-            // Roof Fans (ZONA 6, ZONA 5, ZONA 4) resting directly at the roof line
-            RoofZoneIndicator(
-                label = "ZONA 6",
-                status = state.zonas.getOrElse(5) { ZoneStatus.OFF },
-                modifier = Modifier.offset(x = w * 0.535f, y = h * 0.198f)
-            )
-            RoofZoneIndicator(
-                label = "ZONA 5",
-                status = state.zonas.getOrElse(4) { ZoneStatus.OFF },
-                modifier = Modifier.offset(x = w * 0.650f, y = h * 0.198f)
-            )
-            RoofZoneIndicator(
-                label = "ZONA 4",
-                status = state.zonas.getOrElse(3) { ZoneStatus.OFF },
-                modifier = Modifier.offset(x = w * 0.762f, y = h * 0.198f)
-            )
-
-            // ZONA 3 (Front Top Fan Inside Trailer - lowered below roof)
-            ZoneIndicator(
-                label = "ZONA 3",
-                status = state.zonas.getOrElse(2) { ZoneStatus.OFF },
-                modifier = Modifier.offset(x = w * 0.448f, y = h * 0.255f)
-            )
-
-            // ZONA 3 (Rear Top Fan Inside Trailer - lowered below roof)
-            ZoneIndicator(
-                label = "ZONA 3",
-                status = state.zonas.getOrElse(2) { ZoneStatus.OFF },
-                modifier = Modifier.offset(x = w * 0.863f, y = h * 0.255f)
-            )
-
-            // ZONA 1 (Front Column Top Fan)
-            ZoneIndicator(
-                label = "ZONA 1",
-                status = state.zonas.getOrElse(0) { ZoneStatus.OFF },
-                modifier = Modifier.offset(x = w * 0.348f, y = h * 0.335f)
-            )
-
-            // ZONA 2 (Front Column Middle Fan)
-            ZoneIndicator(
-                label = "ZONA 2",
-                status = state.zonas.getOrElse(1) { ZoneStatus.OFF },
-                modifier = Modifier.offset(x = w * 0.348f, y = h * 0.440f)
-            )
-
-            // Aspersor / Nebulizador / Irrigator ("BOMBA") - flush against container border
-            IrrigatorIndicator(
-                status = state.estadoIrrigador,
-                modifier = Modifier
-                    .offset(x = w * 0.339f, y = h * 0.525f)
-                    .width(w * 0.074f)
-                    .height(h * 0.155f)
-            )
-
-            // Gotas de dispersión de agua cuando el irrigador está activo (ON)
-            if (state.estadoIrrigador == ZoneStatus.ON) {
-                WaterSprayDispersion(
-                    modifier = Modifier
-                        .offset(x = w * 0.370f, y = h * 0.518f)
-                        .width(w * 0.088f)
-                        .height(h * 0.065f)
-                )
-            }
-
-            // Flame / Fire Icon ("Calor / Calefacción") - separated slightly from irrigator
-            FlameIndicator(
-                active = state.calefaccionActiva,
-                modifier = Modifier.offset(x = w * 0.388f, y = h * 0.590f)
-            )
-
-            // Status Header Row & Chart Box - adjusted to stay comfortably within the container
+            // Status Header Row & Chart Box - placed below Zone 3 fans with clean spacing
             Column(
                 modifier = Modifier
-                    .offset(x = w * 0.440f, y = h * 0.338f)
+                    .offset(x = w * 0.440f, y = h * 0.332f)
                     .width(w * 0.508f)
-                    .height(h * 0.325f)
+                    .height(h * 0.338f)
             ) {
-                // Header Status Display Bar (TEMP / HUMEDAD)
+                // Compact Header Status Display Bar (TEMP / HUMEDAD)
                 SensorDisplayHeader(state = state)
 
                 Spacer(modifier = Modifier.height(1.dp))
@@ -231,6 +230,77 @@ private fun TruckHmiLayout(state: HmiState) {
                     }
                 }
             }
+
+            // Roof Fans (ZONA 6, ZONA 5, ZONA 4) resting directly at the roof line
+            RoofZoneIndicator(
+                label = "ZONA 6",
+                status = state.zonas.getOrElse(5) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.535f, y = h * 0.198f)
+            )
+            RoofZoneIndicator(
+                label = "ZONA 5",
+                status = state.zonas.getOrElse(4) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.650f, y = h * 0.198f)
+            )
+            RoofZoneIndicator(
+                label = "ZONA 4",
+                status = state.zonas.getOrElse(3) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.762f, y = h * 0.198f)
+            )
+
+            // ZONA 3 (Front Top Fan Inside Trailer)
+            ZoneIndicator(
+                label = "ZONA 3",
+                status = state.zonas.getOrElse(2) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.448f, y = h * 0.215f)
+            )
+
+            // ZONA 3 (Rear Top Fan Inside Trailer)
+            ZoneIndicator(
+                label = "ZONA 3",
+                status = state.zonas.getOrElse(2) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.863f, y = h * 0.215f)
+            )
+
+            // ZONA 1 (Front Column Top Fan)
+            ZoneIndicator(
+                label = "ZONA 1",
+                status = state.zonas.getOrElse(0) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.348f, y = h * 0.330f)
+            )
+
+            // ZONA 2 (Front Column Middle Fan)
+            ZoneIndicator(
+                label = "ZONA 2",
+                status = state.zonas.getOrElse(1) { ZoneStatus.OFF },
+                modifier = Modifier.offset(x = w * 0.348f, y = h * 0.435f)
+            )
+
+            // Aspersor / Nebulizador / Irrigator ("BOMBA") - flush against container border
+            IrrigatorIndicator(
+                status = state.estadoIrrigador,
+                modifier = Modifier
+                    .offset(x = w * 0.339f, y = h * 0.525f)
+                    .width(w * 0.074f)
+                    .height(h * 0.155f)
+            )
+
+            // Gotas de dispersión de agua cuando el irrigador está activo (ON)
+            if (state.estadoIrrigador == ZoneStatus.ON) {
+                WaterSprayDispersion(
+                    modifier = Modifier
+                        .offset(x = w * 0.370f, y = h * 0.518f)
+                        .width(w * 0.088f)
+                        .height(h * 0.065f)
+                )
+            }
+
+            // Flame Icon
+            FlameIndicator(
+                active = state.calefaccionActiva,
+                modifier = Modifier.offset(x = w * 0.388f, y = h * 0.548f)
+            )
+
 
             // Battery Voltage Box ("24.2 VDC") on lower front chassis
             Box(
@@ -354,45 +424,45 @@ private fun SensorDisplayHeader(state: HmiState) {
             .fillMaxWidth()
             .background(Color(0xFFDCDCDC), RoundedCornerShape(1.dp))
             .border(1.dp, Color(0xFF555555), RoundedCornerShape(1.dp))
-            .padding(horizontal = 4.dp, vertical = 2.dp),
+            .padding(horizontal = 4.dp, vertical = 0.5.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "TEMP:",
             color = Color.Black,
-            fontSize = 8.sp,
+            fontSize = 7.5.sp,
             fontWeight = FontWeight.Bold
         )
 
-        // Temp 1 Red Box
+        // Temp 1 Red Box - compact height
         Box(
             modifier = Modifier
-                .background(Color(0xFFB71C1C), RoundedCornerShape(2.dp))
-                .border(0.5.dp, Color(0xFF444444), RoundedCornerShape(2.dp))
-                .padding(horizontal = 6.dp, vertical = 1.5.dp),
+                .background(Color(0xFFB71C1C), RoundedCornerShape(1.dp))
+                .border(0.5.dp, Color(0xFF444444), RoundedCornerShape(1.dp))
+                .padding(horizontal = 5.dp, vertical = 0.5.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "${state.temperatura1?.let { String.format(Locale.US, "%.1f", it) } ?: "0.0"} °C",
-                color = Color.Black,
-                fontSize = 8.sp,
+                color = Color.White,
+                fontSize = 7.5.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        // Temp 2 Yellow Box
+        // Temp 2 Yellow Box - compact height
         Box(
             modifier = Modifier
-                .background(Color(0xFFD4E157), RoundedCornerShape(2.dp))
-                .border(0.5.dp, Color(0xFF444444), RoundedCornerShape(2.dp))
-                .padding(horizontal = 6.dp, vertical = 1.5.dp),
+                .background(Color(0xFFD4E157), RoundedCornerShape(1.dp))
+                .border(0.5.dp, Color(0xFF444444), RoundedCornerShape(1.dp))
+                .padding(horizontal = 5.dp, vertical = 0.5.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "${state.temperatura2?.let { String.format(Locale.US, "%.1f", it) } ?: "0.0"} °C",
                 color = Color.Black,
-                fontSize = 8.sp,
+                fontSize = 7.5.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -400,22 +470,22 @@ private fun SensorDisplayHeader(state: HmiState) {
         Text(
             text = "HUMEDAD:",
             color = Color.Black,
-            fontSize = 8.sp,
+            fontSize = 7.5.sp,
             fontWeight = FontWeight.Bold
         )
 
-        // Humidity Blue Box
+        // Humidity Blue Box - compact height
         Box(
             modifier = Modifier
-                .background(Color(0xFF0D47A1), RoundedCornerShape(2.dp))
-                .border(0.5.dp, Color(0xFF444444), RoundedCornerShape(2.dp))
-                .padding(horizontal = 6.dp, vertical = 1.5.dp),
+                .background(Color(0xFF0D47A1), RoundedCornerShape(1.dp))
+                .border(0.5.dp, Color(0xFF444444), RoundedCornerShape(1.dp))
+                .padding(horizontal = 5.dp, vertical = 0.5.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "${state.humedad?.toInt() ?: 0} %",
                 color = Color.White,
-                fontSize = 8.sp,
+                fontSize = 7.5.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -543,7 +613,7 @@ private fun ZoneIndicator(label: String, status: ZoneStatus, modifier: Modifier 
         Image(
             painter = painterResource(iconRes),
             contentDescription = null,
-            modifier = Modifier.size(width = 46.dp, height = 15.dp),
+            modifier = Modifier.size(width = 42.dp, height = 13.dp),
             contentScale = ContentScale.Fit
         )
     }
