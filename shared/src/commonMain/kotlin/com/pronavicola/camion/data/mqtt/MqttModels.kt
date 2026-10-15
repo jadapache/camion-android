@@ -1,22 +1,19 @@
 package com.pronavicola.camion.data.mqtt
 
-import com.pronavicola.camion.domain.model.ZoneStatus
-
 /**
- * Standard topics designated for traces/telemetry, locations, alarms, and status.
+ * Standard topics designated for traces/telemetry, locations, and alarms.
  */
 object MqttTopics {
-    const val TOPIC_ROOT = "furgones"
+    var topicRoot: String = "furgones"
 
-    fun telemetry(deviceId: String): String = "$TOPIC_ROOT/$deviceId/telemetry"
-    fun location(deviceId: String): String = "$TOPIC_ROOT/$deviceId/location"
-    fun alarms(deviceId: String): String = "$TOPIC_ROOT/$deviceId/alarms"
-    fun status(deviceId: String): String = "$TOPIC_ROOT/$deviceId/status"
+    fun telemetry(deviceId: String): String = "$topicRoot/$deviceId/telemetry"
+    fun location(deviceId: String): String = "$topicRoot/$deviceId/location"
+    fun alarms(deviceId: String): String = "$topicRoot/$deviceId/alarms"
 }
 
 /**
  * Data structures and JSON serializations for MQTT payloads.
- * Implemented with pure Kotlin formatting for high throughput and JVM testability.
+ * Telemetry consists solely of physical variables: Temperatura1, Temperatura2, Humedad, Tension.
  */
 data class TelemetryMqttPayload(
     val deviceId: String,
@@ -25,22 +22,40 @@ data class TelemetryMqttPayload(
     val temperature2C: Double?,
     val humidityPct: Double?,
     val voltageV: Double?,
-    val procesoActivo: Boolean,
-    val zonas: List<ZoneStatus>,
-    val estadoIrrigador: ZoneStatus,
-    val damperActivo: Boolean = false,
-    val calefaccionActiva: Boolean = false,
-    val alarmas: List<String> = emptyList(),
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val speedKmh: Double? = null,
+    val altitudeM: Double? = null,
 ) {
     fun toJson(): String {
         val t1Str = temperatureC?.toString() ?: "null"
         val t2Str = temperature2C?.toString() ?: "null"
         val humStr = humidityPct?.toString() ?: "null"
         val vltStr = voltageV?.toString() ?: "null"
-        val zonasJson = zonas.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"${it.name}\"" }
-        val alarmasJson = alarmas.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"$it\"" }
+        val latStr = latitude?.toString() ?: "null"
+        val lngStr = longitude?.toString() ?: "null"
+        val speedStr = speedKmh?.toString() ?: "null"
+        val altStr = altitudeM?.toString() ?: "null"
 
-        return "{\"device_id\":\"$deviceId\",\"timestamp\":$timestamp,\"temperature_c\":$t1Str,\"temperature_2_c\":$t2Str,\"humidity_pct\":$humStr,\"voltage_v\":$vltStr,\"proceso_activo\":$procesoActivo,\"zonas\":$zonasJson,\"estado_irrigador\":\"${estadoIrrigador.name}\",\"damper_activo\":$damperActivo,\"calefaccion_activa\":$calefaccionActiva,\"alarmas\":$alarmasJson}"
+        val sb = StringBuilder()
+        sb.append("{\"device_id\":\"").append(deviceId).append("\"")
+        sb.append(",\"timestamp\":").append(timestamp)
+        sb.append(",\"temperature_c\":").append(t1Str)
+        sb.append(",\"temperature_2_c\":").append(t2Str)
+        sb.append(",\"humidity_pct\":").append(humStr)
+        sb.append(",\"voltage_v\":").append(vltStr)
+        if (latitude != null && longitude != null) {
+            sb.append(",\"latitude\":").append(latStr)
+            sb.append(",\"longitude\":").append(lngStr)
+            sb.append(",\"lat\":").append(latStr)
+            sb.append(",\"lng\":").append(lngStr)
+            sb.append(",\"speed\":").append(speedStr)
+            sb.append(",\"speed_kmh\":").append(speedStr)
+            sb.append(",\"altitude\":").append(altStr)
+            sb.append(",\"altitude_m\":").append(altStr)
+        }
+        sb.append("}")
+        return sb.toString()
     }
 }
 
@@ -55,29 +70,19 @@ data class LocationMqttPayload(
     fun toJson(): String {
         val speedStr = speedKmh?.toString() ?: "null"
         val altStr = altitudeM?.toString() ?: "null"
-        return "{\"device_id\":\"$deviceId\",\"latitude\":$latitude,\"longitude\":$longitude,\"speed_kmh\":$speedStr,\"altitude_m\":$altStr,\"timestamp\":$timestamp}"
+        return "{\"device_id\":\"$deviceId\",\"latitude\":$latitude,\"longitude\":$longitude,\"lat\":$latitude,\"lng\":$longitude,\"speed\":$speedStr,\"speed_kmh\":$speedStr,\"altitude\":$altStr,\"altitude_m\":$altStr,\"timestamp\":$timestamp}"
     }
 }
 
 data class AlarmMqttPayload(
     val deviceId: String,
     val alarmType: String,
-    val severity: String,
+    val severity: String = "WARNING",
     val triggerValue: Double,
     val triggeredAt: Long = System.currentTimeMillis(),
 ) {
     fun toJson(): String {
         return "{\"device_id\":\"$deviceId\",\"alarm_type\":\"$alarmType\",\"severity\":\"$severity\",\"trigger_value\":$triggerValue,\"triggered_at\":$triggeredAt}"
-    }
-}
-
-data class StatusMqttPayload(
-    val deviceId: String,
-    val status: String,
-    val timestamp: Long = System.currentTimeMillis(),
-) {
-    fun toJson(): String {
-        return "{\"device_id\":\"$deviceId\",\"status\":\"$status\",\"timestamp\":$timestamp}"
     }
 }
 
@@ -89,3 +94,4 @@ data class OutboxMessage(
     var retryCount: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
 )
+

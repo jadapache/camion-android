@@ -10,13 +10,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UsuarioDao {
-    @Query("SELECT * FROM Usuarios WHERE Estado = 'ESTAUSUA.ACT' ORDER BY IdPerfil")
+    @Query("SELECT * FROM Usuarios WHERE UPPER(Estado) IN ('ESTAUSUA.ACT', 'ESTADO.ACT', 'ACTIVO') OR UPPER(Estado) LIKE '%.ACT' ORDER BY IdPerfil")
     fun observeActiveUsers(): Flow<List<UsuarioEntity>>
 
-    @Query("SELECT * FROM Usuarios WHERE IdUsuario = :idUsuario LIMIT 1")
+    @Query("SELECT * FROM Usuarios WHERE UPPER(IdUsuario) = UPPER(:idUsuario) LIMIT 1")
     suspend fun getById(idUsuario: String): UsuarioEntity?
 
-    @Query("SELECT * FROM Usuarios WHERE IdUsuario = 'OPERARIO' LIMIT 1")
+    @Query("SELECT * FROM Usuarios WHERE UPPER(IdUsuario) = 'OPERARIO' LIMIT 1")
     suspend fun getDefaultUser(): UsuarioEntity?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)

@@ -16,10 +16,13 @@ class RegistrosRepositoryImpl(
     private val vehiculoDao: VehiculoDao,
 ) : RegistrosRepository {
     override fun observeRegistros(user: SessionUser): Flow<List<VariableRegistroEntity>> =
-        vehiculoDao.observePredeterminado().flatMapLatest { activeVehiculo ->
-            val vehiculoId = activeVehiculo?.idVehiculo ?: user.idVehiculo
-            variableRegistroDao.observeRegistros(vehiculoId)
-        }
+        variableRegistroDao.observeAllRegistros()
+
+    override suspend fun getRegistrosPaged(idVehiculo: Int?, limit: Int, offset: Int): List<VariableRegistroEntity> =
+        variableRegistroDao.getRegistrosPaged(idVehiculo, limit, offset)
+
+    override suspend fun getRegistrosCount(idVehiculo: Int?): Int =
+        variableRegistroDao.getCount(idVehiculo)
 
     override suspend fun saveRegistro(registro: VariableRegistroEntity) {
         val vehiculoId = vehiculoDao.getPredeterminado()?.idVehiculo ?: registro.idVehiculo
@@ -29,35 +32,27 @@ class RegistrosRepositoryImpl(
                 idVariable = 1,
                 fechaHora = registro.fecha,
                 valor = registro.temperatura1,
-                estado = registro.estadoEnvio,
             ),
             VariablesRegistrosEntity(
                 idVehiculo = vehiculoId,
                 idVariable = 2,
                 fechaHora = registro.fecha,
                 valor = registro.temperatura2,
-                estado = registro.estadoEnvio,
             ),
             VariablesRegistrosEntity(
                 idVehiculo = vehiculoId,
                 idVariable = 4,
                 fechaHora = registro.fecha,
                 valor = registro.humedad,
-                estado = registro.estadoEnvio,
             ),
             VariablesRegistrosEntity(
                 idVehiculo = vehiculoId,
                 idVariable = 5,
                 fechaHora = registro.fecha,
                 valor = registro.tension,
-                estado = registro.estadoEnvio,
             ),
         )
         variableRegistroDao.insertRawAll(rawEntries)
-    }
-
-    override suspend fun updateEstadoEnvio(idRegistro: Int, estado: String) {
-        variableRegistroDao.updateEstadoEnvio(idRegistro, estado)
     }
 
     override suspend fun clearAllRegistros() {

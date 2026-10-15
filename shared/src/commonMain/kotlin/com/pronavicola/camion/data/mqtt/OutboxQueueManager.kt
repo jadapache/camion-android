@@ -1,7 +1,8 @@
 package com.pronavicola.camion.data.mqtt
 
-import com.pronavicola.camion.data.local.dao.BandejaSalidaMqttDao
-import com.pronavicola.camion.data.local.entity.BandejaSalidaMqttEntity
+import com.pronavicola.camion.data.local.dao.BuzonMqttDao
+import com.pronavicola.camion.data.local.dao.VariableRegistroDao
+import com.pronavicola.camion.data.local.entity.BuzonMqttEntity
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -14,21 +15,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.withContext
 import java.util.UUID
-import kotlin.random.Random
 
 /**
- * Gestor de cola FIFO persistente fuera de línea utilizando la tabla BandejaSalidaMqtt de Room
- * con política de reintentos basada en backoff exponencial y jitter.
+ * Manages an offline-first persistent Room outbox buffer for telemetry, GPS, and alarm messages,
+ * ensuring QoS 1 delivery across network interruptions and app restarts.
  */
 class OutboxQueueManager(
-    private val bandejaSalidaMqttDao: BandejaSalidaMqttDao,
-    private val mqttClientManager: MqttClientManager,
+    private val mqttManager: MqttClientManager,
+    private val buzonMqttDao: BuzonMqttDao,
+    private val variableRegistroDao: VariableRegistroDao? = null,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val maxQueueSize: Int = MAX_QUEUE_SIZE,
-    private val maxRetries: Int = MAX_RETRY_ATTEMPTS,
+    private val maxQueueSize: Int = 10000,
+    private val maxRetries: Int = 10,
 ) {
     private val tag = "OutboxQueueManager"
     private val drainMutex = Mutex()
@@ -37,27 +37,42 @@ class OutboxQueueManager(
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
 
-    companion object {
-        const val MAX_QUEUE_SIZE = 10_000
-        const val MAX_RETRY_ATTEMPTS = 10
-        const val INITIAL_BACKOFF_MS = 2_000L // 2 seconds
-        const val MAX_BACKOFF_MS = 300_000L // 5 minutes
-        const val JITTER_PERCENT = 0.20 // ±20%
-        const val BATCH_SIZE = 100
-    }
-
     init {
-        mqttClientManager.setOnConnectedListener {
-            startDraining()
+        mqttManager.setOnConnectedListener {
+            triggerDrain()
         }
         scope.launch(ioDispatcher) {
-            updatePendingCount()
+            refreshPendingCount()
+        }
+        startPeriodicDrain()
+    }
+
+    suspend fun enqueue(topic: String, payloadJson: String, qos: Int = 1) {
+        val currentCount = buzonMqttDao.getPendingCount()
+        if (currentCount >= maxQueueSize) {
+            // Prune oldest records to keep buffer bounded
+            buzonMqttDao.pruneOldest(100)
+        }
+
+        val entity = BuzonMqttEntity(
+            idMensaje = UUID.randomUUID().toString(),
+            topico = topic,
+            cargaUtil = payloadJson,
+            qos = qos,
+            marcaTiempo = System.currentTimeMillis(),
+            conteoReintentos = 0,
+            estado = "PENDING"
+        )
+
+        buzonMqttDao.insert(entity)
+        refreshPendingCount()
+
+        if (mqttManager.isConnected.value) {
+            triggerDrain()
         }
     }
 
-    suspend fun getPendingCount(): Int = withContext(ioDispatcher) {
-        bandejaSalidaMqttDao.getPendingCount()
-    }
+    fun getPendingCount(): Int = _pendingCount.value
 
     private suspend fun updatePendingCount() {
         try {
@@ -73,31 +88,22 @@ class OutboxQueueManager(
         }
     }
 
-    suspend fun enqueueSuspend(topic: String, payload: String, qos: Int = 1, messageId: String = UUID.randomUUID().toString()) = withContext(ioDispatcher) {
+    private suspend fun refreshPendingCount() {
         try {
-            if (bandejaSalidaMqttDao.messageExists(messageId)) {
-                Log.d(tag, "Message already in outbox (idempotency check): $messageId")
-                return@withContext
-            }
+            _pendingCount.value = buzonMqttDao.getPendingCount()
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to count pending outbox messages: ${e.message}")
+        }
+    }
 
-            val message = BandejaSalidaMqttEntity(
-                idMensaje = messageId,
-                topico = topic,
-                payload = payload,
-                qos = qos,
-                fechaHora = System.currentTimeMillis()
-            )
-
-            bandejaSalidaMqttDao.insert(message)
-            Log.d(tag, "Message enqueued to outbox: $topic, messageId=$messageId")
-
-            val count = bandejaSalidaMqttDao.getPendingCount()
-            _pendingCount.value = count
-
-            if (count > maxQueueSize) {
-                val pruned = bandejaSalidaMqttDao.pruneToSize(maxQueueSize)
-                updatePendingCount()
-                Log.w(tag, "Queue exceeded max size ($maxQueueSize), pruned $pruned oldest messages")
+    private fun startPeriodicDrain() {
+        drainJob?.cancel()
+        drainJob = scope.launch(ioDispatcher) {
+            while (isActive) {
+                if (mqttManager.isConnected.value) {
+                    drainQueue()
+                }
+                delay(5000L)
             }
 
             if (mqttClientManager.isConnected.value) {
@@ -108,75 +114,42 @@ class OutboxQueueManager(
         }
     }
 
-    fun startDraining() {
-        if (drainingJob?.isActive == true) {
-            return
-        }
-        drainingJob = scope.launch(ioDispatcher) {
-            drainQueue()
-        }
-    }
-
-    fun triggerDrain() = startDraining()
-
-    fun stopDraining() {
-        drainingJob?.cancel()
-        drainingJob = null
-        Log.i(tag, "Outbox queue draining stopped")
-    }
-
-    suspend fun drainQueue(): Int = withContext(ioDispatcher) {
-        if (!mqttClientManager.isConnected.value) return@withContext 0
-        if (!drainMutex.tryLock()) return@withContext 0
+    suspend fun drainQueue(): Int {
+        if (!mqttManager.isConnected.value) return 0
+        if (!drainMutex.tryLock()) return 0
 
         var sentCount = 0
         try {
-            Log.i(tag, "Starting outbox queue drain")
+            val pendingMessages = buzonMqttDao.getPendingMessages(limit = 50)
+            if (pendingMessages.isEmpty()) return 0
 
-            while (isActive && mqttClientManager.isConnected.value) {
-                val failedCount = bandejaSalidaMqttDao.markFailedAfterMaxRetries(maxRetries)
-                if (failedCount > 0) {
-                    Log.w(tag, "Marked $failedCount messages as FAILED after exceeding $maxRetries retries")
-                }
+            for (msg in pendingMessages) {
+                if (!mqttManager.isConnected.value) break
 
-                val pendingMessages = bandejaSalidaMqttDao.getPendingMessages(BATCH_SIZE)
-                if (pendingMessages.isEmpty()) {
-                    Log.d(tag, "Outbox queue is empty")
-                    break
-                }
+                val result = mqttManager.publish(msg.topico, msg.cargaUtil, msg.qos)
+                if (result.isSuccess) {
+                    buzonMqttDao.deleteById(msg.id)
+                    sentCount++
+                } else {
+                    val retries = msg.conteoReintentos + 1
+                    val errorMsg = result.exceptionOrNull()?.message ?: "Publish failed"
+                    buzonMqttDao.updateRetryInfo(msg.id, System.currentTimeMillis(), errorMsg)
 
-                var processedInBatch = 0
-                for (message in pendingMessages) {
-                    if (!isActive || !mqttClientManager.isConnected.value) break
-
-                    val backoffDelay = calculateBackoff(message.reintentos)
-                    val now = System.currentTimeMillis()
-                    if (message.ultimoReintento != null && (now - message.ultimoReintento) < backoffDelay) {
-                        Log.d(tag, "Message ${message.idMensaje} waiting for backoff delay (${backoffDelay}ms)")
-                        continue
+                    if (retries >= maxRetries) {
+                        Log.e(tag, "Message ${msg.id} marked FAILED after $retries retries")
+                        buzonMqttDao.updateStatus(msg.id, "FAILED")
                     }
-
-                    val success = processMessage(message)
-                    if (success) {
-                        sentCount++
-                    }
-                    processedInBatch++
+                    break // Stop batch on network error
                 }
-
-                updatePendingCount()
-                if (processedInBatch == 0 || !mqttClientManager.isConnected.value) {
-                    break
-                }
-                delay(1000L)
             }
         } catch (e: Exception) {
-            Log.e(tag, "Error during outbox queue drain: ${e.message}", e)
+            Log.e(tag, "Error during outbox drain: ${e.message}")
         } finally {
-            updatePendingCount()
+            refreshPendingCount()
             drainMutex.unlock()
             Log.i(tag, "Outbox queue drain finished, total sent: $sentCount")
         }
-        sentCount
+        return sentCount
     }
 
     private suspend fun processMessage(message: BandejaSalidaMqttEntity): Boolean {
@@ -219,3 +192,4 @@ class OutboxQueueManager(
         return (exponentialDelay + jitter).coerceIn(0L, MAX_BACKOFF_MS)
     }
 }
+

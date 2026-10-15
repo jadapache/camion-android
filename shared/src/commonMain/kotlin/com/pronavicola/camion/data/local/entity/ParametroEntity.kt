@@ -7,14 +7,8 @@ import androidx.room.Index
 
 @Entity(
     tableName = "Parametros",
-    primaryKeys = ["IdVehiculo", "IdParametro"],
+    primaryKeys = ["IdParametro"],
     foreignKeys = [
-        ForeignKey(
-            entity = VehiculoEntity::class,
-            parentColumns = ["IdVehiculo"],
-            childColumns = ["IdVehiculo"],
-            onDelete = ForeignKey.NO_ACTION,
-        ),
         ForeignKey(
             entity = DefinicionEntity::class,
             parentColumns = ["IdDefinicion"],
@@ -29,13 +23,11 @@ import androidx.room.Index
         ),
     ],
     indices = [
-        Index(value = ["IdVehiculo"]),
         Index(value = ["IdTipo"]),
         Index(value = ["IdUnidad"]),
     ],
 )
 data class ParametroEntity(
-    @ColumnInfo(name = "IdVehiculo") val idVehiculo: Int,
     @ColumnInfo(name = "IdParametro") val idParametro: Int,
     @ColumnInfo(name = "Parametro") val parametro: String,
     @ColumnInfo(name = "IdTipo") val idTipo: String,

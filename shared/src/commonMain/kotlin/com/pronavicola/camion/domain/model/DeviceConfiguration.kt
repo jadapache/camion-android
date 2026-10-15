@@ -6,8 +6,8 @@ data class DeviceConfiguration(
     val tokenExpiry: Long? = null,
     val furgonId: String? = null,
     val furgonPlate: String? = null,
-    val brokerUrl: String = "tcp://mqtt.pronavicola.com:1883",
+    val brokerUrl: String = "furgones.emqx.io:1883",
     val topicRoot: String = "furgones",
     val gpsPublishIntervalSec: Long = 120,
-    val telemetryPublishIntervalSec: Long = 30
+    val telemetryPublishIntervalSec: Long = 30,
 )

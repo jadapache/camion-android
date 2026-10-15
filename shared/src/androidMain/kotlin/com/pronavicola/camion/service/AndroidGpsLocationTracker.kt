@@ -1,139 +1,227 @@
 package com.pronavicola.camion.service
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Bundle
 import android.os.Looper
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.pronavicola.camion.data.local.dao.TrazasUbicacionDao
+import com.pronavicola.camion.data.local.dao.UbicacionDao
+import com.pronavicola.camion.data.local.dao.VehiculoDao
 import com.pronavicola.camion.domain.model.GpsLocation
-import com.pronavicola.camion.domain.repository.AppConfigRepository
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 class AndroidGpsLocationTracker(
     private val context: Context,
-    private val trazasUbicacionDao: TrazasUbicacionDao,
-    private val appConfigRepository: AppConfigRepository,
-    private val scope: CoroutineScope
+    private val ubicacionDao: UbicacionDao,
+    private val vehiculoDao: VehiculoDao,
+    private val deviceIdProvider: suspend () -> String,
+    private val scope: CoroutineScope,
 ) : GpsLocationTracker {
 
     private val tag = "AndroidGpsLocationTracker"
-    private val fusedClient: FusedLocationProviderClient =
-        LocationServices.getFusedLocationProviderClient(context)
+    private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
 
-    private var locationCallback: LocationCallback? = null
-    private var isTracking = false
+    private val _currentLocation = MutableStateFlow<GpsLocation?>(null)
+    override val currentLocation: StateFlow<GpsLocation?> = _currentLocation.asStateFlow()
+
+    private val _isTracking = MutableStateFlow(false)
+    override val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
+
+    private var heartbeatJob: Job? = null
+    private var lastPersistTimeMs: Long = 0L
+
+    private val locationListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            handleLocationUpdate(location)
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+        override fun onProviderEnabled(provider: String) {
+            Log.d(tag, "Location provider enabled: $provider")
+        }
+        override fun onProviderDisabled(provider: String) {
+            Log.w(tag, "Location provider disabled: $provider")
+        }
+    }
 
     companion object {
-        const val MIN_UPDATE_INTERVAL_MS = 120_000L // 120 seconds (2 minutes)
-        const val MIN_DISPLACEMENT_METERS = 100f
+        const val MIN_UPDATE_INTERVAL_MS = 15_000L // 15 seconds
+        const val MIN_DISPLACEMENT_METERS = 0f // 0 meters - ensures updates even when stationary/parked
     }
 
     @SuppressLint("MissingPermission")
-    override suspend fun startTracking() {
-        if (!hasLocationPermission()) {
-            Log.w(tag, "ACCESS_FINE_LOCATION permission not granted. GPS tracking disabled.")
-            return
+    override suspend fun startTracking() = withContext(Dispatchers.Main) {
+        if (_isTracking.value) return@withContext
+
+        if (locationManager == null) {
+            Log.e(tag, "LocationManager not available")
+            return@withContext
         }
 
-        if (isTracking) {
-            Log.d(tag, "GPS tracking is already active.")
-            return
-        }
+        try {
+            val enabledProviders = locationManager.getProviders(true)
+            if (enabledProviders.isEmpty()) {
+                Log.w(tag, "No enabled location providers found")
+            } else {
+                Log.i(tag, "Enabled location providers: $enabledProviders")
+            }
 
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            MIN_UPDATE_INTERVAL_MS
-        ).apply {
-            setMinUpdateDistanceMeters(MIN_DISPLACEMENT_METERS)
-            setWaitForAccurateLocation(false)
-        }.build()
+            var registeredAny = false
+            for (provider in enabledProviders) {
+                try {
+                    locationManager.requestLocationUpdates(
+                        provider,
+                        MIN_UPDATE_INTERVAL_MS,
+                        MIN_DISPLACEMENT_METERS,
+                        locationListener,
+                        Looper.getMainLooper()
+                    )
+                    registeredAny = true
+                    Log.d(tag, "Requested location updates from provider: $provider")
+                } catch (e: Exception) {
+                    Log.w(tag, "Failed to request location updates from $provider: ${e.message}")
+                }
+            }
 
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { location ->
-                    scope.launch(Dispatchers.IO) {
-                        handleLocationUpdate(location)
+            if (!registeredAny) {
+                val hasGps = try { locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) } catch (_: Exception) { false }
+                val hasNetwork = try { locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) } catch (_: Exception) { false }
+                if (hasGps) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        MIN_UPDATE_INTERVAL_MS,
+                        MIN_DISPLACEMENT_METERS,
+                        locationListener,
+                        Looper.getMainLooper()
+                    )
+                    registeredAny = true
+                }
+                if (hasNetwork) {
+                    locationManager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        MIN_UPDATE_INTERVAL_MS,
+                        MIN_DISPLACEMENT_METERS,
+                        locationListener,
+                        Looper.getMainLooper()
+                    )
+                    registeredAny = true
+                }
+            }
+
+            // Get last known location immediately across all providers
+            var bestLast: Location? = null
+            for (provider in locationManager.allProviders) {
+                try {
+                    val last = locationManager.getLastKnownLocation(provider)
+                    if (last != null && (bestLast == null || last.time > bestLast.time)) {
+                        bestLast = last
+                    }
+                } catch (_: Exception) {}
+            }
+            bestLast?.let { handleLocationUpdate(it) }
+
+            _isTracking.value = true
+            Log.i(tag, "GPS tracking started successfully (registeredAny=$registeredAny)")
+
+            // Periodic heartbeat to refresh stationary location coordinates even when stationary indoors
+            heartbeatJob?.cancel()
+            heartbeatJob = scope.launch(Dispatchers.IO) {
+                while (isActive) {
+                    delay(MIN_UPDATE_INTERVAL_MS)
+                    if (!_isTracking.value) break
+
+                    val now = System.currentTimeMillis()
+                    if (now - lastPersistTimeMs >= (MIN_UPDATE_INTERVAL_MS - 2000L)) {
+                        var candidate: Location? = null
+                        try {
+                            for (p in locationManager.allProviders) {
+                                val last = locationManager.getLastKnownLocation(p)
+                                if (last != null && (candidate == null || last.time > candidate.time)) {
+                                    candidate = last
+                                }
+                            }
+                        } catch (_: Exception) {}
+
+                        if (candidate != null) {
+                            handleLocationUpdate(candidate)
+                        } else {
+                            val curr = _currentLocation.value
+                            if (curr != null) {
+                                persistGpsLocation(curr.copy(marcaTiempo = now))
+                            }
+                        }
                     }
                 }
             }
-        }
-
-        try {
-            fusedClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback!!,
-                Looper.getMainLooper()
-            )
-            isTracking = true
-            Log.i(tag, "GPS tracking started (interval: ${MIN_UPDATE_INTERVAL_MS}ms, min displacement: ${MIN_DISPLACEMENT_METERS}m)")
         } catch (e: SecurityException) {
-            Log.e(tag, "SecurityException starting GPS tracking: ${e.message}", e)
+            _isTracking.value = false
+            Log.e(tag, "Missing location permissions: ${e.message}")
         } catch (e: Exception) {
-            Log.e(tag, "Error starting GPS tracking: ${e.message}", e)
+            _isTracking.value = false
+            Log.e(tag, "Error starting location tracking: ${e.message}")
         }
     }
 
-    override suspend fun stopTracking() {
-        locationCallback?.let {
-            fusedClient.removeLocationUpdates(it)
-            locationCallback = null
+    override suspend fun stopTracking() = withContext(Dispatchers.Main) {
+        if (!_isTracking.value) return@withContext
+        try {
+            heartbeatJob?.cancel()
+            heartbeatJob = null
+            locationManager?.removeUpdates(locationListener)
+            _isTracking.value = false
+            Log.i(tag, "GPS tracking stopped")
+        } catch (e: Exception) {
+            Log.e(tag, "Error stopping location tracking: ${e.message}")
         }
-        isTracking = false
-        Log.i(tag, "GPS tracking stopped")
     }
 
-    private suspend fun handleLocationUpdate(location: Location) {
+    private fun handleLocationUpdate(location: Location) {
+        val now = System.currentTimeMillis()
         val gpsLocation = GpsLocation(
-            latitude = location.latitude,
-            longitude = location.longitude,
-            altitude = if (location.hasAltitude()) location.altitude else null,
-            accuracy = if (location.hasAccuracy()) location.accuracy else null,
-            speed = if (location.hasSpeed()) location.speed else null,
-            timestamp = location.time
+            latitud = location.latitude,
+            longitud = location.longitude,
+            altitud = if (location.hasAltitude()) location.altitude else null,
+            precision = if (location.hasAccuracy()) location.accuracy else null,
+            velocidad = if (location.hasSpeed()) location.speed else null,
+            marcaTiempo = now,
         )
 
-        if (!gpsLocation.isValid()) {
-            Log.w(tag, "Discarding invalid GPS coordinates: lat=${gpsLocation.latitude}, lon=${gpsLocation.longitude}")
-            return
-        }
+        _currentLocation.value = gpsLocation
+        Log.d(tag, "New location: lat=${gpsLocation.latitud}, lng=${gpsLocation.longitud}, acc=${gpsLocation.precision}")
 
-        val deviceId = appConfigRepository.getDeviceId() ?: "UNKNOWN"
-        val entity = gpsLocation.toTrazasUbicacionEntity(deviceId)
-
-        try {
-            trazasUbicacionDao.insert(entity)
-            Log.i(tag, "GPS location stored: lat=${gpsLocation.latitude}, lon=${gpsLocation.longitude}, accuracy=${gpsLocation.accuracy}m, speed=${gpsLocation.speed}m/s")
-        } catch (e: Exception) {
-            Log.e(tag, "Failed to persist GPS location to database: ${e.message}", e)
-        }
+        persistGpsLocation(gpsLocation)
     }
 
-    fun hasLocationPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+    private fun persistGpsLocation(gpsLocation: GpsLocation) {
+        lastPersistTimeMs = System.currentTimeMillis()
+        scope.launch(Dispatchers.IO) {
+            try {
+                val deviceId = deviceIdProvider()
+                val idVehiculo = vehiculoDao.getPredeterminado()?.idVehiculo ?: 1
+                val idUbicacion = ubicacionDao.getNextIdUbicacion(idVehiculo)
+                val entity = gpsLocation.toUbicacionEntity(
+                    idVehiculo = idVehiculo,
+                    deviceId = deviceId,
+                    idUbicacion = idUbicacion,
+                )
+                ubicacionDao.insert(entity)
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to persist GPS location to database: ${e.message}")
+            }
+        }
     }
-}
-
-actual fun createGpsLocationTracker(
-    platformContext: Any?,
-    trazasUbicacionDao: TrazasUbicacionDao,
-    appConfigRepository: AppConfigRepository,
-    scope: CoroutineScope
-): GpsLocationTracker {
-    val context = platformContext as? Context ?: error("Android Context required for GpsLocationTracker")
-    return AndroidGpsLocationTracker(context, trazasUbicacionDao, appConfigRepository, scope)
 }

@@ -3,24 +3,38 @@ package com.pronavicola.camion.data.local
 import android.content.Context
 import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.Dispatchers
+import java.io.File
 
-actual fun createFurgonesDatabase(platformContext: Any?): FurgonesDatabase {
-    val context = platformContext as? Context ?: error("Context required for Android FurgonesDatabase")
+actual fun createFurgonesDatabase(
+    platformContext: Any?
+): FurgonesDatabase {
+    val context = platformContext as? Context
+        ?: error("Context required for Android FurgonesDatabase")
+
     val dbFile = context.getDatabasePath(FurgonesDatabase.DB_NAME)
 
-    if (!dbFile.exists() || dbFile.length() == 0L) {
-        dbFile.parentFile?.mkdirs()
+    if (!dbFile.exists()) {
+        dbFile.parentFile?.let { parent ->
+            check(parent.exists() || parent.mkdirs()) {
+                "Could not create database directory: ${parent.absolutePath}"
+            }
+        }
+
+        val tempFile = File(dbFile.parentFile, "${dbFile.name}.tmp")
+
         try {
             context.assets.open(FurgonesDatabase.DB_NAME).use { input ->
-                dbFile.outputStream().use { output ->
+                tempFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
             }
-            Log.i("DatabaseFactory", "Extracted initial seed database from assets to ${dbFile.absolutePath}")
-        } catch (e: Exception) {
-            Log.w("DatabaseFactory", "Could not copy initial seed database from assets: ${e.message}")
+
+            check(tempFile.renameTo(dbFile)) {
+                "Could not install initial database at ${dbFile.absolutePath}"
+            }
+        } finally {
+            tempFile.delete()
         }
     }
 
@@ -30,7 +44,6 @@ actual fun createFurgonesDatabase(platformContext: Any?): FurgonesDatabase {
     )
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.IO)
-        .addMigrations(MIGRATION_17_18, MIGRATION_18_19)
         .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
 }

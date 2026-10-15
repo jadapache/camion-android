@@ -49,6 +49,9 @@ interface AppConfigRepository {
     suspend fun getLicenseStatus(): String?
     suspend fun saveLicenseStatus(status: String)
 
+    fun observeLicenseStatus(): kotlinx.coroutines.flow.Flow<String?> = kotlinx.coroutines.flow.flowOf(null)
+    fun observeFurgonPlate(): kotlinx.coroutines.flow.Flow<String?> = kotlinx.coroutines.flow.flowOf(null)
+
     suspend fun getModbusSimulationEnabled(): Boolean
     suspend fun saveModbusSimulationEnabled(enabled: Boolean)
 

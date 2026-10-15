@@ -2,6 +2,7 @@ package com.pronavicola.camion
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.Toast
@@ -16,6 +17,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.pronavicola.camion.presentation.CamionApp
 import com.pronavicola.camion.presentation.theme.CamionTheme
+import com.pronavicola.camion.service.MqttForegroundService
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.launch
 
@@ -23,25 +25,14 @@ class MainActivity : ComponentActivity() {
 
     private val tag = "MainActivity"
 
-    private val requestLocationPermissionLauncher = registerForActivityResult(
+    private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-
-        if (fineLocationGranted || coarseLocationGranted) {
-            Log.i(tag, "GPS location permission granted. Initializing location service.")
-            val app = application as CamionApplication
-            lifecycleScope.launch {
-                app.appContext.gpsLocationTracker.startTracking()
-            }
-        } else {
-            Log.w(tag, "Location permission denied by user. GPS tracking will be disabled.")
-            Toast.makeText(
-                this,
-                "El permiso de ubicación es necesario para el seguimiento GPS del furgón.",
-                Toast.LENGTH_LONG
-            ).show()
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        Log.i(tag, "Permissions result: FINE=$fineGranted, COARSE=$coarseGranted")
+        if (fineGranted || coarseGranted) {
+            onLocationPermissionGranted()
         }
     }
 
@@ -50,8 +41,7 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
         hideSystemBars()
-
-        checkAndRequestLocationPermissions()
+        checkAndRequestPermissions()
 
         val app = application as CamionApplication
         setContent {
@@ -61,23 +51,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun checkAndRequestLocationPermissions() {
-        val hasFine = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasFine) {
-            requestLocationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        } else {
-            val app = application as CamionApplication
-            lifecycleScope.launch {
-                app.appContext.gpsLocationTracker.startTracking()
-            }
+    override fun onResume() {
+        super.onResume()
+        if (hasLocationPermission()) {
+            onLocationPermissionGranted()
         }
     }
 
@@ -85,6 +62,63 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             hideSystemBars()
+        }
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
+    private fun checkAndRequestPermissions() {
+        val needed = mutableListOf<String>()
+
+        if (!hasLocationPermission()) {
+            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            needed.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val notificationsGranted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!notificationsGranted) {
+                needed.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        if (needed.isNotEmpty()) {
+            Log.i(tag, "Requesting permissions: $needed")
+            permissionLauncher.launch(needed.toTypedArray())
+        } else {
+            onLocationPermissionGranted()
+        }
+    }
+
+    private fun onLocationPermissionGranted() {
+        val app = application as? CamionApplication ?: return
+        if (app.isInitialized) {
+            app.appContext.appScope.launch {
+                try {
+                    app.appContext.gpsLocationTracker.startTracking()
+                    Log.i(tag, "GPS location tracker started following permission grant")
+                } catch (e: Exception) {
+                    Log.e(tag, "Error starting GPS tracker: ${e.message}")
+                }
+            }
+        }
+        try {
+            MqttForegroundService.startService(this)
+        } catch (e: Exception) {
+            Log.e(tag, "Error restarting MqttForegroundService: ${e.message}")
         }
     }
 

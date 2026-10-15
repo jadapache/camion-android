@@ -42,6 +42,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -85,7 +86,6 @@ import com.pronavicola.camion.presentation.theme.CamionColors
 fun ConfigScreen(
     currentUser: SessionUser,
     deviceId: String,
-    furgonPlate: String = "",
     mqttBrokerUrl: String,
     mqttTopicRoot: String = "furgones",
     mqttUsername: String,
@@ -101,7 +101,8 @@ fun ConfigScreen(
     licenseStatus: String,
     licenseKeyInput: String,
     isPollingPairing: Boolean,
-    availableFurgones: List<FurgonInfo>,
+    pairingError: String? = null,
+    pairingSuccess: String? = null,
     modbusSimulationEnabled: Boolean = false,
     mqttTransmittedPacketsCount: Int = 0,
     mqttTestSuccessMessage: String? = null,
@@ -110,7 +111,6 @@ fun ConfigScreen(
     mqttEventLogs: List<MqttLogEvent> = emptyList(),
     isTestingMqttConnection: Boolean = false,
     onDeviceIdChange: (String) -> Unit = {},
-    onFurgonPlateChange: (String) -> Unit = {},
     onMqttBrokerUrlChange: (String) -> Unit,
     onMqttTopicRootChange: (String) -> Unit = {},
     onMqttUsernameChange: (String) -> Unit,
@@ -124,8 +124,6 @@ fun ConfigScreen(
     onRequestPairingCode: () -> Unit,
     onCheckPairingStatus: () -> Unit,
     onActivateLicenseKey: () -> Unit,
-    onFetchFurgones: () -> Unit,
-    onSelectFurgon: (FurgonInfo) -> Unit,
     onUnlinkDevice: () -> Unit,
     onTestMqttConnection: () -> Unit = {},
     onNavigateToSimulation: () -> Unit = {},
@@ -229,7 +227,37 @@ fun ConfigScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+
                 if (licenseStatus == "ACTIVE") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "DEVICE ID VINCULADO:",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = deviceId.ifBlank { "SIN_ID" },
+                                color = Color(0xFF64B5F6),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
                     Button(
                         onClick = onUnlinkDevice,
                         modifier = Modifier.fillMaxWidth(),
@@ -245,6 +273,36 @@ fun ConfigScreen(
                         Text("DESVINCULAR DISPOSITIVO", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 } else {
+                    // Display current Device ID card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1722)),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "DEVICE ID DETECTADO:",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = deviceId.ifBlank { "SIN_ID" },
+                                color = Color(0xFF64B5F6),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
                     // Pairing PIN Code Banner
                     if (pairingCode.isNotBlank()) {
                         Card(
@@ -304,19 +362,91 @@ fun ConfigScreen(
                             onClick = onCheckPairingStatus,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1)),
+                            enabled = !isPollingPairing
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                if (isPollingPairing) "SONDEANDO..." else "VERIFICAR",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
+                            if (isPollingPairing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("VERIFICANDO...", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "VERIFICAR",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+
+                    if (!pairingError.isNullOrBlank()) {
+                        val isNoRecord = pairingError.contains("No se encontró registro previo", ignoreCase = true)
+                        val bannerBg = if (isNoRecord) Color(0xFF1E293B) else Color(0xFF3B1219)
+                        val bannerBorder = if (isNoRecord) Color(0xFF0288D1) else Color(0xFFB71C1C)
+                        val bannerText = if (isNoRecord) Color(0xFF90CAF9) else Color(0xFFFF8A80)
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = bannerBg,
+                            border = BorderStroke(1.dp, bannerBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    tint = bannerText,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = pairingError,
+                                    color = bannerText,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    if (!pairingSuccess.isNullOrBlank()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF0D2818),
+                            border = BorderStroke(1.dp, Color(0xFF2E7D32))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF81C784),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = pairingSuccess,
+                                    color = Color(0xFF81C784),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
 
@@ -329,7 +459,8 @@ fun ConfigScreen(
                         OutlinedTextField(
                             value = licenseKeyInput,
                             onValueChange = onLicenseKeyInputChange,
-                            label = { Text("CLAVE DE REGISTRO (FRGN-XXXX-XXXX-XXXX)") },
+                            label = { Text("CLAVE DE REGISTRO") },
+                            placeholder = { Text("FRGN-XXXX-XXXX-XXXX", color = Color.Gray) },
                             colors = outlinedTextFieldColors(),
                             modifier = Modifier.weight(1.8f),
                             singleLine = true
@@ -468,16 +599,6 @@ fun ConfigScreen(
                     onValueChange = onMqttBrokerUrlChange,
                     label = { Text("Broker URL") },
                     placeholder = { Text("furgones.emqx.io:1883", color = Color.Gray) },
-                    colors = outlinedTextFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = mqttTopicRoot,
-                    onValueChange = onMqttTopicRootChange,
-                    label = { Text("MQTT Topic Root") },
-                    placeholder = { Text("furgones") },
                     colors = outlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true

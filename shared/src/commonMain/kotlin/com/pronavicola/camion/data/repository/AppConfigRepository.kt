@@ -3,6 +3,7 @@ package com.pronavicola.camion.data.repository
 import com.pronavicola.camion.data.local.dao.AppConfigDao
 import com.pronavicola.camion.data.local.entity.AppConfigEntity
 import com.pronavicola.camion.domain.repository.AppConfigRepository
+import kotlinx.coroutines.flow.Flow
 
 class AppConfigRepositoryImpl(
     private val appConfigDao: AppConfigDao,
@@ -111,6 +112,9 @@ class AppConfigRepositoryImpl(
 
     override suspend fun getLicenseStatus(): String? = appConfigDao.getValor(KEY_LICENSE_STATUS)
     override suspend fun saveLicenseStatus(status: String) = appConfigDao.save(AppConfigEntity(KEY_LICENSE_STATUS, status))
+
+    override fun observeLicenseStatus(): Flow<String?> = appConfigDao.observeValor(KEY_LICENSE_STATUS)
+    override fun observeFurgonPlate(): Flow<String?> = appConfigDao.observeValor(KEY_FURGON_PLATE)
 
     override suspend fun getModbusSimulationEnabled(): Boolean = appConfigDao.getValor(KEY_MODBUS_SIMULATION_ENABLED)?.toBooleanStrictOrNull() ?: false
     override suspend fun saveModbusSimulationEnabled(enabled: Boolean) = appConfigDao.save(AppConfigEntity(KEY_MODBUS_SIMULATION_ENABLED, enabled.toString()))

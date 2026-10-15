@@ -20,22 +20,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,7 +42,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -59,7 +53,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,15 +60,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.presentation.theme.CamionColors
@@ -83,7 +70,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-
+import kotlin.math.ceil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,15 +78,11 @@ fun RegistrosScreen(
     currentUser: SessionUser? = null,
     registros: List<VariableRegistroEntity>,
     deviceId: String = "ABC123",
-    onResendRegistro: (VariableRegistroEntity) -> Unit = {},
     onClearAllRegistros: () -> Unit = {},
-    isLoadingMore: Boolean = false,
-    canLoadMore: Boolean = false,
-    onLoadMore: () -> Unit = {},
+    onExportCsv: (fileName: String, csvContent: String) -> Unit = { _, _ -> },
+    onLoadPage: ((page: Int, pageSize: Int) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val clipboardManager = LocalClipboardManager.current
-    var selectedRegistroForPayload by remember { mutableStateOf<VariableRegistroEntity?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var exportStatusMessage by remember { mutableStateOf<String?>(null) }
 
@@ -107,14 +90,22 @@ fun RegistrosScreen(
     var filterFechaDesde by remember { mutableStateOf("") }
     var filterFechaHasta by remember { mutableStateOf("") }
     var showDatePickerFor by remember { mutableStateOf<String?>(null) } // "DESDE", "HASTA" or null
-
     var filterPlaca by remember { mutableStateOf("") }
-    var filterEstado by remember { mutableStateOf("TODOS") } // TODOS, ENVIADO, PENDIENTE
     var showFiltersPanel by remember { mutableStateOf(false) }
 
     // Sorting State
     var sortColumn by remember { mutableStateOf(SortColumn.NONE) }
     var sortDirection by remember { mutableStateOf(SortDirection.NONE) }
+
+    // Pagination & Lazy Loading State
+    var currentPage by remember { mutableStateOf(1) }
+    var pageSize by remember { mutableStateOf(25) }
+    val pageSizeOptions = remember { listOf(15, 25, 50, 100) }
+
+    // Reset page to 1 whenever filters, sorting, or pageSize changes
+    LaunchedEffect(filterFechaDesde, filterFechaHasta, filterPlaca, sortColumn, sortDirection, pageSize) {
+        currentPage = 1
+    }
 
     // Roles with permission to clean records: Desarrollador (0), Administrador (1), Supervisor (2)
     val canClearRecords = currentUser == null || currentUser.idPerfil in listOf(0, 1, 2)
@@ -141,7 +132,6 @@ fun RegistrosScreen(
         filterFechaDesde,
         filterFechaHasta,
         filterPlaca,
-        filterEstado,
         sortColumn,
         sortDirection
     ) {
@@ -149,56 +139,44 @@ fun RegistrosScreen(
             val datePart = reg.fecha.substringBefore(" ").trim()
             val matchDesde = filterFechaDesde.isBlank() || datePart >= filterFechaDesde
             val matchHasta = filterFechaHasta.isBlank() || datePart <= filterFechaHasta
-            val matchPlaca = filterPlaca.isBlank() || reg.idVehiculo.toString().contains(filterPlaca.trim(), ignoreCase = true)
-            val matchEstado = when (filterEstado) {
-                "ENVIADO" -> reg.estadoEnvio.equals("ENVIADO", ignoreCase = true)
-                "PENDIENTE" -> !reg.estadoEnvio.equals("ENVIADO", ignoreCase = true)
-                else -> true
-            }
-            matchDesde && matchHasta && matchPlaca && matchEstado
+            val matchPlaca = filterPlaca.isBlank() || 
+                reg.placa.contains(filterPlaca.trim(), ignoreCase = true) || 
+                reg.idVehiculo.toString().contains(filterPlaca.trim(), ignoreCase = true)
+            matchDesde && matchHasta && matchPlaca
         }
 
         when (sortColumn) {
+            SortColumn.PLACA -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.placa } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.placa } else list
             SortColumn.FECHA -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.fecha } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.fecha } else list
             SortColumn.T1 -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.temperatura1 } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.temperatura1 } else list
             SortColumn.T2 -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.temperatura2 } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.temperatura2 } else list
             SortColumn.HUM -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.humedad } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.humedad } else list
             SortColumn.TENSION -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.tension } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.tension } else list
-            SortColumn.ESTADO -> if (sortDirection == SortDirection.ASC) list.sortedBy { it.estadoEnvio } else if (sortDirection == SortDirection.DESC) list.sortedByDescending { it.estadoEnvio } else list
             SortColumn.NONE -> list
         }
     }
 
-    var visibleItemCount by remember { mutableStateOf(50) }
-    val listState = rememberLazyListState()
-
-    // Reset visible item count when filtering or sorting changes
-    LaunchedEffect(filterFechaDesde, filterFechaHasta, filterPlaca, filterEstado, sortColumn, sortDirection) {
-        visibleItemCount = 50
+    val totalRecords = filteredRegistros.size
+    val totalPages = remember(totalRecords, pageSize) {
+        maxOf(1, ceil(totalRecords.toDouble() / pageSize).toInt())
     }
 
-    val visibleRegistros = remember(filteredRegistros, visibleItemCount) {
-        filteredRegistros.take(visibleItemCount)
-    }
-
-    val hasMoreItems = visibleItemCount < filteredRegistros.size || canLoadMore
-
-    val shouldLoadMore = remember {
-        derivedStateOf {
-            val total = listState.layoutInfo.totalItemsCount
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            total > 0 && lastVisible >= total - 3
+    LaunchedEffect(totalPages) {
+        if (currentPage > totalPages) {
+            currentPage = totalPages
         }
     }
 
-    LaunchedEffect(shouldLoadMore.value) {
-        if (shouldLoadMore.value && hasMoreItems && !isLoadingMore) {
-            if (visibleItemCount < filteredRegistros.size) {
-                visibleItemCount = (visibleItemCount + 50).coerceAtMost(filteredRegistros.size)
-            }
-            onLoadMore()
-        }
+    val validCurrentPage = currentPage.coerceIn(1, totalPages)
+
+    // Paginated / Lazy slice of records for the active page
+    val paginatedRegistros = remember(filteredRegistros, validCurrentPage, pageSize) {
+        val offset = (validCurrentPage - 1) * pageSize
+        filteredRegistros.drop(offset).take(pageSize)
     }
+
+    val fromRecord = if (totalRecords == 0) 0 else ((validCurrentPage - 1) * pageSize) + 1
+    val toRecord = minOf(validCurrentPage * pageSize, totalRecords)
 
     Column(
         modifier = modifier
@@ -221,11 +199,7 @@ fun RegistrosScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = if (visibleRegistros.size < filteredRegistros.size) {
-                        "${visibleRegistros.size} de ${filteredRegistros.size} registros mostrados (${registros.size} total)"
-                    } else {
-                        "${filteredRegistros.size} de ${registros.size} registros encontrados"
-                    },
+                    text = "$totalRecords de ${registros.size} registros encontrados • Pág $validCurrentPage de $totalPages",
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal
@@ -255,12 +229,14 @@ fun RegistrosScreen(
                     Text("Filtros", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
 
-                // Export CSV Button
+                // Export CSV Button (Genera el archivo temporal y abre el selector nativo de Android)
                 Button(
                     onClick = {
-                        val csv = generateCsv(filteredRegistros)
-                        clipboardManager.setText(AnnotatedString(csv))
-                        exportStatusMessage = "CSV con ${filteredRegistros.size} registros copiado al portapapeles."
+                        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        val fileName = "registros_telemetria_${deviceId}_$timestamp.csv"
+                        val csvContent = generateCsv(filteredRegistros)
+                        onExportCsv(fileName, csvContent)
+                        exportStatusMessage = "Exportando $totalRecords registros a CSV..."
                     },
                     shape = RoundedCornerShape(4.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
@@ -367,7 +343,7 @@ fun RegistrosScreen(
                         // Filter Fecha Desde (Selectable Date Component)
                         Box(
                             modifier = Modifier
-                                .weight(1.1f)
+                                .weight(1.2f)
                                 .clickable { showDatePickerFor = "DESDE" }
                         ) {
                             OutlinedTextField(
@@ -413,7 +389,7 @@ fun RegistrosScreen(
                         // Filter Fecha Hasta (Selectable Date Component)
                         Box(
                             modifier = Modifier
-                                .weight(1.1f)
+                                .weight(1.2f)
                                 .clickable { showDatePickerFor = "HASTA" }
                         ) {
                             OutlinedTextField(
@@ -474,40 +450,20 @@ fun RegistrosScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.weight(0.9f),
+                            modifier = Modifier.weight(1.0f),
                             singleLine = true
                         )
 
-                        // Filter by Estado Chips
-                        Row(
-                            modifier = Modifier.weight(1.4f),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf("TODOS", "ENVIADO", "PENDIENTE").forEach { estado ->
-                                val selected = filterEstado == estado
-                                FilterChip(
-                                    selected = selected,
-                                    onClick = { filterEstado = estado },
-                                    label = {
-                                        Text(
-                                            text = when (estado) {
-                                                "TODOS" -> "Todos"
-                                                "ENVIADO" -> "Enviados"
-                                                "PENDIENTE" -> "Pendientes"
-                                                else -> estado
-                                            },
-                                            fontSize = 11.sp,
-                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = Color(0xFFF0F4F8),
-                                        labelColor = Color(0xFF333333),
-                                        selectedContainerColor = CamionColors.headerBackground,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
+                        // Clear filters button
+                        if (filterFechaDesde.isNotEmpty() || filterFechaHasta.isNotEmpty() || filterPlaca.isNotEmpty()) {
+                            TextButton(
+                                onClick = {
+                                    filterFechaDesde = ""
+                                    filterFechaHasta = ""
+                                    filterPlaca = ""
+                                }
+                            ) {
+                                Text("Limpiar Filtros", color = Color(0xFFC62828), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -553,12 +509,8 @@ fun RegistrosScreen(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(visibleRegistros, key = { it.idRegistro }) { registro ->
-                    RegistroRow(
-                        registro = registro,
-                        onViewPayload = { selectedRegistroForPayload = registro },
-                        onResend = { onResendRegistro(registro) }
-                    )
+                items(paginatedRegistros, key = { it.idRegistro }) { registro ->
+                    RegistroRow(registro = registro)
                 }
                 if (isLoadingMore) {
                     item(key = "loading_more_indicator") {
@@ -577,6 +529,25 @@ fun RegistrosScreen(
                     }
                 }
             }
+
+            PaginationBar(
+                currentPage = validCurrentPage,
+                totalPages = totalPages,
+                pageSize = pageSize,
+                totalRecords = totalRecords,
+                fromRecord = fromRecord,
+                toRecord = toRecord,
+                pageSizeOptions = pageSizeOptions,
+                onPageChange = { newPage ->
+                    currentPage = newPage
+                    onLoadPage?.invoke(newPage, pageSize)
+                },
+                onPageSizeChange = { newSize ->
+                    pageSize = newSize
+                    currentPage = 1
+                    onLoadPage?.invoke(1, newSize)
+                }
+            )
         }
     }
 
@@ -666,19 +637,6 @@ fun RegistrosScreen(
             shape = RoundedCornerShape(8.dp)
         )
     }
-
-    // --- MODAL: JSON PAYLOAD VIEWER ---
-    selectedRegistroForPayload?.let { reg ->
-        JsonPayloadDialog(
-            registro = reg,
-            deviceId = deviceId,
-            onDismiss = { selectedRegistroForPayload = null },
-            onResend = {
-                onResendRegistro(reg)
-                selectedRegistroForPayload = null
-            }
-        )
-    }
 }
 
 @Composable
@@ -695,12 +653,20 @@ private fun TableHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SortableHeaderItem(
+            title = "Placa",
+            column = SortColumn.PLACA,
+            currentColumn = sortColumn,
+            direction = sortDirection,
+            onSort = onSort,
+            modifier = Modifier.weight(1.3f)
+        )
+        SortableHeaderItem(
             title = "Fecha/Hora",
             column = SortColumn.FECHA,
             currentColumn = sortColumn,
             direction = sortDirection,
             onSort = onSort,
-            modifier = Modifier.weight(2.0f)
+            modifier = Modifier.weight(2.1f)
         )
         SortableHeaderItem(
             title = "T1",
@@ -733,22 +699,6 @@ private fun TableHeader(
             direction = sortDirection,
             onSort = onSort,
             modifier = Modifier.weight(1.0f)
-        )
-        SortableHeaderItem(
-            title = "Estado",
-            column = SortColumn.ESTADO,
-            currentColumn = sortColumn,
-            direction = sortDirection,
-            onSort = onSort,
-            modifier = Modifier.weight(1.0f)
-        )
-        Text(
-            text = "Acciones",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            modifier = Modifier.weight(1.0f),
-            textAlign = TextAlign.Center
         )
     }
 }
@@ -792,11 +742,7 @@ private fun SortableHeaderItem(
 @Composable
 private fun RegistroRow(
     registro: VariableRegistroEntity,
-    onViewPayload: () -> Unit,
-    onResend: () -> Unit,
 ) {
-    val isEnviado = registro.estadoEnvio.equals("ENVIADO", ignoreCase = true)
-
     Card(
         shape = RoundedCornerShape(2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -808,10 +754,19 @@ private fun RegistroRow(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Placa
+            Text(
+                text = registro.placa.ifBlank { "ID: ${registro.idVehiculo}" },
+                modifier = Modifier.weight(1.3f),
+                fontSize = 13.sp,
+                color = Color(0xFF00325B),
+                fontWeight = FontWeight.SemiBold
+            )
+
             // Fecha / Hora
             Text(
                 text = registro.fecha,
-                modifier = Modifier.weight(2.0f),
+                modifier = Modifier.weight(2.1f),
                 fontSize = 13.sp,
                 color = Color(0xFF1A1A1A),
                 fontWeight = FontWeight.Normal
@@ -852,290 +807,15 @@ private fun RegistroRow(
                 color = Color(0xFF1A1A1A),
                 fontWeight = FontWeight.Normal
             )
-
-            // Estado (Texto plano sin badges ni containers)
-            Text(
-                text = if (isEnviado) "Enviado" else "Pendiente",
-                modifier = Modifier.weight(1.0f),
-                fontSize = 13.sp,
-                color = if (isEnviado) Color(0xFF007A00) else Color(0xFFB25E00),
-                fontWeight = FontWeight.Medium
-            )
-
-            // Acciones (Eye + Paper Plane)
-            Row(
-                modifier = Modifier.weight(1.0f),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Button 1: Eye (View JSON Payload)
-                IconButton(
-                    onClick = onViewPayload,
-                    modifier = Modifier.size(30.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Visibility,
-                        contentDescription = "Ver Trama JSON",
-                        tint = CamionColors.headerBackground,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                // Button 2: Paper Plane (Send to MQTT if Pending, disabled if already sent)
-                IconButton(
-                    onClick = onResend,
-                    enabled = !isEnviado,
-                    modifier = Modifier.size(30.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = if (isEnviado) "Ya enviado" else "Enviar a MQTT",
-                        tint = if (!isEnviado) Color(0xFF007A00) else Color.LightGray,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
         }
-    }
-}
-
-/**
- * Modal Dialog that visually matches the user's reference mockup:
- * - Code bracket header with title and close 'X'
- * - Estado badge with sync status
- * - Copy JSON button
- * - Clean dark syntax card for exact payload JSON
- * - Re-enviar MQTT and Cerrar action buttons
- */
-@Composable
-private fun JsonPayloadDialog(
-    registro: VariableRegistroEntity,
-    deviceId: String,
-    onDismiss: () -> Unit,
-    onResend: () -> Unit,
-) {
-    val clipboardManager = LocalClipboardManager.current
-    val isEnviado = registro.estadoEnvio.equals("ENVIADO", ignoreCase = true)
-    val devId = registro.idVehiculo.toString().ifBlank { deviceId.ifBlank { "FURG-001-AND" } }
-    val isoTimestamp = formatIsoTimestamp(registro.fecha)
-
-    val jsonPayload = """{
-  "device_id": "$devId",
-  "temperature_c": ${registro.temperatura1},
-  "temperature_2_c": ${registro.temperatura2},
-  "humidity_pct": ${registro.humedad},
-  "voltage_v": ${registro.tension},
-  "timestamp": "$isoTimestamp"
-}"""
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier
-                .width(520.dp)
-                .padding(16.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF0A1220),
-            border = BorderStroke(1.dp, Color(0xFF1E3A5F)),
-            shadowElevation = 8.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Code,
-                            contentDescription = null,
-                            tint = Color(0xFF64B5F6),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "TRAMA JSON (REGISTRO #${registro.idRegistro})",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cerrar",
-                            tint = Color.Gray,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
-
-                // Estado Row + Copiar JSON Button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Estado:",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isEnviado) Color(0xFF052354) else Color(0xFF332005),
-                            border = BorderStroke(1.dp, if (isEnviado) Color(0xFF00E676) else Color(0xFFFFB74D))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isEnviado) Icons.Default.CheckCircle else Icons.Default.HourglassTop,
-                                    contentDescription = null,
-                                    tint = if (isEnviado) Color(0xFF00E676) else Color(0xFFFFB74D),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (isEnviado) "ENVIADO / SINCRONIZADO" else "PENDIENTE DE ENVÍO",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(jsonPayload))
-                        },
-                        shape = RoundedCornerShape(6.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0040A8))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Copiar JSON",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                // Subtitle
-                Text(
-                    text = "Payload MQTT exacto transmitido:",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp
-                )
-
-                // JSON Code Box
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFF040811),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B))
-                ) {
-                    Text(
-                        text = jsonPayload,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
-                        color = Color(0xFF00E676),
-                        lineHeight = 18.sp,
-                        modifier = Modifier.padding(14.dp)
-                    )
-                }
-
-                HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
-
-                // Bottom Action Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = onResend,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF005AC1))
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "RE-ENVIAR MQTT",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Button(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF052354))
-                    ) {
-                        Text(
-                            text = "CERRAR",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun formatIsoTimestamp(fechaStr: String): String {
-    return try {
-        if (fechaStr.contains(" ") && !fechaStr.contains("T")) {
-            val parts = fechaStr.split(" ")
-            "${parts[0]}T${parts[1]}.000Z"
-        } else if (fechaStr.contains("T")) {
-            if (fechaStr.endsWith("Z")) fechaStr else "${fechaStr}Z"
-        } else {
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
-        }
-    } catch (_: Exception) {
-        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000'Z'", Locale.getDefault()).format(Date())
     }
 }
 
 private fun generateCsv(data: List<VariableRegistroEntity>): String {
     val sb = StringBuilder()
-    sb.append("IdRegistro,IdVehiculo,Fecha,Temperatura1,Temperatura2,Humedad,Tension,EstadoEnvio\n")
+    sb.append("IdRegistro,IdVehiculo,Placa,Fecha,Temperatura1,Temperatura2,Humedad,Tension\n")
     data.forEach { r ->
-        sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension},\"${r.estadoEnvio}\"\n")
+        sb.append("${r.idRegistro},\"${r.idVehiculo}\",\"${r.placa}\",\"${r.fecha}\",${r.temperatura1},${r.temperatura2},${r.humedad},${r.tension}\n")
     }
     return sb.toString()
 }
@@ -1153,5 +833,160 @@ private fun dateStringToMillis(dateStr: String): Long? {
         sdf.parse(dateStr)?.time
     } catch (_: Exception) {
         null
+    }
+}
+
+@Composable
+private fun PaginationBar(
+    currentPage: Int,
+    totalPages: Int,
+    pageSize: Int,
+    totalRecords: Int,
+    fromRecord: Int,
+    toRecord: Int,
+    pageSizeOptions: List<Int>,
+    onPageChange: (Int) -> Unit,
+    onPageSizeChange: (Int) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(containerColor = CamionColors.headerBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Summary Text
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Mostrando $fromRecord - $toRecord de $totalRecords registros",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            // Center: Page Size Selector
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Filas:",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 11.sp
+                )
+                pageSizeOptions.forEach { size ->
+                    val isSelected = size == pageSize
+                    Surface(
+                        shape = RoundedCornerShape(3.dp),
+                        color = if (isSelected) Color(0xFF005AC1) else Color(0xFF0A1E34),
+                        border = BorderStroke(1.dp, if (isSelected) Color(0xFF64B5F6) else Color(0xFF1E3A5F)),
+                        modifier = Modifier
+                            .clickable { onPageSizeChange(size) }
+                            .padding(1.dp)
+                    ) {
+                        Text(
+                            text = size.toString(),
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            // Right: Navigation Buttons
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // First Page (|<)
+                Button(
+                    onClick = { onPageChange(1) },
+                    enabled = currentPage > 1,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("|<", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (currentPage > 1) Color.White else Color.Gray)
+                }
+
+                // Prev Page (<)
+                Button(
+                    onClick = { onPageChange(currentPage - 1) },
+                    enabled = currentPage > 1,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("< Ant", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (currentPage > 1) Color.White else Color.Gray)
+                }
+
+                // Page Indicator Badge
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFF0A1E34),
+                    border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    ) {
+                        Text(
+                            text = "Pág $currentPage de $totalPages",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Next Page (>)
+                Button(
+                    onClick = { onPageChange(currentPage + 1) },
+                    enabled = currentPage < totalPages,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text("Sig >", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (currentPage < totalPages) Color.White else Color.Gray)
+                }
+
+                // Last Page (>|)
+                Button(
+                    onClick = { onPageChange(totalPages) },
+                    enabled = currentPage < totalPages,
+                    shape = RoundedCornerShape(4.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF005AC1),
+                        disabledContainerColor = Color(0xFF1E3A5F).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text(">|", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (currentPage < totalPages) Color.White else Color.Gray)
+                }
+            }
+        }
     }
 }

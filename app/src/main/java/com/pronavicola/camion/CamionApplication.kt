@@ -14,7 +14,8 @@ class CamionApplication : Application() {
     lateinit var appContext: CamionAppContext
         private set
 
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val isInitialized: Boolean
+        get() = ::appContext.isInitialized
 
     override fun onCreate() {
         super.onCreate()
@@ -55,6 +56,12 @@ class CamionApplication : Application() {
             MqttForegroundService.startService(this)
         } catch (e: Exception) {
             Log.e("CamionApplication", "Error starting MqttForegroundService: ${e.message}", e)
+        }
+
+        try {
+            com.pronavicola.camion.service.HistoricalDataCleanupWorker.schedule(this)
+        } catch (e: Exception) {
+            Log.e("CamionApplication", "Error scheduling HistoricalDataCleanupWorker: ${e.message}")
         }
     }
 }

@@ -1,27 +1,19 @@
 package com.pronavicola.camion.data.repository
 
 import com.pronavicola.camion.data.local.dao.ParametroDao
-import com.pronavicola.camion.data.local.dao.VehiculoDao
 import com.pronavicola.camion.data.modbus.ModbusClient
 import com.pronavicola.camion.domain.model.ParametroUiModel
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.repository.ParametrosRepository
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class ParametrosRepositoryImpl(
     private val parametroDao: ParametroDao,
-    private val vehiculoDao: VehiculoDao,
     private val modbusClient: ModbusClient,
 ) : ParametrosRepository {
     override fun observeParametros(user: SessionUser): Flow<List<ParametroUiModel>> =
-        vehiculoDao.observePredeterminado().flatMapLatest { activeVehiculo ->
-            val vehiculoId = activeVehiculo?.idVehiculo ?: user.idVehiculo
-            parametroDao.observeParametros(vehiculoId)
-        }.map { rows ->
+        parametroDao.observeParametros().map { rows ->
             rows.map { row ->
                 ParametroUiModel(
                     idParametro = row.idParametro,
@@ -51,7 +43,6 @@ class ParametrosRepositoryImpl(
         parametro: ParametroUiModel,
         nuevoValor: Double,
     ): Result<Double> {
-        val vehiculoId = vehiculoDao.getPredeterminado()?.idVehiculo ?: user.idVehiculo
         if (!parametroDao.canEdit(user.idPerfil, parametro.idParametro)) {
             return Result.failure(IllegalAccessException("Sin permiso para editar ${parametro.nombre}"))
         }
@@ -59,7 +50,7 @@ class ParametrosRepositoryImpl(
             return Result.failure(IllegalArgumentException("Valor fuera de rango permitido"))
         }
 
-        parametroDao.updateValor(vehiculoId, parametro.idParametro, nuevoValor)
+        parametroDao.updateValor(parametro.idParametro, nuevoValor)
         modbusClient.writeParameter(parametro.tag, nuevoValor)
         return Result.success(nuevoValor)
     }

@@ -9,6 +9,7 @@ import com.pronavicola.camion.data.mqtt.MqttClientManager
 import com.pronavicola.camion.data.mqtt.OutboxQueueManager
 import com.pronavicola.camion.data.mqtt.TelemetryMqttCoordinator
 import com.pronavicola.camion.data.remote.ScreensApiService
+import com.pronavicola.camion.data.repository.AlarmaRegistroRepositoryImpl
 import com.pronavicola.camion.data.repository.AppConfigRepositoryImpl
 import com.pronavicola.camion.data.repository.AuthRepositoryImpl
 import com.pronavicola.camion.data.repository.DevicePairingRepositoryImpl
@@ -17,6 +18,7 @@ import com.pronavicola.camion.data.repository.MqttRepositoryImpl
 import com.pronavicola.camion.data.repository.ParametrosRepositoryImpl
 import com.pronavicola.camion.data.repository.RegistrosRepositoryImpl
 import com.pronavicola.camion.data.repository.SimulationRepositoryImpl
+import com.pronavicola.camion.domain.repository.AlarmaRegistroRepository
 import com.pronavicola.camion.domain.repository.AppConfigRepository
 import com.pronavicola.camion.domain.repository.AuthRepository
 import com.pronavicola.camion.domain.repository.DevicePairingRepository
@@ -25,6 +27,9 @@ import com.pronavicola.camion.domain.repository.MqttRepository
 import com.pronavicola.camion.domain.repository.ParametrosRepository
 import com.pronavicola.camion.domain.repository.RegistrosRepository
 import com.pronavicola.camion.domain.repository.SimulationRepository
+import com.pronavicola.camion.domain.usecase.alarmas.ClearAllAlarmasRegistrosUseCase
+import com.pronavicola.camion.domain.usecase.alarmas.ExportAlarmasCsvUseCase
+import com.pronavicola.camion.domain.usecase.alarmas.ObserveAlarmasRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.auth.ChangePasswordUseCase
 import com.pronavicola.camion.domain.usecase.auth.CheckAccessPermissionUseCase
 import com.pronavicola.camion.domain.usecase.auth.GetActiveUsersUseCase
@@ -45,6 +50,7 @@ import com.pronavicola.camion.domain.usecase.parametros.UpdateParametroUseCase
 import com.pronavicola.camion.domain.usecase.registros.BuildTelemetryPayloadUseCase
 import com.pronavicola.camion.domain.usecase.registros.ClearAllRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.registros.ExportRegistrosCsvUseCase
+import com.pronavicola.camion.domain.usecase.registros.GetRegistrosPagedUseCase
 import com.pronavicola.camion.domain.usecase.registros.ObserveRegistrosUseCase
 import com.pronavicola.camion.domain.usecase.registros.ResendRegistroUseCase
 import com.pronavicola.camion.domain.usecase.registros.SaveTelemetryRegistroUseCase
@@ -55,8 +61,14 @@ import com.pronavicola.camion.domain.usecase.simulation.UpdateSimulationParamsUs
 import com.pronavicola.camion.service.ModbusPollingCoordinator
 import com.pronavicola.camion.util.PlatformInfoProvider
 import com.pronavicola.camion.util.getPlatformInfoProvider
+import com.pronavicola.camion.util.PlatformCsvSharer
+import com.pronavicola.camion.util.getPlatformCsvSharer
+import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -75,6 +87,10 @@ class AppContainer(
 
     val platformInfoProvider: PlatformInfoProvider by lazy {
         getPlatformInfoProvider(platformContext)
+    }
+
+    val platformCsvSharer: PlatformCsvSharer by lazy {
+        getPlatformCsvSharer(platformContext)
     }
 
     val screensApiService: ScreensApiService by lazy {
@@ -97,6 +113,36 @@ class AppContainer(
         database.vehiculoDao()
     }
 
+    val buzonMqttDao by lazy {
+        database.buzonMqttDao()
+    }
+
+    val ubicacionDao by lazy {
+        database.ubicacionDao()
+    }
+
+    val gpsLocationTracker: com.pronavicola.camion.service.GpsLocationTracker by lazy {
+        com.pronavicola.camion.service.createGpsLocationTracker(
+            platformContext = platformContext,
+            ubicacionDao = ubicacionDao,
+            vehiculoDao = database.vehiculoDao(),
+            deviceIdProvider = {
+                val devId = appConfigRepository.getDeviceId()?.trim()
+                if (!devId.isNullOrBlank() && devId != "AAA000") {
+                    devId
+                } else {
+                    val persistent = persistentDeviceIdentityStore.loadIdentity()?.deviceId?.trim()
+                    if (!persistent.isNullOrBlank() && persistent != "AAA000") {
+                        persistent
+                    } else {
+                        appConfigRepository.getFurgonPlate()?.trim()?.takeIf { it.isNotBlank() } ?: "ABC123"
+                    }
+                }
+            },
+            scope = appScope
+        )
+    }
+
     val modbusClient: ModbusClient by lazy {
         ModbusTcpClient(appScope)
     }
@@ -114,30 +160,10 @@ class AppContainer(
     }
 
     val outboxQueueManager: OutboxQueueManager by lazy {
-        OutboxQueueManager(database.bandejaSalidaMqttDao(), mqttClientManager, appScope)
-    }
-
-    val devicePairingService: com.pronavicola.camion.service.DevicePairingService by lazy {
-        com.pronavicola.camion.service.DevicePairingService(platformInfoProvider, screensApiService, appConfigRepository, appScope)
-    }
-
-    val enhancedTelemetryMqttCoordinator: com.pronavicola.camion.data.mqtt.EnhancedTelemetryMqttCoordinator by lazy {
-        com.pronavicola.camion.data.mqtt.EnhancedTelemetryMqttCoordinator(
-            modbusClient = modbusClient,
-            mqttClientManager = mqttClientManager,
-            outboxManager = outboxQueueManager,
-            trazasUbicacionDao = database.trazasUbicacionDao(),
+        OutboxQueueManager(
+            mqttManager = mqttClientManager,
+            buzonMqttDao = buzonMqttDao,
             variableRegistroDao = database.variableRegistroDao(),
-            appConfigRepository = appConfigRepository,
-            scope = appScope
-        )
-    }
-
-    val gpsLocationTracker: com.pronavicola.camion.service.GpsLocationTracker by lazy {
-        com.pronavicola.camion.service.createGpsLocationTracker(
-            platformContext = platformContext,
-            trazasUbicacionDao = database.trazasUbicacionDao(),
-            appConfigRepository = appConfigRepository,
             scope = appScope
         )
     }
@@ -159,19 +185,55 @@ class AppContainer(
     }
 
     val parametrosRepository: ParametrosRepository by lazy {
-        ParametrosRepositoryImpl(database.parametroDao(), database.vehiculoDao(), modbusClient)
+        ParametrosRepositoryImpl(database.parametroDao(), modbusClient)
     }
 
     val registrosRepository: RegistrosRepository by lazy {
         RegistrosRepositoryImpl(database.variableRegistroDao(), database.vehiculoDao())
     }
 
+    val alarmaRegistroRepository: AlarmaRegistroRepository by lazy {
+        AlarmaRegistroRepositoryImpl(database.alarmaRegistroDao(), database.alarmaDao())
+    }
+
     val mqttRepository: MqttRepository by lazy {
         MqttRepositoryImpl(mqttClientManager, outboxQueueManager)
     }
 
+    val persistentDeviceIdentityStore: com.pronavicola.camion.util.PersistentDeviceIdentityStore by lazy {
+        com.pronavicola.camion.util.getPersistentDeviceIdentityStore(platformContext)
+    }
+
     val devicePairingRepository: DevicePairingRepository by lazy {
-        DevicePairingRepositoryImpl(platformInfoProvider, screensApiService, appConfigRepository)
+        DevicePairingRepositoryImpl(
+            platformInfoProvider = platformInfoProvider,
+            apiService = screensApiService,
+            configRepository = appConfigRepository,
+            vehiculoDao = database.vehiculoDao(),
+            persistentIdentityStore = persistentDeviceIdentityStore,
+        )
+    }
+
+    init {
+        appScope.launch {
+            try {
+                val currentDevId = appConfigRepository.getDeviceId()?.trim()
+                if (currentDevId.isNullOrBlank() || currentDevId == "ABC123" || currentDevId == "AAA000") {
+                    val stored = persistentDeviceIdentityStore.loadIdentity()
+                    if (stored != null && stored.deviceId.isNotBlank()) {
+                        appConfigRepository.saveDeviceId(stored.deviceId)
+                        stored.licenseKey?.let { appConfigRepository.saveLicenseKey(it) }
+                        stored.serverBaseUrl?.let { appConfigRepository.saveServerBaseUrl(it) }
+                        stored.furgonPlate?.let { appConfigRepository.saveFurgonPlate(it) }
+                        stored.deviceToken?.let { appConfigRepository.saveDeviceToken(it) }
+                        telemetryMqttCoordinator.updateDeviceId(stored.deviceId)
+                        Log.i("AppContainer", "Restored persistent device identity: ${stored.deviceId} (furgon=${stored.furgonPlate})")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("AppContainer", "Error restoring persistent device identity: ${e.message}")
+            }
+        }
     }
 
     val modbusPlcServer: ModbusPlcServer by lazy {
@@ -197,6 +259,7 @@ class AppContainer(
             alarmaDao = database.alarmaDao(),
             alarmaRegistroDao = database.alarmaRegistroDao(),
             scope = appScope,
+            gpsLocationTracker = gpsLocationTracker,
         )
     }
 
@@ -219,11 +282,17 @@ class AppContainer(
 
     // 7. Use Cases - Registros
     val observeRegistrosUseCase: ObserveRegistrosUseCase by lazy { ObserveRegistrosUseCase(registrosRepository) }
+    val getRegistrosPagedUseCase: GetRegistrosPagedUseCase by lazy { GetRegistrosPagedUseCase(registrosRepository) }
     val saveTelemetryRegistroUseCase: SaveTelemetryRegistroUseCase by lazy { SaveTelemetryRegistroUseCase(registrosRepository) }
     val resendRegistroUseCase: ResendRegistroUseCase by lazy { ResendRegistroUseCase(registrosRepository, mqttRepository) }
     val clearAllRegistrosUseCase: ClearAllRegistrosUseCase by lazy { ClearAllRegistrosUseCase(registrosRepository) }
     val buildTelemetryPayloadUseCase: BuildTelemetryPayloadUseCase by lazy { BuildTelemetryPayloadUseCase() }
     val exportRegistrosCsvUseCase: ExportRegistrosCsvUseCase by lazy { ExportRegistrosCsvUseCase() }
+
+    // 7b. Use Cases - Alarmas
+    val observeAlarmasRegistrosUseCase: ObserveAlarmasRegistrosUseCase by lazy { ObserveAlarmasRegistrosUseCase(alarmaRegistroRepository) }
+    val clearAllAlarmasRegistrosUseCase: ClearAllAlarmasRegistrosUseCase by lazy { ClearAllAlarmasRegistrosUseCase(alarmaRegistroRepository) }
+    val exportAlarmasCsvUseCase: ExportAlarmasCsvUseCase by lazy { ExportAlarmasCsvUseCase() }
 
     // 8. Use Cases - Config
     val getAppConfigUseCase: GetAppConfigUseCase by lazy { GetAppConfigUseCase(appConfigRepository) }
@@ -234,7 +303,10 @@ class AppContainer(
     val testMqttConnectionUseCase: TestMqttConnectionUseCase by lazy { TestMqttConnectionUseCase(appConfigRepository) }
     val pairDeviceUseCase: PairDeviceUseCase by lazy { PairDeviceUseCase(devicePairingRepository) }
     val updateTruckPlateUseCase: UpdateTruckPlateUseCase by lazy {
-        UpdateTruckPlateUseCase(database.vehiculoDao(), database.parametroDao(), appConfigRepository)
+        UpdateTruckPlateUseCase(database.vehiculoDao(), appConfigRepository, telemetryMqttCoordinator)
+    }
+    val cleanupHistoricalDataUseCase: com.pronavicola.camion.domain.usecase.config.CleanupHistoricalDataUseCase by lazy {
+        com.pronavicola.camion.domain.usecase.config.CleanupHistoricalDataUseCase(database.variableRegistroDao(), ubicacionDao)
     }
 
     // 9. Use Cases - Simulation
@@ -243,11 +315,83 @@ class AppContainer(
     val updateSimulationParamsUseCase: UpdateSimulationParamsUseCase by lazy { UpdateSimulationParamsUseCase(simulationRepository) }
     val injectSimulatedFaultUseCase: InjectSimulatedFaultUseCase by lazy { InjectSimulatedFaultUseCase(simulationRepository) }
 
+    private var periodicPairingSyncJob: Job? = null
+    private var gpsForwardingJob: Job? = null
+
+    /**
+     * Valida periódicamente el estado de emparejamiento y vinculación con la API web.
+     * Si el dispositivo cuenta con conexión a internet:
+     * - Efectúa consulta del estado de vinculación (detectando si fue eliminado o revocado).
+     * - Sincroniza la placa en caso de haber sido reasignada desde la web app.
+     */
+    private fun startPeriodicPairingValidation() {
+        periodicPairingSyncJob?.cancel()
+        periodicPairingSyncJob = appScope.launch {
+            while (isActive) {
+                delay(15_000L) // Consulta periódica cada 15 segundos
+                val serverUrl = appConfigRepository.getServerBaseUrl()?.trim()
+                val deviceId = appConfigRepository.getDeviceId()?.trim()
+                val deviceToken = appConfigRepository.getDeviceToken()?.trim()
+
+                if (!serverUrl.isNullOrBlank() && (!deviceId.isNullOrBlank() || !deviceToken.isNullOrBlank())) {
+                    try {
+                        val result = devicePairingRepository.validateScreen(serverUrl, deviceToken, deviceId)
+                        if (result.isSuccess) {
+                            val resp = result.getOrThrow()
+                            if (resp.isValid && resp.status == "ACTIVE") {
+                                appConfigRepository.saveLicenseStatus("ACTIVE")
+                                val remotePlate = resp.furgonPlate ?: resp.furgon?.plate
+                                val currentLocalPlate = appConfigRepository.getFurgonPlate()?.trim()
+                                if (!remotePlate.isNullOrBlank() &&
+                                    !remotePlate.equals(deviceId, ignoreCase = true) &&
+                                    !remotePlate.equals(currentLocalPlate, ignoreCase = true)
+                                ) {
+                                    Log.i("AppContainer", "Reasignación de placa detectada desde web app: '$currentLocalPlate' -> '$remotePlate'")
+                                    updateTruckPlateUseCase(remotePlate)
+                                }
+                            } else {
+                                // El registro del dispositivo fue deshabilitado, revocado o puesto en pendiente en la web
+                                val newStatus = when (resp.status.uppercase()) {
+                                    "REVOKED" -> "REVOKED"
+                                    "INACTIVE" -> "INACTIVE"
+                                    "PENDING", "PENDING_PAIRING" -> "PENDING_PAIRING"
+                                    else -> "UNPAIRED"
+                                }
+                                Log.w("AppContainer", "Dispositivo no activo en FURGN-BI. Estado reportado: $newStatus")
+                                appConfigRepository.saveLicenseStatus(newStatus)
+                            }
+                        } else {
+                            val ex = result.exceptionOrNull()
+                            if (ex is ScreensApiService.ApiException && (ex.code == 404 || ex.code == 401)) {
+                                Log.w("AppContainer", "El registro del dispositivo fue eliminado de la API web (${ex.message}). Marcando como NO VINCULADO.")
+                                appConfigRepository.saveLicenseStatus("UNPAIRED")
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // Error de red transitorio (modo offline en carretera): se preserva el estado local
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Initializes background services (MQTT client connection, polling loop, telemetry publishing).
      */
     fun startBackgroundServices() {
+        startPeriodicPairingValidation()
         appScope.launch {
+            // Auto-heal DB state if deviceId was previously saved as truck plate
+            val currentPlate = appConfigRepository.getFurgonPlate()
+            val currentDevId = appConfigRepository.getDeviceId()
+            if (!currentPlate.isNullOrBlank() && !currentDevId.isNullOrBlank() && currentPlate == currentDevId) {
+                appConfigRepository.saveFurgonPlate("ABC123")
+                val v = vehiculoDao.getPredeterminado() ?: vehiculoDao.getById(1)
+                if (v != null && v.placa == currentDevId) {
+                    vehiculoDao.update(v.copy(placa = "ABC123"))
+                }
+            }
+
             val brokerUrl = appConfigRepository.getBrokerUrl()?.trim() ?: ""
             val deviceId = appConfigRepository.getDeviceId() ?: "ABC123"
             val username = appConfigRepository.getBrokerUsername() ?: ""
@@ -266,6 +410,24 @@ class AppContainer(
                 modbusRepository.connect(host, port)
             }
 
+            // Start GPS tracking
+            gpsLocationTracker.startTracking()
+
+            // Forward GPS updates to MQTT location topic so backend can correlate with telemetry
+            gpsForwardingJob?.cancel()
+            gpsForwardingJob = appScope.launch {
+                gpsLocationTracker.currentLocation.collect { loc ->
+                    if (loc != null) {
+                        telemetryMqttCoordinator.enqueueLocation(
+                            latitude = loc.latitud,
+                            longitude = loc.longitud,
+                            speedKmh = loc.velocidad?.toDouble(),
+                            altitudeM = loc.altitud
+                        )
+                    }
+                }
+            }
+
             // Start continuous sampling and SQLite persistence coordinator
             modbusPollingCoordinator.start()
 
@@ -276,6 +438,13 @@ class AppContainer(
     }
 
     fun stopBackgroundServices() {
+        periodicPairingSyncJob?.cancel()
+        periodicPairingSyncJob = null
+        gpsForwardingJob?.cancel()
+        gpsForwardingJob = null
+        appScope.launch {
+            gpsLocationTracker.stopTracking()
+        }
         modbusPollingCoordinator.stop()
         telemetryMqttCoordinator.stop()
         enhancedTelemetryMqttCoordinator.stop()

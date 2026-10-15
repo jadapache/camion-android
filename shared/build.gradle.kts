@@ -51,7 +51,7 @@ kotlin {
                 implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
                 // Room Multiplatform
-                implementation("androidx.room:room-runtime:2.8.5")
+                api("androidx.room:room-runtime:2.8.5")
                 implementation("androidx.sqlite:sqlite-bundled:2.7.1")
 
                 // MQTT Client (Pure Java SE, runs on Android and JVM Desktop)

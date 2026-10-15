@@ -27,12 +27,16 @@ data class FurgonInfo(
 data class MqttConfigInfo(
     val brokerUrl: String?,
     val topicRoot: String?,
+    val username: String? = null,
+    val password: String? = null,
+    val clientId: String? = null,
 )
 
 data class CheckPairingStatusResponse(
     val status: String,
     val deviceId: String,
     val deviceToken: String?,
+    val licenseKey: String? = null,
     val furgon: FurgonInfo?,
     val mqttConfig: MqttConfigInfo?,
 )
@@ -41,6 +45,11 @@ data class ValidateScreenResponse(
     val isValid: Boolean,
     val status: String,
     val furgonPlate: String?,
+    val deviceId: String? = null,
+    val licenseKey: String? = null,
+    val deviceToken: String? = null,
+    val mqttConfig: MqttConfigInfo? = null,
+    val furgon: FurgonInfo? = null,
 )
 
 data class AvailableFurgonesResponse(
@@ -98,6 +107,7 @@ class ScreensApiService {
             val status = responseJson.optString("status", "PENDING_PAIRING")
             val devId = responseJson.optString("device_id", deviceId)
             val devToken = responseJson.optString("device_token", "").ifBlank { null }
+            val licenseKey = responseJson.optString("license_key", "").ifBlank { null }
 
             val furgonObj = responseJson.optJSONObject("furgon")
             val furgon = furgonObj?.let {
@@ -114,6 +124,9 @@ class ScreensApiService {
                 MqttConfigInfo(
                     brokerUrl = it.optString("broker_url", "").takeIf { s -> s.isNotBlank() },
                     topicRoot = it.optString("topic_root", "").takeIf { s -> s.isNotBlank() },
+                    username = it.optString("username", "").takeIf { s -> s.isNotBlank() },
+                    password = it.optString("password", "").takeIf { s -> s.isNotBlank() },
+                    clientId = it.optString("client_id", "").takeIf { s -> s.isNotBlank() },
                 )
             }
 
@@ -121,6 +134,7 @@ class ScreensApiService {
                 status = status,
                 deviceId = devId,
                 deviceToken = devToken,
+                licenseKey = licenseKey,
                 furgon = furgon,
                 mqttConfig = mqttConfig,
             )
@@ -155,12 +169,15 @@ class ScreensApiService {
             val status = responseJson.optString("status", "ACTIVE")
             val devId = responseJson.optString("device_id")
             val devToken = responseJson.optString("device_token", "").ifBlank { null }
+            val returnedKey = responseJson.optString("license_key", "").ifBlank { licenseKey }
 
             val furgonObj = responseJson.optJSONObject("furgon")
             val furgon = furgonObj?.let {
                 FurgonInfo(
                     id = it.optString("id"),
                     plate = it.optString("plate"),
+                    brand = if (it.has("brand")) it.getString("brand") else null,
+                    model = if (it.has("model")) it.getString("model") else null,
                 )
             }
 
@@ -169,6 +186,9 @@ class ScreensApiService {
                 MqttConfigInfo(
                     brokerUrl = it.optString("broker_url", "").takeIf { s -> s.isNotBlank() },
                     topicRoot = it.optString("topic_root", "").takeIf { s -> s.isNotBlank() },
+                    username = it.optString("username", "").takeIf { s -> s.isNotBlank() },
+                    password = it.optString("password", "").takeIf { s -> s.isNotBlank() },
+                    clientId = it.optString("client_id", "").takeIf { s -> s.isNotBlank() },
                 )
             }
 
@@ -177,6 +197,7 @@ class ScreensApiService {
                     status = status,
                     deviceId = devId,
                     deviceToken = devToken,
+                    licenseKey = returnedKey,
                     furgon = furgon,
                     mqttConfig = mqttConfig,
                 )
@@ -193,12 +214,49 @@ class ScreensApiService {
         deviceId: String?,
     ): Result<ValidateScreenResponse> = withContext(Dispatchers.IO) {
         try {
-            val endpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/validate"
+            val baseEndpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/validate"
+            val endpoint = if (!deviceId.isNullOrBlank()) {
+                "$baseEndpoint?device_id=$deviceId"
+            } else {
+                baseEndpoint
+            }
             val responseJson = executeGet(endpoint, deviceToken, deviceId)
+
+            val furgonObj = responseJson.optJSONObject("furgon")
+            val furgon = furgonObj?.let {
+                FurgonInfo(
+                    id = it.optString("id"),
+                    plate = it.optString("plate"),
+                    brand = if (it.has("brand")) it.getString("brand") else null,
+                    model = if (it.has("model")) it.getString("model") else null,
+                )
+            }
+
+            val mqttObj = responseJson.optJSONObject("mqtt_config")
+            val mqttConfig = mqttObj?.let {
+                MqttConfigInfo(
+                    brokerUrl = it.optString("broker_url", "").takeIf { s -> s.isNotBlank() },
+                    topicRoot = it.optString("topic_root", "").takeIf { s -> s.isNotBlank() },
+                    username = it.optString("username", "").takeIf { s -> s.isNotBlank() },
+                    password = it.optString("password", "").takeIf { s -> s.isNotBlank() },
+                    clientId = it.optString("client_id", "").takeIf { s -> s.isNotBlank() },
+                )
+            }
+
+            val plateCandidate = responseJson.optString("furgon_plate", "")
+                .ifBlank { responseJson.optString("plate", "") }
+                .ifBlank { furgon?.plate ?: "" }
+                .takeIf { it.isNotBlank() }
+
             val resp = ValidateScreenResponse(
                 isValid = responseJson.optBoolean("is_valid", false),
                 status = responseJson.optString("status", "UNKNOWN"),
-                furgonPlate = responseJson.optString("furgon_plate", "").takeIf { it.isNotBlank() },
+                furgonPlate = plateCandidate,
+                deviceId = responseJson.optString("device_id", "").ifBlank { deviceId },
+                licenseKey = responseJson.optString("license_key", "").ifBlank { null },
+                deviceToken = responseJson.optString("device_token", "").ifBlank { deviceToken },
+                mqttConfig = mqttConfig,
+                furgon = furgon,
             )
             Result.success(resp)
         } catch (e: Exception) {
@@ -210,22 +268,26 @@ class ScreensApiService {
     suspend fun getAvailableFurgones(
         baseUrl: String,
         deviceToken: String?,
+        deviceId: String? = null,
     ): Result<AvailableFurgonesResponse> = withContext(Dispatchers.IO) {
         try {
             val endpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/furgones"
-            val responseJson = executeGet(endpoint, deviceToken, null)
+            val responseJson = executeGet(endpoint, deviceToken, deviceId)
 
-            val assignedObj = responseJson.optJSONObject("assigned_furgon")
+            val assignedObj = responseJson.optJSONObject("assigned_furgon") ?: responseJson.optJSONObject("furgon")
             val assigned = assignedObj?.let {
                 FurgonInfo(
                     id = it.optString("id"),
                     plate = it.optString("plate"),
                     brand = it.optString("brand", "").takeIf { s -> s.isNotBlank() },
+                    model = it.optString("model", "").takeIf { s -> s.isNotBlank() },
                 )
             }
 
             val list = mutableListOf<FurgonInfo>()
-            val arr = responseJson.optJSONArray("available_furgones") ?: JSONArray()
+            val arr = responseJson.optJSONArray("available_furgones")
+                ?: responseJson.optJSONArray("furgones")
+                ?: JSONArray()
             for (i in 0 until arr.length()) {
                 val item = arr.getJSONObject(i)
                 list.add(
@@ -233,6 +295,7 @@ class ScreensApiService {
                         id = item.optString("id"),
                         plate = item.optString("plate"),
                         brand = item.optString("brand", "").takeIf { s -> s.isNotBlank() },
+                        model = item.optString("model", "").takeIf { s -> s.isNotBlank() },
                     )
                 )
             }
@@ -247,15 +310,18 @@ class ScreensApiService {
     suspend fun updateAssociatedFurgon(
         baseUrl: String,
         deviceToken: String?,
-        furgonId: String,
+        furgonId: String? = null,
+        plate: String? = null,
+        deviceId: String? = null,
     ): Result<FurgonInfo> = withContext(Dispatchers.IO) {
         try {
             val endpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/furgon"
             val body = JSONObject().apply {
-                put("furgon_id", furgonId)
+                if (!furgonId.isNullOrBlank()) put("furgon_id", furgonId)
+                if (!plate.isNullOrBlank()) put("plate", plate)
             }
 
-            val responseJson = executePatch(endpoint, body.toString(), deviceToken)
+            val responseJson = executePatch(endpoint, body.toString(), deviceToken, deviceId)
             val furgonObj = responseJson.optJSONObject("furgon") ?: responseJson
             val furgon = FurgonInfo(
                 id = furgonObj.optString("id"),
@@ -275,6 +341,7 @@ class ScreensApiService {
         isCharging: Boolean,
         networkType: String,
         appVersion: String,
+        deviceId: String? = null,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val endpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/ping"
@@ -285,7 +352,7 @@ class ScreensApiService {
                 put("app_version", appVersion)
             }
 
-            executePost(endpoint, body.toString(), deviceToken)
+            executePost(endpoint, body.toString(), deviceToken, deviceId)
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(tag, "sendPing error: ${e.message}")
@@ -296,11 +363,12 @@ class ScreensApiService {
     suspend fun unpairDevice(
         baseUrl: String,
         deviceToken: String?,
+        deviceId: String? = null,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val endpoint = "${cleanBaseUrl(baseUrl)}/api/v1/screens/unpair"
             val body = JSONObject()
-            executePost(endpoint, body.toString(), deviceToken)
+            executePost(endpoint, body.toString(), deviceToken, deviceId)
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(tag, "unpairDevice error: ${e.message}")
@@ -308,12 +376,22 @@ class ScreensApiService {
         }
     }
 
-    private fun executePost(endpoint: String, jsonBody: String, authBearer: String? = null): JSONObject {
-        return executeHttp("POST", endpoint, jsonBody, authBearer)
+    private fun executePost(
+        endpoint: String,
+        jsonBody: String,
+        authBearer: String? = null,
+        deviceIdHeader: String? = null,
+    ): JSONObject {
+        return executeHttp("POST", endpoint, jsonBody, authBearer, deviceIdHeader)
     }
 
-    private fun executePatch(endpoint: String, jsonBody: String, authBearer: String? = null): JSONObject {
-        return executeHttp("PATCH", endpoint, jsonBody, authBearer)
+    private fun executePatch(
+        endpoint: String,
+        jsonBody: String,
+        authBearer: String? = null,
+        deviceIdHeader: String? = null,
+    ): JSONObject {
+        return executeHttp("PATCH", endpoint, jsonBody, authBearer, deviceIdHeader)
     }
 
     private fun executeGet(endpoint: String, authBearer: String? = null, deviceIdHeader: String? = null): JSONObject {

@@ -41,6 +41,7 @@ class ModbusPollingCoordinator(
     private val alarmaRegistroDao: AlarmaRegistroDao,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val gpsLocationTracker: GpsLocationTracker? = null,
 ) {
     private val tag = "ModbusPollingCoordinator"
     private var pollingJob: Job? = null
@@ -54,6 +55,13 @@ class ModbusPollingCoordinator(
         pollingJob = scope.launch(ioDispatcher) {
             Log.i(tag, "Starting continuous Modbus polling and SQLite persistence loop...")
             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+            // Reactive collector for instant alarm change detection and SQLite recording
+            launch {
+                modbusClient.alarmasActivas.collect { activeNames ->
+                    evaluateAlarms(dateFormat.format(Date()), activeNames)
+                }
+            }
 
             while (isActive) {
                 try {
@@ -76,15 +84,15 @@ class ModbusPollingCoordinator(
                             temperatura2 = t2 ?: 0.0,
                             humedad = hum ?: 0.0,
                             tension = tension ?: 0.0,
-                            estadoEnvio = if (isMqttConnected) "Enviado" else "Pendiente",
                         )
 
                         // 1. Persist to local SQLite database
                         registrosRepository.saveRegistro(registro)
-                        Log.d(tag, "Saved telemetry record to SQLite: T1=$t1, T2=$t2, Hum=$hum, Tension=$tension, Estado=${registro.estadoEnvio}")
+                        Log.d(tag, "Saved telemetry record to SQLite: T1=$t1, T2=$t2, Hum=$hum, Tension=$tension")
 
-                        // 2. Transmit via MQTT outbox coordinator
-                        telemetryMqttCoordinator.enqueueVariableRegistro(registro)
+                        // 2. Transmit via MQTT outbox coordinator with current GPS location
+                        val loc = gpsLocationTracker?.currentLocation?.value
+                        telemetryMqttCoordinator.enqueueVariableRegistro(registro, loc)
                     } else if (!isConnected) {
                         Log.v(tag, "Modbus disconnected: skipping SQLite persistence to avoid recording zero/stale values.")
                     }
@@ -105,7 +113,10 @@ class ModbusPollingCoordinator(
         }
     }
 
-    private suspend fun evaluateAlarms(currentTimestamp: String) {
+    private suspend fun evaluateAlarms(
+        currentTimestamp: String,
+        activeNames: List<String> = modbusClient.alarmasActivas.value
+    ) {
         try {
             // 1. Ensure Catalog Exists
             if (alarmaDao.getCount() == 0) {
@@ -115,14 +126,36 @@ class ModbusPollingCoordinator(
                 alarmaDao.insertAll(catalog)
             }
 
-            // 2. Fetch Active Alarms from PLC (List of string names)
-            val activeNames = modbusClient.alarmasActivas.value
             val idVehiculo = 1
             val idViaje = 1
 
-            // 3. Map names to AlarmaEntity to get IDs
+            // 2. Fetch all defined alarms from DB
             val dbAlarmas = alarmaDao.getAll()
-            val activeAlarmIds = dbAlarmas.filter { activeNames.contains(it.alarma) }.map { it.idAlarma }.toSet()
+
+            // 3. Robust matching between active alarm names and DB Alarmas (IDs 1..11)
+            val activeAlarmIds = mutableSetOf<Int>()
+            for (active in activeNames) {
+                val clean = active.trim().lowercase()
+                val matched = dbAlarmas.find { dbA ->
+                    val dbName = dbA.alarma?.trim()?.lowercase() ?: ""
+                    val dbTag = dbA.tag?.trim()?.lowercase() ?: ""
+                    dbName == clean || dbTag == clean ||
+                    (clean.contains("energia") && dbName.contains("energia")) ||
+                    (clean.contains("zona 1") && dbName.contains("zona 1")) ||
+                    (clean.contains("zona 2") && dbName.contains("zona 2")) ||
+                    (clean.contains("zona 3") && dbName.contains("zona 3")) ||
+                    (clean.contains("zona 4") && dbName.contains("zona 4")) ||
+                    (clean.contains("zona 5") && dbName.contains("zona 5")) ||
+                    (clean.contains("zona 6") && dbName.contains("zona 6")) ||
+                    ((clean.contains("humifica") || clean.contains("pulverizador")) && dbName.contains("humifica")) ||
+                    (clean.contains("damper") && dbName.contains("damper")) ||
+                    ((clean.contains("calefaccion") || clean.contains("calefacción")) && dbName.contains("calefaccion")) ||
+                    ((clean.contains("agua") || clean.contains("tension") || clean.contains("tensión")) && dbName.contains("agua"))
+                }
+                if (matched != null) {
+                    activeAlarmIds.add(matched.idAlarma)
+                }
+            }
 
             // 4. Fetch currently open alarms from DB (Estado = 'Activa')
             val historicalAlarmas = alarmaRegistroDao.getByVehiculoAndViaje(idVehiculo, idViaje)

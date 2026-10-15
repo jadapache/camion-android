@@ -37,6 +37,9 @@ class CamionViewModelFactory(
                 connectModbusUseCase = appContainer.connectModbusUseCase,
                 disconnectModbusUseCase = appContainer.disconnectModbusUseCase,
                 appConfigRepository = appContainer.appConfigRepository,
+                updateTruckPlateUseCase = appContainer.updateTruckPlateUseCase,
+                devicePairingRepository = appContainer.devicePairingRepository,
+                vehiculoDao = appContainer.vehiculoDao,
             ) as T
 
             ParametrosViewModel::class -> ParametrosViewModel(
@@ -51,17 +54,14 @@ class CamionViewModelFactory(
                 exportRegistrosCsvUseCase = appContainer.exportRegistrosCsvUseCase,
                 buildTelemetryPayloadUseCase = appContainer.buildTelemetryPayloadUseCase,
                 appConfigRepository = appContainer.appConfigRepository,
-                variableRegistroDao = appContainer.database.variableRegistroDao(),
+                getRegistrosPagedUseCase = appContainer.getRegistrosPagedUseCase,
             ) as T
 
             AlarmasRegistrosViewModel::class -> AlarmasRegistrosViewModel(
-                observeAlarmasRegistrosUseCase = ObserveAlarmasRegistrosUseCase(
-                    alarmaRegistroRepository = AlarmaRegistroRepositoryImpl(
-                        appContainer.database.alarmaRegistroDao(),
-                        appContainer.database.alarmaDao()
-                    )
-                ),
-                deviceIdStr = "" // Could fetch from config repo later
+                observeAlarmasRegistrosUseCase = appContainer.observeAlarmasRegistrosUseCase,
+                clearAllAlarmasRegistrosUseCase = appContainer.clearAllAlarmasRegistrosUseCase,
+                exportAlarmasCsvUseCase = appContainer.exportAlarmasCsvUseCase,
+                deviceIdStr = ""
             ) as T
 
             ConfigViewModel::class -> ConfigViewModel(
@@ -72,6 +72,7 @@ class CamionViewModelFactory(
                 pairDeviceUseCase = appContainer.pairDeviceUseCase,
                 connectModbusUseCase = appContainer.connectModbusUseCase,
                 updateTruckPlateUseCase = appContainer.updateTruckPlateUseCase,
+                appConfigRepository = appContainer.appConfigRepository,
             ) as T
 
             SimulationViewModel::class -> SimulationViewModel(

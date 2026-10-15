@@ -1,46 +1,34 @@
 package com.pronavicola.camion.domain.model
 
-import com.pronavicola.camion.data.local.entity.TrazasUbicacionEntity
+import com.pronavicola.camion.data.local.entity.UbicacionEntity
 
 data class GpsLocation(
-    val latitude: Double,
-    val longitude: Double,
-    val altitude: Double? = null,
-    val accuracy: Float? = null,
-    val speed: Float? = null,
-    val timestamp: Long = System.currentTimeMillis()
+    val latitud: Double,
+    val longitud: Double,
+    val altitud: Double? = null,
+    val precision: Float? = null,
+    val velocidad: Float? = null,
+    val marcaTiempo: Long = System.currentTimeMillis(),
 ) {
     fun isValid(): Boolean {
-        return latitude in -90.0..90.0 && longitude in -180.0..180.0
+        return latitud in -90.0..90.0 && longitud in -180.0..180.0
     }
 
-    fun toTrazasUbicacionEntity(deviceId: String): TrazasUbicacionEntity {
-        return TrazasUbicacionEntity(
+    fun toUbicacionEntity(
+        idVehiculo: Int,
+        deviceId: String,
+        idUbicacion: Long = 0,
+    ): UbicacionEntity {
+        return UbicacionEntity(
+            idVehiculo = idVehiculo,
+            idUbicacion = idUbicacion,
             idDispositivo = deviceId,
-            fechaHora = timestamp,
-            latitud = latitude,
-            longitud = longitude,
-            altitud = altitude,
-            precision = accuracy,
-            velocidad = speed
+            marcaTiempo = marcaTiempo,
+            latitud = latitud,
+            longitud = longitud,
+            altitud = altitud,
+            precision = precision,
+            velocidad = velocidad,
         )
-    }
-}
-
-data class GpsLocationPayload(
-    val device_id: String,
-    val message_id: String,
-    val timestamp: Long,
-    val latitude: Double,
-    val longitude: Double,
-    val altitude: Double? = null,
-    val accuracy: Float? = null,
-    val speed: Float? = null
-) {
-    fun toJson(): String {
-        val altStr = altitude?.toString() ?: "null"
-        val accStr = accuracy?.toString() ?: "null"
-        val spdStr = speed?.toString() ?: "null"
-        return """{"device_id":"$device_id","message_id":"$message_id","timestamp":$timestamp,"latitude":$latitude,"longitude":$longitude,"altitude":$altStr,"accuracy":$accStr,"speed":$spdStr}"""
     }
 }
