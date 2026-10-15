@@ -57,6 +57,9 @@ kotlin {
                 // MQTT Client (Pure Java SE, runs on Android and JVM Desktop)
                 implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 
+                // Paging KMP
+                implementation("androidx.paging:paging-common:3.3.6")
+
                 // JSON
                 implementation("org.json:json:20260814")
             }
@@ -72,6 +75,10 @@ kotlin {
                 implementation("androidx.core:core-ktx:1.19.1")
                 implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
                 implementation("androidx.compose.ui:ui-tooling:1.12.1")
+                implementation("com.google.android.gms:play-services-location:21.3.0")
+                implementation("androidx.work:work-runtime-ktx:2.10.0")
+                implementation("androidx.paging:paging-runtime:3.3.6")
+                implementation("androidx.paging:paging-compose:3.3.6")
             }
         }
         val desktopMain by getting {

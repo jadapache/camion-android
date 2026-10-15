@@ -32,7 +32,7 @@ class OutboxQueueManager(
 ) {
     private val tag = "OutboxQueueManager"
     private val drainMutex = Mutex()
-    private var drainJob: Job? = null
+    private var drainingJob: Job? = null
 
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
@@ -74,9 +74,17 @@ class OutboxQueueManager(
 
     fun getPendingCount(): Int = _pendingCount.value
 
-    fun triggerDrain() {
+    private suspend fun updatePendingCount() {
+        try {
+            _pendingCount.value = bandejaSalidaMqttDao.getPendingCount()
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to read pending count: ${e.message}")
+        }
+    }
+
+    fun enqueue(topic: String, payload: String, qos: Int = 1, messageId: String = UUID.randomUUID().toString()) {
         scope.launch(ioDispatcher) {
-            drainQueue()
+            enqueueSuspend(topic, payload, qos, messageId)
         }
     }
 
@@ -97,6 +105,12 @@ class OutboxQueueManager(
                 }
                 delay(5000L)
             }
+
+            if (mqttClientManager.isConnected.value) {
+                startDraining()
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to enqueue message to outbox: ${e.message}", e)
         }
     }
 
@@ -133,8 +147,49 @@ class OutboxQueueManager(
         } finally {
             refreshPendingCount()
             drainMutex.unlock()
+            Log.i(tag, "Outbox queue drain finished, total sent: $sentCount")
         }
         return sentCount
+    }
+
+    private suspend fun processMessage(message: BandejaSalidaMqttEntity): Boolean {
+        val now = System.currentTimeMillis()
+        return try {
+            val result = mqttClientManager.publish(message.topico, message.payload, message.qos)
+            if (result.isSuccess) {
+                bandejaSalidaMqttDao.deleteById(message.id)
+                Log.i(tag, "Message published and removed from outbox: ${message.topico}, messageId=${message.idMensaje}")
+                true
+            } else {
+                val newRetryCount = message.reintentos + 1
+                val errorMsg = result.exceptionOrNull()?.message ?: "Publish failed"
+                bandejaSalidaMqttDao.updateRetryInfo(
+                    id = message.id,
+                    reintentos = newRetryCount,
+                    timestamp = now,
+                    error = errorMsg
+                )
+                Log.w(tag, "Publish failed for message ${message.idMensaje}, retryCount=$newRetryCount: $errorMsg")
+                false
+            }
+        } catch (e: Exception) {
+            val newRetryCount = message.reintentos + 1
+            bandejaSalidaMqttDao.updateRetryInfo(
+                id = message.id,
+                reintentos = newRetryCount,
+                timestamp = now,
+                error = e.message
+            )
+            Log.e(tag, "Exception publishing outbox message ${message.idMensaje}: ${e.message}", e)
+            false
+        }
+    }
+
+    fun calculateBackoff(retryCount: Int): Long {
+        val exponentialDelay = (INITIAL_BACKOFF_MS * (1 shl retryCount.coerceAtMost(10))).coerceAtMost(MAX_BACKOFF_MS)
+        val jitterRange = (exponentialDelay * JITTER_PERCENT).toLong()
+        val jitter = if (jitterRange > 0) ((Random.nextDouble() * 2 * jitterRange) - jitterRange).toLong() else 0L
+        return (exponentialDelay + jitter).coerceIn(0L, MAX_BACKOFF_MS)
     }
 }
 

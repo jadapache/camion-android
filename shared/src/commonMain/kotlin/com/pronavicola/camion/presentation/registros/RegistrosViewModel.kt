@@ -2,6 +2,7 @@ package com.pronavicola.camion.presentation.registros
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pronavicola.camion.data.local.dao.VariableRegistroDao
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.domain.model.SessionUser
 import com.pronavicola.camion.domain.repository.AppConfigRepository
@@ -33,6 +34,8 @@ data class RegistrosUiState(
     val payloadJsonPreview: String? = null,
     val statusMessage: String? = null,
     val isSending: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val canLoadMore: Boolean = true,
     val deviceId: String = "ABC123",
     val currentPage: Int = 1,
     val pageSize: Int = 25,
@@ -128,6 +131,10 @@ class RegistrosViewModel(
 
     private val _uiState = MutableStateFlow(RegistrosUiState())
     val uiState: StateFlow<RegistrosUiState> = _uiState.asStateFlow()
+
+    private var currentPage = 0
+    private val pageSize = 50
+    private var isLastPageReached = false
 
     init {
         viewModelScope.launch {

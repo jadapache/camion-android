@@ -84,6 +84,11 @@ class CamionViewModelFactory(
                 appConfigRepository = appContainer.appConfigRepository,
             ) as T
 
+            com.pronavicola.camion.presentation.config.TruckAssignmentViewModel::class -> com.pronavicola.camion.presentation.config.TruckAssignmentViewModel(
+                screensApiService = appContainer.screensApiService,
+                appConfigRepository = appContainer.appConfigRepository
+            ) as T
+
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.simpleName}")
         }
     }

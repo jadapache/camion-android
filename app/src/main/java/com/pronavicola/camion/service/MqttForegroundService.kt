@@ -17,7 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.pronavicola.camion.CamionApplication
 import com.pronavicola.camion.MainActivity
-import com.pronavicola.camion.R
+import com.pronavicola.camion.domain.model.MqttConnectionStatus
 import com.pronavicola.camion.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,9 +30,10 @@ import java.util.Locale
 
 /**
  * Enterprise Android Foreground Service ensuring continuous 24/7 background telemetry:
- * 1. Holds a partial WakeLock to prevent CPU sleep when screen is OFF.
- * 2. Continuously samples Modbus PLC data and records VariableRegistroEntity in SQLite.
- * 3. Transmits telemetry to EMQX MQTT broker and synchronizes offline Outbox buffer.
+ * 1. Holds a partial WakeLock during MQTT & telemetry operations.
+ * 2. Runs GPS tracking and Modbus PLC data collection.
+ * 3. Transmits telemetry & GPS to EMQX MQTT broker and synchronizes offline Outbox buffer.
+ * 4. Adapts frequency dynamically according to network connectivity (WiFi vs Cellular).
  */
 class MqttForegroundService : Service() {
 
@@ -75,6 +76,7 @@ class MqttForegroundService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var wakeLock: PowerManager.WakeLock? = null
     private var statusCollectorJob: Job? = null
+    private var networkMonitor: NetworkConnectivityMonitor? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -171,7 +173,6 @@ class MqttForegroundService : Service() {
                     }
                     if (pending > 0) append(" | Pendientes: $pending")
                 }
-                updateNotification(statusText)
             }
         }
     }
@@ -235,7 +236,8 @@ class MqttForegroundService : Service() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        networkMonitor?.stopMonitoring()
+        networkMonitor = null
         statusCollectorJob?.cancel()
         serviceScope.cancel()
 
@@ -248,6 +250,7 @@ class MqttForegroundService : Service() {
         }
 
         Log.i(TAG, "MqttForegroundService destroyed")
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

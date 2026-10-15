@@ -4,6 +4,9 @@ interface AppConfigRepository {
     suspend fun getDeviceId(): String?
     suspend fun saveDeviceId(id: String)
 
+    suspend fun getFurgonId(): String?
+    suspend fun saveFurgonId(id: String)
+
     suspend fun getFurgonPlate(): String?
     suspend fun saveFurgonPlate(plate: String)
 
@@ -34,6 +37,9 @@ interface AppConfigRepository {
     suspend fun getDeviceToken(): String?
     suspend fun saveDeviceToken(token: String)
 
+    suspend fun getTokenExpiry(): Long?
+    suspend fun saveTokenExpiry(expiry: Long)
+
     suspend fun getPairingCode(): String?
     suspend fun savePairingCode(code: String)
 
@@ -48,4 +54,11 @@ interface AppConfigRepository {
 
     suspend fun getModbusSimulationEnabled(): Boolean
     suspend fun saveModbusSimulationEnabled(enabled: Boolean)
+
+    // Dynamic key-value access helpers
+    suspend fun getString(key: String): String?
+    suspend fun putString(key: String, value: String)
+    suspend fun getLong(key: String): Long?
+    suspend fun putLong(key: String, value: Long)
+    suspend fun remove(key: String)
 }

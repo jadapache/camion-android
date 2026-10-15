@@ -4,11 +4,15 @@ import androidx.room.ConstructedBy
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
+import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
 import com.pronavicola.camion.data.local.dao.AlarmaDao
 import com.pronavicola.camion.data.local.dao.AlarmaRegistroDao
 import com.pronavicola.camion.data.local.dao.AppConfigDao
 import com.pronavicola.camion.data.local.dao.BuzonMqttDao
 import com.pronavicola.camion.data.local.dao.DefinicionDao
+import com.pronavicola.camion.data.local.dao.BandejaSalidaMqttDao
 import com.pronavicola.camion.data.local.dao.ParametroDao
 import com.pronavicola.camion.data.local.dao.PerfilDao
 import com.pronavicola.camion.data.local.dao.UbicacionDao
@@ -30,6 +34,91 @@ import com.pronavicola.camion.data.local.entity.VariableEntity
 import com.pronavicola.camion.data.local.entity.VariableRegistroEntity
 import com.pronavicola.camion.data.local.entity.VariablesRegistrosEntity
 import com.pronavicola.camion.data.local.entity.VehiculoEntity
+
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("""
+            CREATE TABLE IF NOT EXISTS TrazasUbicacion (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                IdDispositivo TEXT NOT NULL,
+                FechaHora INTEGER NOT NULL,
+                Latitud REAL NOT NULL,
+                Longitud REAL NOT NULL,
+                Altitud REAL,
+                Precision REAL,
+                Velocidad REAL,
+                FOREIGN KEY(IdDispositivo) REFERENCES AppConfig(Clave) ON DELETE CASCADE
+            )
+        """.trimIndent())
+
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_TrazasUbicacion_IdDispositivo ON TrazasUbicacion(IdDispositivo)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_TrazasUbicacion_FechaHora ON TrazasUbicacion(FechaHora)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_TrazasUbicacion_IdDispositivo_FechaHora ON TrazasUbicacion(IdDispositivo, FechaHora)")
+
+        connection.execSQL("""
+            CREATE TABLE IF NOT EXISTS BandejaSalidaMqtt (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                IdMensaje TEXT NOT NULL,
+                Topico TEXT NOT NULL,
+                Payload TEXT NOT NULL,
+                Qos INTEGER NOT NULL,
+                FechaHora INTEGER NOT NULL,
+                Reintentos INTEGER NOT NULL DEFAULT 0,
+                Estado TEXT NOT NULL DEFAULT 'PENDIENTE',
+                UltimoReintento INTEGER,
+                MensajeError TEXT
+            )
+        """.trimIndent())
+
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_BandejaSalidaMqtt_FechaHora ON BandejaSalidaMqtt(FechaHora)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_BandejaSalidaMqtt_Reintentos ON BandejaSalidaMqtt(Reintentos)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_BandejaSalidaMqtt_Estado ON BandejaSalidaMqtt(Estado)")
+    }
+}
+
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("DROP TABLE IF EXISTS LocationTraces")
+        connection.execSQL("DROP TABLE IF EXISTS MqttOutbox")
+
+        connection.execSQL("""
+            CREATE TABLE IF NOT EXISTS TrazasUbicacion (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                IdDispositivo TEXT NOT NULL,
+                FechaHora INTEGER NOT NULL,
+                Latitud REAL NOT NULL,
+                Longitud REAL NOT NULL,
+                Altitud REAL,
+                Precision REAL,
+                Velocidad REAL,
+                FOREIGN KEY(IdDispositivo) REFERENCES AppConfig(Clave) ON DELETE CASCADE
+            )
+        """.trimIndent())
+
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_TrazasUbicacion_IdDispositivo ON TrazasUbicacion(IdDispositivo)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_TrazasUbicacion_FechaHora ON TrazasUbicacion(FechaHora)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_TrazasUbicacion_IdDispositivo_FechaHora ON TrazasUbicacion(IdDispositivo, FechaHora)")
+
+        connection.execSQL("""
+            CREATE TABLE IF NOT EXISTS BandejaSalidaMqtt (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                IdMensaje TEXT NOT NULL,
+                Topico TEXT NOT NULL,
+                Payload TEXT NOT NULL,
+                Qos INTEGER NOT NULL,
+                FechaHora INTEGER NOT NULL,
+                Reintentos INTEGER NOT NULL DEFAULT 0,
+                Estado TEXT NOT NULL DEFAULT 'PENDIENTE',
+                UltimoReintento INTEGER,
+                MensajeError TEXT
+            )
+        """.trimIndent())
+
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_BandejaSalidaMqtt_FechaHora ON BandejaSalidaMqtt(FechaHora)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_BandejaSalidaMqtt_Reintentos ON BandejaSalidaMqtt(Reintentos)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_BandejaSalidaMqtt_Estado ON BandejaSalidaMqtt(Estado)")
+    }
+}
 
 @Database(
     entities = [

@@ -31,7 +31,7 @@ enum class ZoneStatus {
 }
 
 data class HmiState(
-    val idVehiculo: String = "ABC123",
+    val idVehiculo: String = "AAA123",
     val conectado: Boolean = false,
     val temperatura1: Double? = null,
     val temperatura2: Double? = null,

@@ -114,6 +114,10 @@ fun CamionApp(
         }
     }
 
+    LaunchedEffect(Unit) {
+        configViewModel.fetchAvailableFurgones()
+    }
+
     // Dynamic visible destinations based on role
     val visibleDestinations = remember(authState.currentUser) {
         val user = authState.currentUser

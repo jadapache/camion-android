@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 data class HmiUiState(
     val hmiState: HmiState = HmiState(),
     val deviceId: String = "ABC123",
-    val furgonPlate: String = "AAA000",
+    val furgonPlate: String = "AAA123",
     val historyPoints: List<HmiHistoryPoint> = emptyList(),
     val isConnecting: Boolean = false,
     val feedbackMessage: String? = null,

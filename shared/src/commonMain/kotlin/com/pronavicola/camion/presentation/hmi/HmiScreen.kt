@@ -30,6 +30,15 @@ import com.pronavicola.camion.domain.model.HmiHistoryPoint
 import com.pronavicola.camion.domain.model.HmiState
 import com.pronavicola.camion.domain.model.ZoneStatus
 import com.pronavicola.camion.presentation.theme.CamionColors
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.pronavicola.camion.data.remote.FurgonInfo
+import com.pronavicola.camion.presentation.config.TruckAssignmentDialog
 import com.pronavicola.camion.resources.*
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -142,6 +151,17 @@ private fun TruckHmiLayout(
                         )
                     }
                 }
+            }
+
+            if (showSelectDialog) {
+                TruckAssignmentDialog(
+                    availableFurgones = availableFurgones,
+                    onDismiss = { showSelectDialog = false },
+                    onSelectFurgon = { selectedFurgon ->
+                        onSelectPlate(selectedFurgon)
+                        showSelectDialog = false
+                    }
+                )
             }
 
             // Damper (Angled Green Bar in Front Section)

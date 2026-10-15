@@ -17,4 +17,7 @@ interface AppConfigDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun save(config: AppConfigEntity)
+
+    @Query("DELETE FROM AppConfig WHERE Clave = :clave")
+    suspend fun deleteByClave(clave: String)
 }

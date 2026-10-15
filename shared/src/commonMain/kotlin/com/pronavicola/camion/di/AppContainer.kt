@@ -151,6 +151,14 @@ class AppContainer(
         MqttClientManager(appScope)
     }
 
+    val trazasUbicacionDao by lazy {
+        database.trazasUbicacionDao()
+    }
+
+    val bandejaSalidaMqttDao by lazy {
+        database.bandejaSalidaMqttDao()
+    }
+
     val outboxQueueManager: OutboxQueueManager by lazy {
         OutboxQueueManager(
             mqttManager = mqttClientManager,
@@ -422,6 +430,10 @@ class AppContainer(
 
             // Start continuous sampling and SQLite persistence coordinator
             modbusPollingCoordinator.start()
+
+            // Start GPS tracking and enhanced MQTT coordinator
+            gpsLocationTracker.startTracking()
+            enhancedTelemetryMqttCoordinator.start()
         }
     }
 
@@ -435,6 +447,10 @@ class AppContainer(
         }
         modbusPollingCoordinator.stop()
         telemetryMqttCoordinator.stop()
+        enhancedTelemetryMqttCoordinator.stop()
+        appScope.launch {
+            gpsLocationTracker.stopTracking()
+        }
         mqttClientManager.stop()
         appScope.launch {
             modbusRepository.disconnect()
